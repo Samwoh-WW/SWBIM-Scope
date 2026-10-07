@@ -1,0 +1,50 @@
+# Browser automation test profiles and temporary directories
+temp_*/
+temp_*
+
+# Python caches and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Temporary logs and paths
+build_log.txt
+build_out.txt
+py_path.txt
+three_rev.txt
+
+# Scratch scripts and temporary test files
+scratch/
+test_*.py
+verify_*.py
+inspect_*.py
+check_*.py
+debug_*.py
+find_*.py
+trace_*.py
+who_refs_*.py
+apply_*.py
+compare_*.py
+count_*.py
+print_*.py
+analyze_*.py
+audit_*.py
+capture_*.py
+crop_*.py
+extract_*.py
+list_*.py
+query_*.py
+sim_*.py
+run_csg_test.py
+prepare_node_test.py
+read_lines.py
+
+# Temporary test images and test HTML
+*.png
+test_ff.html
+
+# Operating System & IDE artifacts
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
