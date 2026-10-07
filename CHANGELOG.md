@@ -13,9 +13,9 @@ This document records all formal version iterations and major changes of SWBIMSc
 
 ## 项目开发耗时统计 / Development Time Metrics
 
-> ⏱️ **项目累计总工时 / Total Active Development Time**: **37 小时 28 分钟 (37.48 Hours)**  
-> 📅 **自然时间跨度 / Total Calendar Span**: **7 天 23 小时 16 分钟** (2026-09-29 22:17 至 2026-10-07 21:33)  
-> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **16,828 Steps** (跨 16 个活跃开发会话 Sprint)  
+> ⏱️ **项目累计总工时 / Total Active Development Time**: **37 小时 29 分钟 (37.49 Hours)**  
+> 📅 **自然时间跨度 / Total Calendar Span**: **7 天 23 小时 16 分钟** (2026-09-29 22:17 至 2026-10-07 21:34)  
+> 🔢 **累计交互与执行步骤 / Total Engineering Steps**: **16,836 Steps** (跨 16 个活跃开发会话 Sprint)  
 > 🔄 **更新机制 / Update Policy**: 每次版本构建打包发布时基于真实日志自动重新精算累计工时。
 
 ### 阶段与每日工时分解 / Daily Breakdown
@@ -29,7 +29,7 @@ This document records all formal version iterations and major changes of SWBIMSc
 | **2026-10-04** | 10:02~10:34, 19:23~22:34 (共 3 个时段) | 9h 31m (9.52h) | 正交/透视切换、NSEW立面图、50步视图撤销重做、右键菜单保留选择、10%微光悬停 / Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover |
 | **2026-10-05** | 19:04~00:27 | 5h 23m (5.38h) | 左右面板原地折叠、纯度高亮、CAD标准双向框选、光标轴心环视、底部栏内阴影 / Stationary panels, pure highlight, CAD box selection, pivot orbit, bottom shadow |
 | **2026-10-06** | 20:29~21:12 | 0h 43m (0.72h) | 多格式模型副标题与元数据档案全局联动、FBX加载与双语切换加固 / Multi-format subtitle & metadata sync, FBX robust loader, bilingual toggle sync |
-| **2026-10-07** | 18:43~21:33 | 2h 49m (2.83h) | 功能迭代与持续优化 / Feature development |
+| **2026-10-07** | 18:43~21:34 | 2h 50m (2.84h) | 功能迭代与持续优化 / Feature development |
 ---
 
 ## [v1.2610072000] - 2026-10-07 20:00
