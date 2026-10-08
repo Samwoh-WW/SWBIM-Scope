@@ -10,9 +10,9 @@ This document records all formal version iterations and major changes of SWBIM S
 
 ## Development Time Metrics
 
-> ⏱️ **Total Active Development Time**: **37 Hours 56 Minutes (37.94 Hours)**  
-> 📅 **Total Calendar Span**: **7 Days 23 Hours 43 Minutes** (2026-09-29 22:17 to 2026-10-07 22:01)  
-> 🔢 **Total Engineering Steps**: **16,978 Steps** (across 16 active development sprints)  
+> ⏱️ **Total Active Development Time**: **38 Hours 09 Minutes (38.16 Hours)**  
+> 📅 **Total Calendar Span**: **8 Days 15 Hours 15 Minutes** (2026-09-29 22:17 to 2026-10-08 13:32)  
+> 🔢 **Total Engineering Steps**: **17,149 Steps** (across 18 active development sprints)  
 > 🔄 **Update Policy**: Recalculated automatically from active development telemetry logs upon every distribution build.
 
 ### Daily Breakdown
@@ -26,7 +26,8 @@ This document records all formal version iterations and major changes of SWBIM S
 | **2026-10-04** | 10:02~10:34, 19:23~22:34 (3 sessions) | 9h 31m (9.52h) | Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover |
 | **2026-10-05** | 19:04~00:27 | 5h 23m (5.38h) | Stationary panels, pure highlight, CAD box selection, pivot orbit, bottom shadow |
 | **2026-10-06** | 20:29~21:12 | 0h 43m (0.72h) | Multi-format subtitle & metadata sync, FBX robust loader, bilingual toggle sync |
-| **2026-10-07** | 18:43~22:01 | 3h 17m (3.30h) | Feature development |
+| **2026-10-07** | 18:43~22:04, 23:03~23:05 | 3h 23m (3.39h) | Feature development |
+| **2026-10-08** | 13:25~13:32 | 0h 07m (0.13h) | Feature development |
 
 ---
 
