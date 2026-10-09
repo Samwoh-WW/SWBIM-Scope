@@ -10,9 +10,9 @@ This document records all formal version iterations and major changes of SWBIM S
 
 ## Development Time Metrics
 
-> ⏱️ **Total Active Development Time**: **39 Hours 15 Minutes (39.26 Hours)**  
-> 📅 **Total Calendar Span**: **10 Days 0 Hours 16 Minutes** (2026-09-29 22:17 to 2026-10-09 22:34)  
-> 🔢 **Total Engineering Steps**: **17,530 Steps** (across 21 active development sprints)  
+> ⏱️ **Total Active Development Time**: **39 Hours 35 Minutes (39.59 Hours)**  
+> 📅 **Total Calendar Span**: **10 Days 0 Hours 36 Minutes** (2026-09-29 22:17 to 2026-10-09 22:53)  
+> 🔢 **Total Engineering Steps**: **17,650 Steps** (across 21 active development sprints)  
 > 🔄 **Update Policy**: Recalculated automatically from active development telemetry logs upon every distribution build.
 
 ### Daily Breakdown
@@ -28,7 +28,7 @@ This document records all formal version iterations and major changes of SWBIM S
 | **2026-10-06** | 20:29~21:12 | 0h 43m (0.72h) | Multi-format subtitle & metadata sync, FBX robust loader, bilingual toggle sync |
 | **2026-10-07** | 18:43~22:04, 23:03~23:05 | 3h 23m (3.39h) | Feature development |
 | **2026-10-08** | 13:25~13:42, 21:37~21:46 (3 sessions) | 0h 46m (0.77h) | Feature development |
-| **2026-10-09** | 22:06~22:34 | 0h 27m (0.46h) | Feature development |
+| **2026-10-09** | 22:06~22:53 | 0h 47m (0.79h) | Feature development |
 
 ---
 
