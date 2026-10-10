@@ -30,6 +30,7 @@
 - **GLTF / GLB** (`.gltf`, `.glb`): Binary and JSON glTF 2.0 scenes with embedded textures and animations.
 - **FBX** (`.fbx`): Binary and ASCII FBX models with embedded/external textures (TGA/PNG/JPEG) and skeletal animations.
 - **COLLADA** (`.dae`): Native client-side parser for COLLADA 1.4/1.5, unit scale normalization, DoubleSide materials to prevent SketchUp back-face holes, and animation support.
+- **Wavefront OBJ** (`.obj`, `.mtl`): Pure client-side parsing for OBJ geometries and accompanying MTL material libraries, automatic PBR material upgrade, normal generation, DoubleSide rendering to prevent face-culling glitches, and multi-file drag-and-drop assembly.
 - **Procedural BIM Demo Model**: Built-in Modern Hillside Villa procedural template with active tropical solar illumination.
 
 ### 5. 🎯 Professional CAD & BIM Interaction
@@ -44,6 +45,16 @@
 - **Stationary Collapsible Panels & Overflow Shadow**: Stationary collapsible sidebars with smooth animations; mouse-wheel horizontal scrolling category bar with adaptive gradient edge shadow.
 - **Unified Multi-Format Subtitle & Metadata Sync**: Title bar subtitle dynamically synchronizes format version, authoring tool, units, and GIS coordinate reference with inspector profile.
 - **Bilingual Zero-Reload Localization**: Instant seamless language switching between English and Simplified Chinese.
+
+### 6. 🎛 Zero-Interruption Instant Load & Post-Import Live Tuning
+- **Zero-Friction Instant Loading UX**: Replaces cumbersome pre-import dialogs found in traditional CAD/DCC tools (such as 3ds Max/Blender) with an instant load workflow. Models render in milliseconds upon drag-and-drop, followed by intuitive post-import live adjustments directly in the inspector panel.
+- **Instant Coordinate & Orientation Tuning**: One-click `🔄 Flip Y-Up ↔ Z-Up` and `↷ Rotate 90°` in-place orientation correction, instantly realigning tilted or inverted models without re-exporting.
+- **Metric & Imperial Unit Scaling**: Instant one-click scale presets (`1:1`, `0.001` mm to m, `0.01` cm to m, `0.0254` inch to m) and custom scale multiplier input with auto-framing.
+- **Normal Smoothing & Shading Modes**: Seamless toggle between `✨ Smooth Normals` (custom smooth vertex normal recalculation) and `🔷 Flat Shading` for faceted mesh inspection.
+
+### 7. 🌲 Universal Dual-Mode Hybrid BIM Hierarchy Engine
+- **Cross-Format Smart BIM Classification**: Bridges the gap for general 3D formats (OBJ, DAE, FBX, GLTF) lacking IFC spatial hierarchies. Analyzes element naming tags and topological features to automatically classify discrete meshes into standard BIM structural disciplines (Walls, Columns, Slabs, Beams, Roofs, Doors, Windows, MEP, Furniture, etc.), enabling professional category-level isolation and batch visibility control.
+- **Dual-Mode Hierarchy Tree Parity**: Seamlessly toggles between "Smart BIM Structures" and "Native Node Elements Tree", combining discipline-level architectural decomposition with granular original mesh hierarchy exploration.
 
 ---
 
@@ -88,6 +99,8 @@ python sync_variant_b.py
 │   ├── GLTFLoader.js        # glTF loader
 │   ├── FBXLoader.js         # FBX loader
 │   ├── ColladaLoader.js     # Collada loader
+│   ├── OBJLoader.js         # OBJ loader
+│   ├── MTLLoader.js         # MTL material loader
 │   ├── fflate.min.js        # Fast decompression
 │   └── TGALoader.js         # TGA texture loader
 ├── build_viewer.py          # Single-file compiler & builder
