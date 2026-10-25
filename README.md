@@ -1,5 +1,7 @@
 # SWBIM Scope 🏗️
 
+> Recommend to install it as an PWA application, simpler UI, no internet required still
+
 > **A Pure Client-Side, 100% Offline Standalone Web BIM & 3D Architectural Viewer**  
 > Powered by Three.js • Zero Backend Dependency • Single-File Portable Distribution
 
@@ -40,7 +42,9 @@
 - **ACC Virtual Pivot Orbiting**: Smooth camera orbit anchored around the exact cursor hit surface point or element center.
 - **Interactive Sectioning & Stencil Capping**: Section Plane and 6-sided Section Box with 5° angle snapping gizmos; WebGL Stencil Buffer real-time solid capping with 45° golden architectural hatching and dark perimeter contours.
 - **Dynamic Solar Daylight Simulation**: Real-time astronomical solar azimuth and elevation angle calculations with interactive 24-hour daylight time slider.
-- **Precision 3D Measurement**: Raycast snapping to 3D vertices and planar surfaces, reporting Euclidean distance and orthogonal $\Delta X, \Delta Y, \Delta Z$ offsets.
+- **Precision 3D Measurement & CAD-Grade Dimensioning Matrix**: Comprehensive architectural measurement tools: ① "Two-Point Distance" computing 3D Euclidean distance and orthogonal $\Delta X, \Delta Y, \Delta Z$ offsets; ② "Single-Point Coordinate Measurement" placing 3D markers with dynamic SVG elbow leader lines reporting absolute $(X, Y, Z)$ coordinates and elevation with draggable repositioning; ③ "Planar Slope & Grade Analysis" projecting yellow steepest descent arrows and reporting slope ratios ($1:X$) and grade percentages; ④ "Smart Radius, Arc & Sphere Measurement" automatically detecting arc boundary loops (arcLoops) or fitting sphere curvature via local least-squares topology, convex/concave camera awareness, screen-space 10px constant pixel scaling, CAD-standard center marks (⨁), and sleek single-number value badges on dimension arrows (e.g., `R 75 mm` / `R 0.075 m`), with one-click copy and Shift+click delete.
+- **CAD-Grade Geometric Snapping Engine**: High-precision geometric snapping across all measurement tools, automatically snapping to vertices (Endpoint), edge midpoints (Midpoint), circle centers (Center ⨁), and nearest edge lines (Nearest ⧗) with standard CAD graphical glyphs.
+- **Progressive Web App (PWA) Offline Launch**: Integrated Web App Manifest and Service Worker offline caching, allowing one-click installation as a standalone desktop/mobile window app with full offline execution and native desktop fluidity.
 - **Universal 3D Animation Player Bar**: Floating capsule player for DAE, FBX, and GLTF with millisecond scrubbing, 0.5x-2.0x playback speeds, and multi-clip switching.
 - **Stationary Collapsible Panels & Overflow Shadow**: Stationary collapsible sidebars with smooth animations; mouse-wheel horizontal scrolling category bar with adaptive gradient edge shadow.
 - **Unified Multi-Format Subtitle & Metadata Sync**: Title bar subtitle dynamically synchronizes format version, authoring tool, units, and GIS coordinate reference with inspector profile.

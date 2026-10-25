@@ -10,9 +10,9 @@ This document records all formal version iterations and major changes of SWBIM S
 
 ## Development Time Metrics
 
-> ⏱️ **Total Active Development Time**: **43 Hours 58 Minutes (43.98 Hours)**  
-> 📅 **Total Calendar Span**: **10 Days 23 Hours 43 Minutes** (2026-09-29 22:17 to 2026-10-10 22:01)  
-> 🔢 **Total Engineering Steps**: **19,797 Steps** (across 22 active development sprints)  
+> ⏱️ **Total Active Development Time**: **48 Hours 06 Minutes (48.10 Hours)**  
+> 📅 **Total Calendar Span**: **11 Days 21 Hours 37 Minutes** (2026-09-29 22:17 to 2026-10-11 19:55)  
+> 🔢 **Total Engineering Steps**: **22,150 Steps** (across 25 active development sprints)  
 > 🔄 **Update Policy**: Recalculated automatically from active development telemetry logs upon every distribution build.
 
 ### Daily Breakdown
@@ -29,7 +29,30 @@ This document records all formal version iterations and major changes of SWBIM S
 | **2026-10-07** | 18:43~22:04, 23:03~23:05 | 3h 23m (3.39h) | Feature development |
 | **2026-10-08** | 13:25~13:42, 21:37~21:46 (3 sessions) | 0h 46m (0.77h) | Feature development |
 | **2026-10-09** | 22:06~01:14 | 3h 07m (3.13h) | Feature development |
-| **2026-10-10** | 19:58~22:01 | 2h 02m (2.05h) | Feature development |
+| **2026-10-10** | 19:58~22:21 | 2h 23m (2.39h) | Feature development |
+| **2026-10-11** | 00:31~01:54, 19:41~19:55 (3 sessions) | 3h 47m (3.78h) | Feature development |
+
+---
+
+## [v1.2610252230] - 2026-10-25 22:30
+
+### Smart Radius, Arc & Sphere Measurement System
+- **Arc Detection & Least-Squares Sphere Fitting**
+  1. **Arc Loop & Closed Circle Adaptive Detection**: Automatically inspects mesh geometric feature rcLoops, calculating ray-to-segment distances to snap onto circular perimeters, accurately computing 3D center coordinates, normal vectors, and radius.
+  2. **Local Least-Squares Curvature Sphere Fitting**: For spherical and double-curved geometries, queries 2-ring topological vertex neighborhoods and solves a 4x4 linear system via Gaussian elimination to determine optimal sphere center and radius with adaptive RMSE thresholds.
+  3. **Convex/Concave Awareness & Far-Side Inward Arrow**: Evaluates spatial alignment between surface normal and camera vector; for convex surfaces where centers lie inside/behind geometry, places solid dimension arrows outside pointing inward toward the contact point, accompanied by dashed extension lines to the hidden center.
+
+- **CAD-Standard Dimensions & Sleek Single-Number Value Badge**
+  1. **Screen-Space Pixel Scaling & Billboard Alignment**: Refactored the update guard to continuously lock measurement marker components to crisp, compact screen pixels (10px standard) across camera rotations, zooms, pans, and window resizes, eliminating oversized 1:1 meter-scale 3D meshes.
+  2. **CAD-Standard Center Mark (⨁)**: Anchors circle centers with standard crosshair ticks and center dot that dynamically billboard to face the camera, distinctly identifying center points without distracting oversized rings.
+  3. **Sleek Single-Number Value Badge on Arrow**: Replaces bulky card panels and redundant buttons with a single compact pill badge centered on the dimension arrow line (e.g., R 75 mm or R 0.075 m, responsive to active units); single click copies full radius/diameter/coordinates, Shift+click deletes.
+  4. **Liang-Barsky Clamping & Viewport Edge Protection**: Utilizes 2D Liang-Barsky line clipping to smoothly slide the dimension badge along the arrow within viewport bounds, preventing badges from clipping off-screen.
+
+- **3D Point Measurement, Slope Analysis & PWA Offline Support**
+  1. **3D Point Measurement & Elbow Leader Lines**: Click any geometry surface to anchor a 3D coordinate marker connected via dynamic SVG elbow leader lines to a compact card displaying absolute (X, Y, Z) coordinates and elevation, with drag-and-drop label repositioning.
+  2. **Steepest Descent Arrow & Surface Slope Readouts**: Extracts surface normals to project a vivid yellow arrow indicating steepest descent, reporting slope in engineering ratios (1:X) and grade percentages.
+  3. **CAD-Grade Geometric Snapping Engine**: Snaps to geometric vertices (Endpoint), edge midpoints (Midpoint), circle centers (Center ⨁), and nearest edge lines (Nearest ⧗) with AutoCAD-style graphical glyphs.
+  4. **Progressive Web App (PWA) Offline Launch**: Integrated manifest.json and Service Worker offline caching, allowing one-click installation as a standalone desktop/mobile app without network dependencies.
 
 ---
 

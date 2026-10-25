@@ -41,6 +41,9 @@ read_lines.py
 
 # Temporary test images and test HTML
 *.png
+!favicon.png
+!icon-192.png
+!icon-512.png
 test_ff.html
 
 # Operating System & IDE artifacts

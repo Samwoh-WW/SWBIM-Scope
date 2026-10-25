@@ -53,7 +53,7 @@ class ClippingEngine {
     this.activeDragGizmo = null;
     this.helpersVisible = true; // Visibility toggle for Section Plane & Box helpers and gizmos
     this.boxHelpersVisible = true; // Backwards compatibility alias
-    this.rotationSnap5Deg = false; // 5-degree angle snapping toggle
+    this.rotationSnap5Deg = true; // 5-degree angle snapping toggle (default ON)
     this.showCutawayWireframe = false; // Toggle to show architectural wireframe on cut-off side
     this.dragPlane = new THREE.Plane();
     this.dragStartHit = new THREE.Vector3();
@@ -109,15 +109,19 @@ class ClippingEngine {
     // Wireframe edges for cutting plane
     const planeEdgesGeo = new THREE.EdgesGeometry(planeGeo);
     this.planeEdgesMat = new THREE.LineBasicMaterial({
-      color: 0x0078ff,
+      color: 0x00ffff,
       linewidth: 2.5,
+      depthTest: false,
+      depthWrite: false,
       transparent: true,
-      opacity: 0.25
+      opacity: 1.0,
+      toneMapped: false
     });
     this.planeEdges = new THREE.LineSegments(
       planeEdgesGeo,
       this.planeEdgesMat
     );
+    this.planeEdges.renderOrder = 9998;
     this.planeEdges.userData = { isPlaneHelperMesh: true, isGizmo: true };
     this.planeEdges.raycast = () => {}; // Never pickable/selectable
     this.planeGroup.add(this.planeEdges);
@@ -127,6 +131,7 @@ class ClippingEngine {
     
     // Plane Gizmo Group (Scaled to 1/3 size with slender lines)
     this.planeGizmoGroup = new THREE.Group();
+    this.planeGizmoGroup.renderOrder = 9999;
     this.planeGizmoGroup.visible = false;
     this.planeGroup.add(this.planeGizmoGroup);
     this.initPlaneGizmo();
@@ -142,15 +147,19 @@ class ClippingEngine {
     const unitBoxGeo = new THREE.BoxGeometry(1, 1, 1);
     const boxEdgesGeo = new THREE.EdgesGeometry(unitBoxGeo);
     this.boxWireframeMat = new THREE.LineBasicMaterial({
-      color: 0x0078ff,
+      color: 0x00ffff,
       linewidth: 2.5,
+      depthTest: false,
+      depthWrite: false,
       transparent: true,
-      opacity: 0.25
+      opacity: 1.0,
+      toneMapped: false
     });
     this.boxWireframe = new THREE.LineSegments(
       boxEdgesGeo,
       this.boxWireframeMat
     );
+    this.boxWireframe.renderOrder = 9998;
     this.boxWireframe.userData = { isBoxHelper: true, isGizmo: true };
     this.boxWireframe.raycast = () => {}; // Never pickable/selectable
     this.boxGroup.add(this.boxWireframe);
@@ -182,8 +191,9 @@ class ClippingEngine {
       color: 0x0099ff,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.16,
-      depthWrite: false
+      opacity: 0.22,
+      depthWrite: false,
+      toneMapped: false
     });
     this.boxHoverFaceMesh = new THREE.Mesh(hoverPlaneGeo, this.boxHoverFaceMat);
     this.boxHoverFaceMesh.visible = false;
@@ -193,12 +203,19 @@ class ClippingEngine {
     
     // Box Gizmo Group (6 Face Outward Arrows with Midpoint Rotation Rings)
     this.boxGizmoGroup = new THREE.Group();
+    this.boxGizmoGroup.renderOrder = 9999;
     this.boxGroup.add(this.boxGizmoGroup);
     this.initBoxGizmo();
 
     // ====================================================
     // 3. DYNAMIC SECTION CAPPING & BOLD CUT CONTOURS
     // ====================================================
+    this.stencilRoot = new THREE.Group();
+    this.stencilRoot.visible = false;
+    this.stencilRoot.userData = { isStencilGroup: true, isGizmo: true };
+    this.stencilRoot.raycast = () => {};
+    this.scene.add(this.stencilRoot);
+
     this.cappingGroup = new THREE.Group();
     this.cappingGroup.visible = false;
     this.scene.add(this.cappingGroup);
@@ -216,7 +233,7 @@ class ClippingEngine {
   initPlaneGizmo() {
     // A. Normal Translation Arrow (slender: radius 0.04, length 1.2)
     this.planeArrowGroup = new THREE.Group();
-    this.planeArrowGroup.userData = { isGizmo: true, type: 'plane', part: 'translateNormal', baseColor: 0x0066ff };
+    this.planeArrowGroup.userData = { isGizmo: true, type: 'plane', part: 'translateNormal', baseColor: 0x0088ff };
     
     const stemGeo = new THREE.CylinderGeometry(0.04, 0.04, 1.2, 16);
     stemGeo.translate(0, 0.6, 0);
@@ -224,18 +241,21 @@ class ClippingEngine {
     coneGeo.translate(0, 1.35, 0);
     
     this.planeArrowMat = new THREE.MeshBasicMaterial({
-      color: 0x0066ff,
+      color: 0x0088ff,
       depthTest: false,
+      depthWrite: false,
       transparent: true,
       opacity: 1.0,
+      toneMapped: false,
       clippingPlanes: []
     });
-    this.planeArrowMat.renderOrder = 10000;
     
     const stemMesh = new THREE.Mesh(stemGeo, this.planeArrowMat);
-    stemMesh.userData = { isGizmo: true, type: 'plane', part: 'translateNormal', parentGroup: this.planeArrowGroup, _origColor: 0x0066ff };
+    stemMesh.renderOrder = 9999;
+    stemMesh.userData = { isGizmo: true, type: 'plane', part: 'translateNormal', parentGroup: this.planeArrowGroup, _origColor: 0x0088ff };
     const coneMesh = new THREE.Mesh(coneGeo, this.planeArrowMat);
-    coneMesh.userData = { isGizmo: true, type: 'plane', part: 'translateNormal', parentGroup: this.planeArrowGroup, _origColor: 0x0066ff };
+    coneMesh.renderOrder = 9999;
+    coneMesh.userData = { isGizmo: true, type: 'plane', part: 'translateNormal', parentGroup: this.planeArrowGroup, _origColor: 0x0088ff };
     this.planeArrowGroup.add(stemMesh);
     this.planeArrowGroup.add(coneMesh);
     
@@ -249,6 +269,7 @@ class ClippingEngine {
     
     // Default orient arrow towards cut-away side (local -Z for un-inverted Align Z)
     this.planeArrowGroup.rotation.x = -Math.PI / 2;
+    this.planeArrowGroup.renderOrder = 9999;
     this.planeGizmoGroup.add(this.planeArrowGroup);
     
     // B. Center Knob (slender: radius 0.18)
@@ -256,24 +277,28 @@ class ClippingEngine {
     const knobMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       depthTest: false,
+      depthWrite: false,
       transparent: true,
       opacity: 1.0,
+      toneMapped: false,
       clippingPlanes: []
     });
-    knobMat.renderOrder = 10000;
     this.planeCenterKnob = new THREE.Mesh(knobGeo, knobMat);
+    this.planeCenterKnob.renderOrder = 9999;
     this.planeCenterKnob.userData = { isGizmo: true, type: 'plane', part: 'translateCenter' };
     this.planeGizmoGroup.add(this.planeCenterKnob);
     
     // C. Thin Rotation Rings (radius ~0.95, tube ~0.025)
-    // 1. Pitch Ring (around local X axis) - Red
-    this.planeRotX = this.createRingHelper(0.95, 0.025, 0xff1744, 'plane', 'rotateX');
+    // 1. Pitch Ring (around local X axis) - Pure Saturated Red
+    this.planeRotX = this.createRingHelper(0.95, 0.025, 0xff0000, 'plane', 'rotateX');
     this.planeRotX.rotation.y = Math.PI / 2;
+    this.planeRotX.renderOrder = 9999;
     this.planeGizmoGroup.add(this.planeRotX);
     
-    // 2. Yaw Ring (around local Y axis) - Green
-    this.planeRotY = this.createRingHelper(0.95, 0.025, 0x00e676, 'plane', 'rotateY');
+    // 2. Yaw Ring (around local Y axis) - Pure Saturated Green
+    this.planeRotY = this.createRingHelper(0.95, 0.025, 0x00ff00, 'plane', 'rotateY');
     this.planeRotY.rotation.x = Math.PI / 2;
+    this.planeRotY.renderOrder = 9999;
     this.planeGizmoGroup.add(this.planeRotY);
   }
   
@@ -285,12 +310,12 @@ class ClippingEngine {
     
     // 6 Face Handles: +X/-X (Red East/West), +Y/-Y (Blue Height RL), +Z/-Z (Green Northing)
     const faceConfigs = [
-      { id: 'xPos', normal: new THREE.Vector3(1, 0, 0), color: 0xff1744, label: '+X East' },
-      { id: 'xNeg', normal: new THREE.Vector3(-1, 0, 0), color: 0xff1744, label: '-X West' },
-      { id: 'yPos', normal: new THREE.Vector3(0, 1, 0), color: 0x0066ff, label: '+Y Height Top' },
-      { id: 'yNeg', normal: new THREE.Vector3(0, -1, 0), color: 0x0066ff, label: '-Y Height Bottom' },
-      { id: 'zPos', normal: new THREE.Vector3(0, 0, 1), color: 0x00e676, label: '+Z Northing South' },
-      { id: 'zNeg', normal: new THREE.Vector3(0, 0, -1), color: 0x00e676, label: '-Z Northing North' }
+      { id: 'xPos', normal: new THREE.Vector3(1, 0, 0), color: 0xff0000, label: '+X East' },
+      { id: 'xNeg', normal: new THREE.Vector3(-1, 0, 0), color: 0xff0000, label: '-X West' },
+      { id: 'yPos', normal: new THREE.Vector3(0, 1, 0), color: 0x0088ff, label: '+Y Height Top' },
+      { id: 'yNeg', normal: new THREE.Vector3(0, -1, 0), color: 0x0088ff, label: '-Y Height Bottom' },
+      { id: 'zPos', normal: new THREE.Vector3(0, 0, 1), color: 0x00ff00, label: '+Z Northing South' },
+      { id: 'zNeg', normal: new THREE.Vector3(0, 0, -1), color: 0x00ff00, label: '-Z Northing North' }
     ];
     
     faceConfigs.forEach(cfg => {
@@ -303,6 +328,7 @@ class ClippingEngine {
   
   createFaceHandle(faceId, normal, colorHex, label) {
     const group = new THREE.Group();
+    group.renderOrder = 9999;
     group.userData = {
       isGizmo: true,
       type: 'box',
@@ -316,14 +342,16 @@ class ClippingEngine {
     const arrowMat = new THREE.MeshBasicMaterial({
       color: colorHex,
       depthTest: false,
+      depthWrite: false,
       transparent: true,
       opacity: 1.0,
+      toneMapped: false,
       clippingPlanes: []
     });
-    arrowMat.renderOrder = 10000;
     
     // 1. OUTWARD ARROW (perpendicular to face, pointing outward)
     const arrowGroup = new THREE.Group();
+    arrowGroup.renderOrder = 9999;
     arrowGroup.userData = {
       isGizmo: true,
       type: 'box',
@@ -338,6 +366,7 @@ class ClippingEngine {
     const stemGeo = new THREE.CylinderGeometry(0.12, 0.12, 2.0, 16);
     stemGeo.translate(0, 1.0, 0);
     const stemMesh = new THREE.Mesh(stemGeo, arrowMat);
+    stemMesh.renderOrder = 9999;
     stemMesh.userData = { isGizmo: true, type: 'box', part: 'faceArrow', face: faceId, parentGroup: arrowGroup, handleGroup: group };
     arrowGroup.add(stemMesh);
     
@@ -345,6 +374,7 @@ class ClippingEngine {
     const coneGeo = new THREE.ConeGeometry(0.34, 0.75, 16);
     coneGeo.translate(0, 2.375, 0);
     const coneMesh = new THREE.Mesh(coneGeo, arrowMat);
+    coneMesh.renderOrder = 9999;
     coneMesh.userData = { isGizmo: true, type: 'box', part: 'faceArrow', face: faceId, parentGroup: arrowGroup, handleGroup: group };
     arrowGroup.add(coneMesh);
     
@@ -367,31 +397,34 @@ class ClippingEngine {
     
     // 2. PERPENDICULAR ROTATION RING IN THE MIDDLE OF THE ARROW
     const ringGroup = new THREE.Group();
+    ringGroup.renderOrder = 9999;
     ringGroup.userData = {
       isGizmo: true,
       type: 'box',
       part: 'faceRotate',
       face: faceId,
       normal: normal.clone(),
-      baseColor: 0xffa800,
+      baseColor: 0xffaa00,
       label: `Rotate around ${label}`
     };
     ringGroup.position.set(0, 1.0, 0); // Positioned at exact midpoint of arrow shaft (y = 1.0)
     
     const ringMat = new THREE.MeshBasicMaterial({
-      color: 0xffa800, // Gold / Amber
+      color: 0xffaa00, // Vivid Gold / Amber
       depthTest: false,
+      depthWrite: false,
       transparent: true,
       opacity: 1.0,
+      toneMapped: false,
       clippingPlanes: []
     });
-    ringMat.renderOrder = 10000;
     
     const ringRadius = 0.92;
     const ringTube = 0.055;
     const ringGeo = new THREE.TorusGeometry(ringRadius, ringTube, 16, 48);
     ringGeo.rotateX(Math.PI / 2); // Perpendicular to arrow shaft
     const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+    ringMesh.renderOrder = 9999;
     ringMesh.userData = { isGizmo: true, type: 'box', part: 'faceRotate', face: faceId, parentGroup: ringGroup, handleGroup: group };
     ringGroup.add(ringMesh);
     
@@ -420,19 +453,22 @@ class ClippingEngine {
   
   createRingHelper(radius, tube, colorHex, gizmoType, partName) {
     const group = new THREE.Group();
+    group.renderOrder = 9999;
     group.userData = { isGizmo: true, type: gizmoType, part: partName, baseColor: colorHex };
     
     const mat = new THREE.MeshBasicMaterial({
       color: colorHex,
       depthTest: false,
+      depthWrite: false,
       transparent: true,
       opacity: 1.0,
+      toneMapped: false,
       clippingPlanes: []
     });
-    mat.renderOrder = 10000;
     
     const ringGeo = new THREE.TorusGeometry(radius, tube, 12, 48);
     const ringMesh = new THREE.Mesh(ringGeo, mat);
+    ringMesh.renderOrder = 9999;
     ringMesh.userData = { isGizmo: true, type: gizmoType, part: partName, parentGroup: group };
     group.add(ringMesh);
     
@@ -655,31 +691,52 @@ class ClippingEngine {
     return true;
   }
 
+  isMeshVisibleInHierarchy(mesh) {
+    let curr = mesh;
+    while (curr) {
+      if (!curr.visible) return false;
+      curr = curr.parent;
+    }
+    return Boolean(mesh && mesh.parent);
+  }
+
   setModel(model) {
     this.clearModel();
     this.activeModel = model;
     if (!model) return;
 
+    if (model.updateMatrixWorld) model.updateMatrixWorld(true);
+
     const solidMeshes = [];
     model.traverse(obj => {
       if (obj.isMesh && obj.geometry && this.isSolidMesh(obj)) {
+        obj.userData = obj.userData || {};
+        obj.userData._cachedWorldBox = new THREE.Box3().setFromObject(obj);
         solidMeshes.push(obj);
       }
     });
     this.solidMeshes = solidMeshes;
 
-    this.setupStencilGroups();
+    // Lazy creation: only build stencil helper meshes when sectioning is enabled
+    if (this.enabled) {
+      this.ensureStencilGroups(this.mode);
+    }
     this.update();
   }
 
   clearModel() {
     if (this.stencilGroups) {
       this.stencilGroups.forEach(entry => {
-        if (entry.parentMesh && entry.sGroup) {
-          entry.parentMesh.remove(entry.sGroup);
+        if (entry.sGroup) {
+          if (entry.sGroup.parent) entry.sGroup.parent.remove(entry.sGroup);
+          else if (entry.parentMesh) entry.parentMesh.remove(entry.sGroup);
         }
       });
       this.stencilGroups = [];
+    }
+    if (this.stencilRoot) {
+      this.stencilRoot.clear();
+      this.stencilRoot.visible = false;
     }
     if (this.solidMeshes) {
       this.solidMeshes.forEach(mesh => {
@@ -696,53 +753,94 @@ class ClippingEngine {
   }
 
   setupStencilGroups() {
-    if (!this.solidMeshes) return;
-    this.stencilGroups = [];
+    this.ensureStencilGroups(this.mode);
+  }
 
-    this.solidMeshes.forEach(mesh => {
-      const sGroup = new THREE.Group();
-      sGroup.userData = { isStencilGroup: true, isGizmo: true };
-      sGroup.raycast = () => {};
+  ensureStencilGroups(targetMode = this.mode) {
+    if (!this.solidMeshes || this.solidMeshes.length === 0) return;
+    if (!this.stencilGroups || this.stencilGroups.length !== this.solidMeshes.length) {
+      this.stencilGroups = [];
+      if (this.stencilRoot) this.stencilRoot.clear();
 
-      // 1. Single Plane pair
-      const pBack = new THREE.Mesh(mesh.geometry, this.planeStencilMatBack);
-      pBack.renderOrder = 1;
-      pBack.raycast = () => {};
-      pBack.userData = { isGizmo: true, isStencilHelper: true };
+      this.solidMeshes.forEach(mesh => {
+        const sGroup = new THREE.Group();
+        sGroup.userData = { isStencilGroup: true, isGizmo: true };
+        sGroup.raycast = () => {};
+        sGroup.matrixAutoUpdate = false;
+        sGroup.matrix.copy(mesh.matrixWorld);
+        sGroup.matrixWorld.copy(mesh.matrixWorld);
 
-      const pFront = new THREE.Mesh(mesh.geometry, this.planeStencilMatFront);
-      pFront.renderOrder = 1;
-      pFront.raycast = () => {};
-      pFront.userData = { isGizmo: true, isStencilHelper: true };
+        if (this.stencilRoot) {
+          this.stencilRoot.add(sGroup);
+        } else {
+          mesh.add(sGroup);
+        }
+        this.stencilGroups.push({ sGroup, planePair: null, boxPairs: null, parentMesh: mesh });
+      });
+    }
 
-      const planePair = new THREE.Group();
-      planePair.add(pBack);
-      planePair.add(pFront);
-      sGroup.add(planePair);
+    const needPlane = (targetMode === 'plane');
+    const needBox = (targetMode === 'box');
 
-      // 2. Box pairs (6 faces)
-      const boxPairs = [];
-      for (let k = 0; k < 6; k++) {
-        const bBack = new THREE.Mesh(mesh.geometry, this.boxStencilMatsBack[k]);
-        bBack.renderOrder = (k + 1) * 2 - 1; // 1, 3, 5, 7, 9, 11
-        bBack.raycast = () => {};
-        bBack.userData = { isGizmo: true, isStencilHelper: true };
+    for (let i = 0; i < this.stencilGroups.length; i++) {
+      const entry = this.stencilGroups[i];
+      const mesh = entry.parentMesh;
+      if (!mesh || !mesh.geometry) continue;
 
-        const bFront = new THREE.Mesh(mesh.geometry, this.boxStencilMatsFront[k]);
-        bFront.renderOrder = (k + 1) * 2 - 1;
-        bFront.raycast = () => {};
-        bFront.userData = { isGizmo: true, isStencilHelper: true };
+      // Sync world matrix in case model transform was updated
+      entry.sGroup.matrix.copy(mesh.matrixWorld);
+      entry.sGroup.matrixWorld.copy(mesh.matrixWorld);
 
-        const bPair = new THREE.Group();
-        bPair.add(bBack);
-        bPair.add(bFront);
-        sGroup.add(bPair);
-        boxPairs.push(bPair);
+      if (needPlane && !entry.planePair) {
+        const pBack = new THREE.Mesh(mesh.geometry, this.planeStencilMatBack);
+        pBack.renderOrder = 1;
+        pBack.raycast = () => {};
+        pBack.userData = { isGizmo: true, isStencilHelper: true };
+
+        const pFront = new THREE.Mesh(mesh.geometry, this.planeStencilMatFront);
+        pFront.renderOrder = 1;
+        pFront.raycast = () => {};
+        pFront.userData = { isGizmo: true, isStencilHelper: true };
+
+        const planePair = new THREE.Group();
+        planePair.add(pBack);
+        planePair.add(pFront);
+        entry.sGroup.add(planePair);
+        entry.planePair = planePair;
       }
 
-      mesh.add(sGroup);
-      this.stencilGroups.push({ sGroup, planePair, boxPairs, parentMesh: mesh });
-    });
+      if (needBox && !entry.boxPairs) {
+        const boxPairs = [];
+        for (let k = 0; k < 6; k++) {
+          const bBack = new THREE.Mesh(mesh.geometry, this.boxStencilMatsBack[k]);
+          bBack.renderOrder = (k + 1) * 2 - 1; // 1, 3, 5, 7, 9, 11
+          bBack.raycast = () => {};
+          bBack.userData = { isGizmo: true, isStencilHelper: true };
+
+          const bFront = new THREE.Mesh(mesh.geometry, this.boxStencilMatsFront[k]);
+          bFront.renderOrder = (k + 1) * 2 - 1;
+          bFront.raycast = () => {};
+          bFront.userData = { isGizmo: true, isStencilHelper: true };
+
+          const bPair = new THREE.Group();
+          bPair.add(bBack);
+          bPair.add(bFront);
+          entry.sGroup.add(bPair);
+          boxPairs.push(bPair);
+        }
+        entry.boxPairs = boxPairs;
+      }
+    }
+  }
+
+  syncStencilVisibility() {
+    if (!this.enabled || !this.stencilGroups || this.stencilGroups.length === 0) return;
+    for (let i = 0; i < this.stencilGroups.length; i++) {
+      const entry = this.stencilGroups[i];
+      if (entry.sGroup && entry.parentMesh) {
+        entry.sGroup.visible = this.isMeshVisibleInHierarchy(entry.parentMesh);
+      }
+    }
   }
 
   clearCutContours() {
@@ -763,6 +861,7 @@ class ClippingEngine {
       this.clearCutContours();
       return;
     }
+    this.syncStencilVisibility();
 
     const ribbonPositions = [];
     const linePositions = [];
@@ -777,7 +876,6 @@ class ClippingEngine {
     // Ribbon half width: half of previous thickness (refined architectural line weight)
     const halfWidth = Math.max(0.0075, Math.min(0.03, boundsMaxDim * 0.00045));
 
-    const meshBox = new THREE.Box3();
     const invMatrix = new THREE.Matrix4();
     const localPlane = new THREE.Plane();
     const vA = new THREE.Vector3(), vB = new THREE.Vector3(), vC = new THREE.Vector3();
@@ -838,9 +936,13 @@ class ClippingEngine {
 
       for (let mi = 0; mi < this.solidMeshes.length; mi++) {
         const mesh = this.solidMeshes[mi];
-        if (!mesh.visible || !mesh.parent) continue;
+        if (!this.isMeshVisibleInHierarchy(mesh)) continue;
 
-        meshBox.setFromObject(mesh);
+        let meshBox = mesh.userData && mesh.userData._cachedWorldBox;
+        if (!meshBox) {
+          meshBox = new THREE.Box3().setFromObject(mesh);
+          if (mesh.userData) mesh.userData._cachedWorldBox = meshBox;
+        }
         if (meshBox.isEmpty() || !meshBox.intersectsPlane(cutPlane)) continue;
 
         const geom = mesh.geometry;
@@ -1141,12 +1243,12 @@ class ClippingEngine {
     this.boxHoverFaceMesh.visible = true;
     
     const faceColors = {
-      xPos: 0xff1744, xNeg: 0xff1744,
-      yPos: 0x0066ff, yNeg: 0x0066ff,
-      zPos: 0x00e676, zNeg: 0x00e676
+      xPos: 0xff0000, xNeg: 0xff0000,
+      yPos: 0x0088ff, yNeg: 0x0088ff,
+      zPos: 0x00ff00, zNeg: 0x00ff00
     };
     if (this.boxHoverFaceMat) {
-      this.boxHoverFaceMat.color.setHex(faceColors[faceId] || 0x0099ff);
+      this.boxHoverFaceMat.color.setHex(faceColors[faceId] || 0x0088ff);
     }
     
     if (faceId === 'xPos') {
@@ -1231,7 +1333,7 @@ class ClippingEngine {
       const gizmoHits = raycaster.intersectObjects(this.planeGizmoGroup.children, true);
       if (gizmoHits.length > 0) {
         this.planeMat.opacity = 0.36;
-        if (this.planeEdgesMat) this.planeEdgesMat.opacity = 0.85;
+        if (this.planeEdgesMat) this.planeEdgesMat.opacity = 1.0;
         this.planeGizmoGroup.visible = true;
         this.setHoverGizmo(gizmoHits[0].object);
         return true; // Over interactive gizmo -> cursor grab
@@ -1242,7 +1344,7 @@ class ClippingEngine {
     const planeHits = this.planeMesh ? raycaster.intersectObject(this.planeMesh) : [];
     if (planeHits.length > 0) {
       this.planeMat.opacity = 0.36;
-      if (this.planeEdgesMat) this.planeEdgesMat.opacity = 0.85;
+      if (this.planeEdgesMat) this.planeEdgesMat.opacity = 1.0;
       this.planeGizmoGroup.visible = true;
       this.clearHoverGizmo();
       return false; // On plane, but not directly on a gizmo component
@@ -1251,7 +1353,7 @@ class ClippingEngine {
     // 3. Proximity buffer tolerance: if plane gizmo is currently visible and cursor is within buffer
     if (inGizmoProximity && this.planeGizmoGroup && this.planeGizmoGroup.visible) {
       this.planeMat.opacity = 0.36;
-      if (this.planeEdgesMat) this.planeEdgesMat.opacity = 0.85;
+      if (this.planeEdgesMat) this.planeEdgesMat.opacity = 1.0;
       this.planeGizmoGroup.visible = true;
       this.clearHoverGizmo();
       return false;
@@ -1259,7 +1361,7 @@ class ClippingEngine {
 
     // 4. Mouse is not hovering plane or gizmo -> return to ghostly state
     this.planeMat.opacity = 0.08;
-    if (this.planeEdgesMat) this.planeEdgesMat.opacity = 0.25;
+    if (this.planeEdgesMat) this.planeEdgesMat.opacity = 1.0;
     if (this.planeGizmoGroup) this.planeGizmoGroup.visible = false;
     this.clearHoverGizmo();
     return false;
@@ -1278,7 +1380,7 @@ class ClippingEngine {
         const gHits = raycaster.intersectObjects([activeHandle.arrowGroup, activeHandle.ringGroup], true);
         if (gHits.length > 0) {
           this.boxFillMat.opacity = 0.085;
-          if (this.boxWireframeMat) this.boxWireframeMat.opacity = 0.85;
+          if (this.boxWireframeMat) this.boxWireframeMat.opacity = 1.0;
           this.showOnlyFaceGizmo(this.hoveredBoxFace);
           this.updateBoxHoverFaceMesh(this.hoveredBoxFace);
           this.setHoverGizmo(gHits[0].object);
@@ -1295,7 +1397,7 @@ class ClippingEngine {
       
       this.hoveredBoxFace = faceId;
       this.boxFillMat.opacity = 0.085;
-      if (this.boxWireframeMat) this.boxWireframeMat.opacity = 0.85;
+      if (this.boxWireframeMat) this.boxWireframeMat.opacity = 1.0;
       this.showOnlyFaceGizmo(faceId);
       this.updateBoxHoverFaceMesh(faceId);
       this.clearHoverGizmo();
@@ -1318,7 +1420,7 @@ class ClippingEngine {
         const dist = raycaster.ray.distanceToPoint(handleCenter);
         if (dist <= handleRadius) {
           this.boxFillMat.opacity = 0.085;
-          if (this.boxWireframeMat) this.boxWireframeMat.opacity = 0.85;
+          if (this.boxWireframeMat) this.boxWireframeMat.opacity = 1.0;
           this.showOnlyFaceGizmo(this.hoveredBoxFace);
           this.updateBoxHoverFaceMesh(this.hoveredBoxFace);
           this.clearHoverGizmo();
@@ -1329,7 +1431,7 @@ class ClippingEngine {
 
     // 4. Mouse is not hovering box or face gizmo -> return to ghostly state
     this.boxFillMat.opacity = 0.025;
-    if (this.boxWireframeMat) this.boxWireframeMat.opacity = 0.25;
+    if (this.boxWireframeMat) this.boxWireframeMat.opacity = 1.0;
     this.showOnlyFaceGizmo(null);
     this.updateBoxHoverFaceMesh(null);
     this.hoveredBoxFace = null;
@@ -1343,12 +1445,12 @@ class ClippingEngine {
     
     // Reset Plane
     if (this.planeMat) this.planeMat.opacity = 0.08;
-    if (this.planeEdgesMat) this.planeEdgesMat.opacity = 0.25;
+    if (this.planeEdgesMat) this.planeEdgesMat.opacity = 1.0;
     if (this.planeGizmoGroup) this.planeGizmoGroup.visible = false;
     
     // Reset Box
     if (this.boxFillMat) this.boxFillMat.opacity = 0.025;
-    if (this.boxWireframeMat) this.boxWireframeMat.opacity = 0.25;
+    if (this.boxWireframeMat) this.boxWireframeMat.opacity = 1.0;
     if (this.boxHoverFaceMesh) this.boxHoverFaceMesh.visible = false;
     if (this.faceHandles) {
       Object.values(this.faceHandles).forEach(h => {
@@ -1410,7 +1512,7 @@ class ClippingEngine {
     if (data.type === 'plane') {
       if (this.planeGizmoGroup) this.planeGizmoGroup.visible = true;
       if (this.planeMat) this.planeMat.opacity = 0.36;
-      if (this.planeEdgesMat) this.planeEdgesMat.opacity = 0.85;
+      if (this.planeEdgesMat) this.planeEdgesMat.opacity = 1.0;
 
       if (data.part === 'translateNormal') {
         const arrowDirLocal = new THREE.Vector3(0, 0, this.planeInvert ? 1 : -1);
@@ -1466,7 +1568,7 @@ class ClippingEngine {
       this.showOnlyFaceGizmo(data.face);
       this.updateBoxHoverFaceMesh(data.face);
       if (this.boxFillMat) this.boxFillMat.opacity = 0.085;
-      if (this.boxWireframeMat) this.boxWireframeMat.opacity = 0.85;
+      if (this.boxWireframeMat) this.boxWireframeMat.opacity = 1.0;
 
       if (data.part === 'faceArrow') {
         // Drag face outward / inward
@@ -1670,13 +1772,13 @@ class ClippingEngine {
     const absZ = Math.abs(worldNormal.y); // BIM Z (Elevation RL Height)
     const absY = Math.abs(worldNormal.z); // BIM Y (Northing)
 
-    let axisColor = 0x0066ff; // Default Z Blue
+    let axisColor = 0x0088ff; // Default Z Blue
     if (absZ >= absX && absZ >= absY) {
-      axisColor = 0x0066ff; // Blue (Elevation RL)
+      axisColor = 0x0088ff; // Vivid Blue (Elevation RL)
     } else if (absX >= absY) {
-      axisColor = 0xff1744; // Red (Easting)
+      axisColor = 0xff0000; // Pure Red (Easting)
     } else {
-      axisColor = 0x00e676; // Green (Northing)
+      axisColor = 0x00ff00; // Pure Green (Northing)
     }
 
     this.planeArrowGroup.userData.baseColor = axisColor;
@@ -1918,6 +2020,7 @@ class ClippingEngine {
       this.clearPlanesFromMaterials();
       this.planeGroup.visible = false;
       this.boxGroup.visible = false;
+      if (this.stencilRoot) this.stencilRoot.visible = false;
       if (this.cappingGroup) this.cappingGroup.visible = false;
       if (this.cutContourGroup) this.cutContourGroup.visible = false;
       if (this.stencilGroups) {
@@ -1937,7 +2040,10 @@ class ClippingEngine {
       this.clearCutContours();
       return;
     }
-    
+
+    // Lazily build stencil helper meshes for the current mode if not yet created
+    this.ensureStencilGroups(this.mode);
+    if (this.stencilRoot) this.stencilRoot.visible = true;
     if (this.cappingGroup) this.cappingGroup.visible = true;
     if (this.cutContourGroup) this.cutContourGroup.visible = true;
 
@@ -1962,7 +2068,7 @@ class ClippingEngine {
 
       if (this.stencilGroups) {
         this.stencilGroups.forEach(e => {
-          if (e.sGroup) e.sGroup.visible = true;
+          if (e.sGroup) e.sGroup.visible = this.isMeshVisibleInHierarchy(e.parentMesh);
           if (e.planePair) e.planePair.visible = true;
           if (e.boxPairs) e.boxPairs.forEach(bp => bp.visible = false);
         });
@@ -1977,7 +2083,7 @@ class ClippingEngine {
 
       if (this.stencilGroups) {
         this.stencilGroups.forEach(e => {
-          if (e.sGroup) e.sGroup.visible = true;
+          if (e.sGroup) e.sGroup.visible = this.isMeshVisibleInHierarchy(e.parentMesh);
           if (e.planePair) e.planePair.visible = false;
           if (e.boxPairs) e.boxPairs.forEach(bp => bp.visible = true);
         });
@@ -2073,7 +2179,7 @@ class ClippingEngine {
     this.enabled = false;
     this.helpersVisible = true;
     this.boxHelpersVisible = true;
-    this.rotationSnap5Deg = false;
+    this.rotationSnap5Deg = true;
     this.showCutawayWireframe = false;
     this.planeAxis = 'Z';
     this.planeOffset = 0.5;
