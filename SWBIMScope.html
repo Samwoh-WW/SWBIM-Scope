@@ -5946,9 +5946,9 @@ mark.help-match-highlight {
   background: rgba(15, 23, 42, 0.88);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  border: 1px solid rgba(245, 158, 11, 0.65);
+  border: 1px solid rgba(56, 189, 248, 0.65);
   border-radius: 3px;
-  color: #fbbf24;
+  color: #38bdf8;
   font-family: var(--font-mono, monospace);
   font-size: 10px;
   font-weight: 700;
@@ -5970,14 +5970,14 @@ mark.help-match-highlight {
 
 [data-theme="light"] .measure-multipoint-badge {
   background: rgba(255, 255, 255, 0.95);
-  border-color: rgba(217, 119, 6, 0.7);
-  color: #b45309;
+  border-color: rgba(2, 132, 199, 0.6);
+  color: #0284c7;
 }
 
 [data-theme="light"] .measure-multipoint-badge:hover {
-  background: #fef3c7;
-  border-color: #b45309;
-  color: #78350f;
+  background: #e0f2fe;
+  border-color: #0284c7;
+  color: #0369a1;
 }
 
 .measure-multipoint-seg-hover-callout {
@@ -45296,7 +45296,8 @@ class BIMViewerApp {
   }
 
   createOrUpdateMeasureCalloutDOM(marker) {
-    if (!marker || marker.mode !== 'point') {
+    if (!marker || marker.mode === 'multipoint') return;
+    if (marker.mode !== 'point') {
       if (marker && marker.calloutEl && marker.calloutEl.parentNode) {
         marker.calloutEl.parentNode.removeChild(marker.calloutEl);
         marker.calloutEl = null;
@@ -45693,7 +45694,9 @@ class BIMViewerApp {
 
   refreshPointMeasureUI() {
     if (this.measureMarkers && this.measureMarkers.length > 0) {
-      this.measureMarkers.forEach(m => this.createOrUpdateMeasureCalloutDOM(m));
+      this.measureMarkers.forEach(m => {
+        if (m.mode === 'point') this.createOrUpdateMeasureCalloutDOM(m);
+      });
       this.updateMeasureMarkersAndCallouts();
     }
     this.renderMeasurementResults();
@@ -45769,7 +45772,7 @@ class BIMViewerApp {
     const slopeData = this.computeSurfaceNormalAndSlope(hit);
     const meshParts = this.createStandardMeasureMarkerMesh(id, {
       showSlopeArrow: false,
-      themeColor: 0xf59e0b
+      themeColor: 0x00f0ff
     });
 
     const listEl = document.getElementById('measure-callouts-layer') || this.container;
@@ -45787,7 +45790,7 @@ class BIMViewerApp {
       normal: slopeData.normal.clone(),
       slopeData,
       showSlopeArrow: false,
-      baseColor: 0xf59e0b,
+      baseColor: 0x00f0ff,
       calloutOffset: { x: 0, y: 0 },
       calloutEl: badgeEl,
       leaderLineEl: null,
@@ -46077,7 +46080,7 @@ class BIMViewerApp {
         const decimals = unit === 'mm' ? 0 : 3;
         const segFormatted = (seg.length * scale).toFixed(decimals) + ' ' + unit;
         if (this.multiPointHoverCalloutEl) {
-          this.multiPointHoverCalloutEl.textContent = `Pt #${seg.from + 1} ~ Pt #${seg.to + 1}: ${segFormatted}`;
+          this.multiPointHoverCalloutEl.textContent = segFormatted;
           this.multiPointHoverCalloutEl.style.display = 'block';
         }
         this.updateMultiPointHoverCalloutPosition(p0, p1);
@@ -46636,7 +46639,9 @@ class BIMViewerApp {
 
     // Refresh all point callouts when unit changes
     if (this.measureMarkers && this.measureMarkers.length > 0) {
-      this.measureMarkers.forEach(m => this.createOrUpdateMeasureCalloutDOM(m));
+      this.measureMarkers.forEach(m => {
+        if (m.mode === 'point') this.createOrUpdateMeasureCalloutDOM(m);
+      });
       this.updateMeasureMarkersAndCallouts();
     }
 
@@ -46868,7 +46873,7 @@ class BIMViewerApp {
     if (svgEl) svgEl.innerHTML = '';
     const calloutsLayer = document.getElementById('measure-callouts-layer');
     if (calloutsLayer) {
-      const placedCallouts = calloutsLayer.querySelectorAll('.measure-distance-callout:not(.preview), .measure-angle-callout:not(.preview), .measure-radius-callout:not(.preview)');
+      const placedCallouts = calloutsLayer.querySelectorAll('.measure-distance-callout:not(.preview), .measure-angle-callout:not(.preview), .measure-radius-callout:not(.preview), .measure-multipoint-badge, .measure-multipoint-seg-hover-callout');
       placedCallouts.forEach(el => el.remove());
     }
 
