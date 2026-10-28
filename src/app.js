@@ -1939,6 +1939,7 @@ class BimSnapEngine {
 
   showIndicator(snap, camera, container) {
     if (!this.indicatorGroup) return;
+    this.currentSnap = snap;
 
     this.indicatorGroup.position.copy(snap.point);
     this.indicatorGroup.visible = true;
@@ -8410,12 +8411,16 @@ class BIMViewerApp {
           if (targetPt) {
             const proj = targetPt.clone().project(this.camera);
             if (proj.z <= 1.0 && proj.z >= -1.0) {
-              const cw = this.container.clientWidth || 1;
-              const ch = this.container.clientHeight || 1;
+              const canvas = this.canvas || this.container;
+              const rect = canvas.getBoundingClientRect();
+              const cw = rect.width || this.container.clientWidth || 1;
+              const ch = rect.height || this.container.clientHeight || 1;
               const sx = (proj.x * 0.5 + 0.5) * cw;
               const sy = (-proj.y * 0.5 + 0.5) * ch;
-              const distPx = Math.hypot(clientX - sx, clientY - sy);
-              if (distPx <= 25) {
+              const localX = clientX - rect.left;
+              const localY = clientY - rect.top;
+              const distPx = Math.hypot(localX - sx, localY - sy);
+              if (distPx <= 35) {
                 multiPointClosureSnap = {
                   point: targetPt.clone(),
                   normal: (targetMarker && targetMarker.normal) ? targetMarker.normal.clone() : new THREE.Vector3(0, 1, 0),
@@ -8709,12 +8714,16 @@ class BIMViewerApp {
             if (targetPt) {
               const proj = targetPt.clone().project(this.camera);
               if (proj.z <= 1.0 && proj.z >= -1.0) {
-                const cw = this.container.clientWidth || 1;
-                const ch = this.container.clientHeight || 1;
+                const canvas = this.canvas || this.container;
+                const rect = canvas.getBoundingClientRect();
+                const cw = rect.width || this.container.clientWidth || 1;
+                const ch = rect.height || this.container.clientHeight || 1;
                 const sx = (proj.x * 0.5 + 0.5) * cw;
                 const sy = (-proj.y * 0.5 + 0.5) * ch;
-                const distPx = Math.hypot(e.clientX - sx, e.clientY - sy);
-                if (distPx <= 25) {
+                const localX = e.clientX - rect.left;
+                const localY = e.clientY - rect.top;
+                const distPx = Math.hypot(localX - sx, localY - sy);
+                if (distPx <= 35) {
                   isDragOppositeSnap = true;
                   effectiveHit = {
                     point: targetPt.clone(),
@@ -8814,14 +8823,29 @@ class BIMViewerApp {
           if (this.draggingMeasureMarker.mode === 'multipoint' && !this.multiPointState.isClosed && this.multiPointState.points.length >= 3) {
             const mIdx = this.draggingMeasureMarker.multiPointIndex;
             const totalPts = this.multiPointState.points.length;
-            if ((mIdx === 0 || mIdx === totalPts - 1) && this.isDraggedSnapToOpposite) {
+            if (mIdx === 0 || mIdx === totalPts - 1) {
               const targetIdx = (mIdx === 0) ? (totalPts - 1) : 0;
               const targetPt = this.multiPointState.points[targetIdx];
-              this.showMultiPointClosurePopover(targetPt, () => {
-                this.mergeAndCloseMultiPointOnDrag(mIdx, targetIdx);
-              }, () => {
-                if (this.snapEngine) this.snapEngine.hideIndicator();
-              });
+              const curPt = this.draggingMeasureMarker.point;
+
+              const canvas = this.canvas || this.container;
+              const rect = canvas.getBoundingClientRect();
+              const cw = rect.width || this.container.clientWidth || 1;
+              const ch = rect.height || this.container.clientHeight || 1;
+              const proj = targetPt.clone().project(this.camera);
+              const sx = (proj.x * 0.5 + 0.5) * cw;
+              const sy = (-proj.y * 0.5 + 0.5) * ch;
+              const localX = e.clientX - rect.left;
+              const localY = e.clientY - rect.top;
+              const distPx = Math.hypot(localX - sx, localY - sy);
+
+              if (this.isDraggedSnapToOpposite || distPx <= 40 || curPt.distanceTo(targetPt) < 0.6) {
+                this.showMultiPointClosurePopover(targetPt, () => {
+                  this.mergeAndCloseMultiPointOnDrag(mIdx, targetIdx);
+                }, () => {
+                  if (this.snapEngine) this.snapEngine.hideIndicator();
+                });
+              }
             }
           }
           this.setMeasureMarkerDragging(this.draggingMeasureMarker, false);
@@ -9940,11 +9964,15 @@ class BIMViewerApp {
         if (targetPt) {
           const proj = targetPt.clone().project(this.camera);
           if (proj.z <= 1.0 && proj.z >= -1.0) {
-            const cw = this.container.clientWidth || 1;
-            const ch = this.container.clientHeight || 1;
+            const canvas = this.canvas || this.container;
+            const rect = canvas.getBoundingClientRect();
+            const cw = rect.width || this.container.clientWidth || 1;
+            const ch = rect.height || this.container.clientHeight || 1;
             const sx = (proj.x * 0.5 + 0.5) * cw;
             const sy = (-proj.y * 0.5 + 0.5) * ch;
-            if (Math.hypot(e.clientX - sx, e.clientY - sy) <= 25 || this.isSnappedToClosurePoint) {
+            const localX = e.clientX - rect.left;
+            const localY = e.clientY - rect.top;
+            if (Math.hypot(localX - sx, localY - sy) <= 35 || this.isSnappedToClosurePoint) {
               hit = {
                 object: targetMarker ? targetMarker.group : null,
                 point: targetPt.clone(),
