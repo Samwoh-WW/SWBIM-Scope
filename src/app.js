@@ -12556,38 +12556,42 @@ class BIMViewerApp {
   // =========================================================================
   // MULTI-POINT CUMULATIVE DISTANCE MEASUREMENT SYSTEM
   // =========================================================================
-  initMultiPointPreview() {
-    if (this.multiPointPreviewLine) return;
-    const lineGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
-    this.multiPointPreviewLine = new THREE.Line(lineGeom, new THREE.LineDashedMaterial({
-      color: 0xf59e0b,
-      dashSize: 0.20,
-      gapSize: 0.12,
-      depthTest: false,
-      depthWrite: false
-    }));
-    this.multiPointPreviewLine.computeLineDistances();
-    this.multiPointPreviewLine.visible = false;
-    this.multiPointPreviewLine.renderOrder = 2300;
-    this.scene.add(this.multiPointPreviewLine);
-
+  ensureMultiPointHoverCalloutDOM() {
     const listEl = document.getElementById('measure-callouts-layer') || this.container;
-    if (listEl) {
+    if (!listEl) return;
+    if (!this.multiPointHoverCalloutEl) {
       this.multiPointHoverCalloutEl = document.createElement('div');
       this.multiPointHoverCalloutEl.className = 'measure-multipoint-seg-hover-callout';
       this.multiPointHoverCalloutEl.style.display = 'none';
       this.multiPointHoverCalloutEl.style.pointerEvents = 'none';
       this.multiPointHoverCalloutEl.textContent = '--';
+    }
+    if (this.multiPointHoverCalloutEl.parentNode !== listEl) {
       listEl.appendChild(this.multiPointHoverCalloutEl);
     }
+  }
+
+  initMultiPointPreview() {
+    if (!this.multiPointPreviewLine) {
+      const lineGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+      this.multiPointPreviewLine = new THREE.Line(lineGeom, new THREE.LineDashedMaterial({
+        color: 0xf59e0b,
+        dashSize: 0.20,
+        gapSize: 0.12,
+        depthTest: false,
+        depthWrite: false
+      }));
+      this.multiPointPreviewLine.computeLineDistances();
+      this.multiPointPreviewLine.visible = false;
+      this.multiPointPreviewLine.renderOrder = 2300;
+      this.scene.add(this.multiPointPreviewLine);
+    }
+    this.ensureMultiPointHoverCalloutDOM();
   }
 
   hideMultiPointPreview() {
     if (this.multiPointPreviewLine) {
       this.multiPointPreviewLine.visible = false;
-    }
-    if (this.multiPointHoverCalloutEl) {
-      this.multiPointHoverCalloutEl.style.display = 'none';
     }
     this.requestRender(100);
   }
@@ -12901,7 +12905,19 @@ class BIMViewerApp {
 
   setMultiPointHoveredSegment(segIdx) {
     if (!this.multiPointState) return;
-    if (this.multiPointState.hoveredSegmentIndex === segIdx) return;
+
+    if (this.multiPointState.hoveredSegmentIndex === segIdx) {
+      if (segIdx >= 0 && this.multiPointState.segments[segIdx]) {
+        const seg = this.multiPointState.segments[segIdx];
+        const p0 = this.multiPointState.points[seg.from];
+        const p1 = this.multiPointState.points[seg.to];
+        if (p0 && p1) {
+          this.ensureMultiPointHoverCalloutDOM();
+          this.updateMultiPointHoverCalloutPosition(p0, p1);
+        }
+      }
+      return;
+    }
 
     const prevIdx = this.multiPointState.hoveredSegmentIndex;
     this.multiPointState.hoveredSegmentIndex = segIdx;
@@ -12925,7 +12941,7 @@ class BIMViewerApp {
       const p0 = this.multiPointState.points[seg.from];
       const p1 = this.multiPointState.points[seg.to];
       if (p0 && p1) {
-        if (!this.multiPointHoverCalloutEl) this.initMultiPointPreview();
+        this.ensureMultiPointHoverCalloutDOM();
         const unit = this.measureUnit || 'm';
         const scale = unit === 'mm' ? 1000 : 1;
         const decimals = unit === 'mm' ? 0 : 3;
@@ -12947,19 +12963,38 @@ class BIMViewerApp {
 
   updateMultiPointHoverCalloutPosition(p0, p1) {
     if (!this.multiPointHoverCalloutEl || !this.camera || !this.container) return;
-    const midPoint = new THREE.Vector3().addVectors(p0, p1).multiplyScalar(0.5);
-    const projVec = midPoint.clone().project(this.camera);
-    if (projVec.z > 1.0 || projVec.z < -1.0) {
+    this.ensureMultiPointHoverCalloutDOM();
+    const cw = this.container.clientWidth || 1;
+    const ch = this.container.clientHeight || 1;
+
+    const proj0 = p0.clone().project(this.camera);
+    const proj1 = p1.clone().project(this.camera);
+    const p0Behind = (proj0.z > 1.0 || proj0.z < -1.0);
+    const p1Behind = (proj1.z > 1.0 || proj1.z < -1.0);
+    if (p0Behind && p1Behind) {
       this.multiPointHoverCalloutEl.style.display = 'none';
       return;
     }
-    const cw = this.container.clientWidth || 1;
-    const ch = this.container.clientHeight || 1;
-    const sx = (projVec.x * 0.5 + 0.5) * cw;
-    const sy = (-projVec.y * 0.5 + 0.5) * ch;
+
+    const s0x = (proj0.x * 0.5 + 0.5) * cw;
+    const s0y = (-proj0.y * 0.5 + 0.5) * ch;
+    const s1x = (proj1.x * 0.5 + 0.5) * cw;
+    const s1y = (-proj1.y * 0.5 + 0.5) * ch;
+
+    let bx, by;
+    const safeMargin = 16;
+    const clipRes = this.clipSegmentToScreen ? this.clipSegmentToScreen(s0x, s0y, s1x, s1y, safeMargin, cw - safeMargin, safeMargin, ch - safeMargin) : null;
+    if (clipRes) {
+      const t = Math.max(clipRes.t0, Math.min(clipRes.t1, 0.5));
+      bx = s0x + t * (s1x - s0x);
+      by = s0y + t * (s1y - s0y);
+    } else {
+      bx = (s0x + s1x) * 0.5;
+      by = (s0y + s1y) * 0.5;
+    }
 
     this.multiPointHoverCalloutEl.style.display = 'block';
-    this.multiPointHoverCalloutEl.style.transform = `translate3d(${Math.round(sx)}px, ${Math.round(sy - 16)}px, 0) translate(-50%, -100%)`;
+    this.multiPointHoverCalloutEl.style.transform = `translate3d(${Math.round(bx)}px, ${Math.round(by - 16)}px, 0) translate(-50%, -100%)`;
   }
 
   checkMultiPointSegmentHover(clientX, clientY) {
@@ -13007,7 +13042,7 @@ class BIMViewerApp {
         dSq = (mx - projX) ** 2 + (my - projY) ** 2;
       }
 
-      if (dSq < 64 && dSq < bestDistSq) {
+      if (dSq < 144 && dSq < bestDistSq) {
         bestDistSq = dSq;
         bestIdx = i;
       }
@@ -13724,7 +13759,7 @@ class BIMViewerApp {
     if (svgEl) svgEl.innerHTML = '';
     const calloutsLayer = document.getElementById('measure-callouts-layer');
     if (calloutsLayer) {
-      const placedCallouts = calloutsLayer.querySelectorAll('.measure-distance-callout:not(.preview), .measure-angle-callout:not(.preview), .measure-radius-callout:not(.preview), .measure-multipoint-badge, .measure-multipoint-seg-hover-callout');
+      const placedCallouts = calloutsLayer.querySelectorAll('.measure-distance-callout:not(.preview), .measure-angle-callout:not(.preview), .measure-radius-callout:not(.preview), .measure-multipoint-badge');
       placedCallouts.forEach(el => el.remove());
     }
 
