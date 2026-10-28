@@ -8430,11 +8430,7 @@ class BIMViewerApp {
                 this.updateAnglePreview(effectiveHit);
               }
             } else if (this.measureMode === 'multipoint') {
-              if (this.pendingClosureAction) {
-          this.hideMultiPointClosurePopover();
-          return;
-        }
-        if (this.multiPointInsertSegIdx >= 0) {
+              if (this.multiPointInsertSegIdx >= 0) {
                 this.updateMultiPointInsertPreview(effectiveHit);
               } else if (this.multiPointState && this.multiPointState.isDrawing) {
                 this.updateMultiPointPreview(effectiveHit);
@@ -9189,6 +9185,10 @@ class BIMViewerApp {
 
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
+        if (this.pendingClosureAction) {
+          this.hideMultiPointClosurePopover();
+          return;
+        }
         this.hideContextMenu();
         if (this.pendingDistanceStart) {
           this.cancelPendingDistanceStart();
