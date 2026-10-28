@@ -2154,6 +2154,11 @@ class BIMViewerApp {
     this.isSnappedToClosurePoint = false;
     this.isDraggedSnapToOpposite = false;
     this.multiPointAreaMesh = null;
+    this.multiPointAreaDropLines = null;
+    this.multiPointAreaMode = '3d';
+    this.multiPointAreaCalloutEl = null;
+    this.multiPointAreaCentroid3D = new THREE.Vector3();
+    this.multiPointAreaDataCache = null;
     this.multiPointSelfIntersectingSegs = [];
     this.multiPointSelfIntersectPoints = [];
     this.multiPointSelfIntersectCenter = null;
@@ -12817,6 +12822,22 @@ class BIMViewerApp {
       }
     }
 
+    // Update Multi-Point Closed Polygon Area Callout
+    if (this.multiPointAreaCalloutEl && this.multiPointState && this.multiPointState.isClosed && this.multiPointAreaCentroid3D) {
+      projVec.copy(this.multiPointAreaCentroid3D).project(this.camera);
+      const isBehind = (projVec.z > 1.0 || projVec.z < -1.0);
+      if (isBehind) {
+        this.multiPointAreaCalloutEl.style.display = 'none';
+      } else {
+        const sx = (projVec.x * 0.5 + 0.5) * cw;
+        const sy = (-projVec.y * 0.5 + 0.5) * ch;
+        this.multiPointAreaCalloutEl.style.display = 'inline-flex';
+        this.multiPointAreaCalloutEl.style.transform = `translate3d(${Math.round(sx)}px, ${Math.round(sy)}px, 0) translate(-50%, -50%)`;
+      }
+    } else if (this.multiPointAreaCalloutEl) {
+      this.multiPointAreaCalloutEl.style.display = 'none';
+    }
+
     // Update placed Radius Measurements (scale, projection & Liang-Barsky edge clamping)
     if (hasRadiusMarkers) {
       for (const radRec of this.radiusMeasurements) {
@@ -13691,6 +13712,15 @@ class BIMViewerApp {
     this.multiPointSelfIntersectingSegs = [];
     this.multiPointSelfIntersectPoints = [];
     this.removeMultiPointAreaMesh();
+    this.removeMultiPointAreaDropLines();
+    if (this.multiPointAreaCalloutEl) {
+      this.multiPointAreaCalloutEl.style.display = 'none';
+    }
+    this.multiPointAreaDataCache = null;
+    const row3D = document.getElementById('measure-multi-3d-area-row');
+    const rowProj = document.getElementById('measure-multi-proj-area-row');
+    if (row3D) row3D.classList.remove('measure-area-row-active');
+    if (rowProj) rowProj.classList.remove('measure-area-row-active');
 
     this.requestRender(150);
   }
@@ -13790,12 +13820,13 @@ class BIMViewerApp {
         if (inter) {
           intersectingSegSet.add(i);
           intersectingSegSet.add(j);
+          const orig3D = (p1.orig3D && p2.orig3D) ? new THREE.Vector3().lerpVectors(p1.orig3D, p2.orig3D, inter.t) : null;
           intersections.push({
             segA: i,
             segB: j,
             tA: inter.t,
             tB: inter.u,
-            point: { x: inter.x, y: inter.y }
+            point: { x: inter.x, y: inter.y, orig3D }
           });
         }
       }
@@ -13890,6 +13921,70 @@ class BIMViewerApp {
     };
   }
 
+  ensureMultiPointAreaCalloutDOM() {
+    const listEl = document.getElementById('measure-callouts-layer') || this.container;
+    if (!listEl) return;
+    if (!this.multiPointAreaCalloutEl) {
+      this.multiPointAreaCalloutEl = document.createElement('div');
+      this.multiPointAreaCalloutEl.className = 'measure-area-callout';
+      this.multiPointAreaCalloutEl.style.display = 'none';
+
+      this.multiPointAreaCalloutEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleMultiPointAreaMode();
+      });
+    }
+    if (this.multiPointAreaCalloutEl.parentNode !== listEl) {
+      listEl.appendChild(this.multiPointAreaCalloutEl);
+    }
+  }
+
+  updateMultiPointAreaCalloutDOM(areaData) {
+    if (!areaData) return;
+    this.ensureMultiPointAreaCalloutDOM();
+    if (!this.multiPointAreaCalloutEl) return;
+
+    const is3D = (this.multiPointAreaMode || '3d') === '3d';
+    const unit = this.measureUnit || 'm';
+    const areaScale = unit === 'mm' ? 1000000 : 1;
+    const areaDecimals = unit === 'mm' ? 0 : 3;
+    const areaUnit = unit === 'mm' ? 'mm²' : 'm²';
+    const valNum = is3D ? areaData.area3D : areaData.areaProj;
+    const valFormatted = (valNum * areaScale).toFixed(areaDecimals) + ' ' + areaUnit;
+
+    // 3D Mode Icon: 4-sided low pyramid with parallelogram base and obtuse apex (> 90 deg)
+    const svg3DPyramid = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M 2 12 L 10 12 L 14 7 L 6 7 Z"></path><path d="M 8 3.5 L 2 12 M 8 3.5 L 10 12 M 8 3.5 L 14 7 M 8 3.5 L 6 7"></path></svg>`;
+    // Horizontal Projection Mode Icon: same parallelogram base with flattened apex (interior diagonal criss-cross)
+    const svgFlatProj = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M 2 12 L 10 12 L 14 7 L 6 7 Z"></path><path d="M 2 12 L 14 7 M 10 12 L 6 7"></path></svg>`;
+
+    const iconSvg = is3D ? svg3DPyramid : svgFlatProj;
+    const tip = is3D
+      ? (I18N.t('measureMulti3DAreaToggleTip') || '3D True Area (Click to switch to Horizontal Projected Area)')
+      : (I18N.t('measureMultiProjAreaToggleTip') || 'Horizontal Projected Area (Click to switch to 3D True Area)');
+
+    this.multiPointAreaCalloutEl.innerHTML = `
+      <button type="button" class="measure-area-mode-toggle" title="${tip}">${iconSvg}</button>
+      <span class="measure-area-val">${valFormatted}</span>
+    `;
+
+    this.multiPointAreaCalloutEl.style.display = 'inline-flex';
+  }
+
+  toggleMultiPointAreaMode() {
+    this.multiPointAreaMode = (this.multiPointAreaMode === '3d' ? 'horizontal' : '3d');
+    if (this.multiPointAreaDataCache) {
+      this.updateMultiPointAreaMesh(this.multiPointAreaDataCache);
+      this.updateMultiPointAreaCalloutDOM(this.multiPointAreaDataCache);
+    }
+    const row3D = document.getElementById('measure-multi-3d-area-row');
+    const rowProj = document.getElementById('measure-multi-proj-area-row');
+    if (row3D) row3D.classList.toggle('measure-area-row-active', this.multiPointAreaMode === '3d');
+    if (rowProj) rowProj.classList.toggle('measure-area-row-active', this.multiPointAreaMode === 'horizontal');
+
+    this.updateMeasureMarkersAndCallouts();
+    this.requestRender(200);
+  }
+
   computeMultiPointClosedArea() {
     if (!this.multiPointState || !this.multiPointState.isClosed || this.multiPointState.points.length < 3) {
       return {
@@ -13898,7 +13993,10 @@ class BIMViewerApp {
         isSelfIntersecting: false,
         intersectingSegs: [],
         intersectionPoints3D: [],
-        subLoops3D: []
+        subLoopsTriangles: [],
+        centroid3D: new THREE.Vector3(),
+        minY: 0,
+        points: []
       };
     }
 
@@ -13907,13 +14005,21 @@ class BIMViewerApp {
 
     // 1. Compute Newell Normal for best-fit 3D plane
     const normal = new THREE.Vector3();
+    let minY = Infinity;
+    const centroid3D = new THREE.Vector3();
+
     for (let i = 0; i < N; i++) {
       const pA = points[i];
       const pB = points[(i + 1) % N];
       normal.x += (pA.y - pB.y) * (pA.z + pB.z);
       normal.y += (pA.z - pB.z) * (pA.x + pB.x);
       normal.z += (pA.x - pB.x) * (pA.y + pB.y);
+
+      if (pA.y < minY) minY = pA.y;
+      centroid3D.add(pA);
     }
+    centroid3D.divideScalar(N);
+
     if (normal.lengthSq() < 1e-12) normal.set(0, 1, 0);
     else normal.normalize();
 
@@ -13935,65 +14041,81 @@ class BIMViewerApp {
 
     const res3D = this.computePolygonAreaScheme1(pts2D);
 
-    // Convert sub-loops back to 3D for triangulation & mesh fill
-    const subLoops3D = res3D.subLoops.map(loop => {
-      return loop.map(p => {
-        return origin.clone().addScaledVector(uAxis, p.x).addScaledVector(vAxis, p.y);
-      });
-    });
+    // Calculate Ear-Clipping 3D spatial triangle area with original 3D coordinates
+    let real3DArea = 0;
+    const subLoopsTriangles = [];
+    const e1 = new THREE.Vector3();
+    const e2 = new THREE.Vector3();
+    const triCross = new THREE.Vector3();
 
-    const intersectionPoints3D = res3D.intersectionPoints.map(p => {
-      return origin.clone().addScaledVector(uAxis, p.x).addScaledVector(vAxis, p.y);
+    res3D.subLoops.forEach(loop => {
+      if (loop.length < 3) return;
+      const shapePts = loop.map(p => new THREE.Vector2(p.x, p.y));
+      const faces = THREE.ShapeUtils.triangulateShape(shapePts, []);
+      const triList = [];
+      faces.forEach(face => {
+        const v0 = loop[face[0]].orig3D;
+        const v1 = loop[face[1]].orig3D;
+        const v2 = loop[face[2]].orig3D;
+        if (v0 && v1 && v2) {
+          e1.subVectors(v1, v0);
+          e2.subVectors(v2, v0);
+          triCross.crossVectors(e1, e2);
+          real3DArea += 0.5 * triCross.length();
+          triList.push([v0, v1, v2]);
+        }
+      });
+      subLoopsTriangles.push(triList);
     });
 
     // 2. Horizontal Projected Area (project onto XZ plane where Y=0)
     const ptsHoriz = points.map(p => ({
       x: p.x,
-      y: p.z
+      y: p.z,
+      orig3D: p
     }));
     const resHoriz = this.computePolygonAreaScheme1(ptsHoriz);
 
+    const intersectionPoints3D = res3D.intersectionPoints.map(p => {
+      return origin.clone().addScaledVector(uAxis, p.x).addScaledVector(vAxis, p.y);
+    });
+
     return {
-      area3D: res3D.area,
+      area3D: real3DArea,
       areaProj: resHoriz.area,
       isSelfIntersecting: res3D.isSelfIntersecting,
       intersectingSegs: res3D.intersectingSegs,
       intersectionPoints3D,
-      subLoops3D
+      subLoopsTriangles,
+      centroid3D,
+      minY,
+      points
     };
   }
 
-  updateMultiPointAreaMesh(subLoops3D) {
+  updateMultiPointAreaMesh(areaData) {
     this.removeMultiPointAreaMesh();
-    if (!subLoops3D || subLoops3D.length === 0) return;
+    this.removeMultiPointAreaDropLines();
+    if (!areaData || !areaData.subLoopsTriangles || areaData.subLoopsTriangles.length === 0) return;
 
+    const is3D = (this.multiPointAreaMode || '3d') === '3d';
     const vertices = [];
-    subLoops3D.forEach(loop => {
-      if (loop.length < 3) return;
-      // Project loop to its local 2D plane for ear-clipping triangulation
-      const v0 = loop[0];
-      const v1 = loop[1];
-      const v2 = loop[2];
-      const e1 = new THREE.Vector3().subVectors(v1, v0).normalize();
-      const e2 = new THREE.Vector3().subVectors(v2, v0);
-      const n = new THREE.Vector3().crossVectors(e1, e2).normalize();
-      if (n.lengthSq() < 1e-6) n.set(0, 1, 0);
-      const u = new THREE.Vector3().crossVectors(n, Math.abs(n.y) < 0.99 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0)).normalize();
-      const v = new THREE.Vector3().crossVectors(n, u).normalize();
 
-      const shapePts = loop.map(p => {
-        const diff = new THREE.Vector3().subVectors(p, v0);
-        return new THREE.Vector2(diff.dot(u), diff.dot(v));
-      });
-
-      const faces = THREE.ShapeUtils.triangulateShape(shapePts, []);
-      faces.forEach(face => {
-        face.forEach(vIdx => {
-          const pt3D = loop[vIdx];
-          if (pt3D) {
-            vertices.push(pt3D.x, pt3D.y, pt3D.z);
-          }
-        });
+    areaData.subLoopsTriangles.forEach(triList => {
+      triList.forEach(tri => {
+        const v0 = tri[0];
+        const v1 = tri[1];
+        const v2 = tri[2];
+        if (is3D) {
+          vertices.push(v0.x, v0.y, v0.z);
+          vertices.push(v1.x, v1.y, v1.z);
+          vertices.push(v2.x, v2.y, v2.z);
+        } else {
+          const y = areaData.minY;
+          vertices.push(v0.x, y, v0.z);
+          vertices.push(v1.x, y, v1.z);
+          vertices.push(v2.x, y, v2.z);
+        }
       });
     });
 
@@ -14005,13 +14127,50 @@ class BIMViewerApp {
 
     this.multiPointAreaMesh = new THREE.Mesh(geom, new THREE.MeshBasicMaterial({
       color: 0xf59e0b,
-      opacity: 0.20,
+      opacity: 0.22,
       transparent: true,
       side: THREE.DoubleSide,
+      depthTest: false,
       depthWrite: false
     }));
     this.multiPointAreaMesh.renderOrder = 1200;
     this.scene.add(this.multiPointAreaMesh);
+
+    // If in horizontal mode: add dashed drop lines from 3D points down to minY
+    if (!is3D && areaData.points && areaData.points.length > 0) {
+      const dropPts = [];
+      const yMin = areaData.minY;
+      areaData.points.forEach(p => {
+        if (Math.abs(p.y - yMin) > 0.005) {
+          dropPts.push(p.x, p.y, p.z, p.x, yMin, p.z);
+        }
+      });
+      if (dropPts.length > 0) {
+        const dropGeom = new THREE.BufferGeometry();
+        dropGeom.setAttribute('position', new THREE.Float32BufferAttribute(dropPts, 3));
+        const dropMat = new THREE.LineDashedMaterial({
+          color: 0x38bdf8,
+          dashSize: 0.18,
+          gapSize: 0.10,
+          transparent: true,
+          opacity: 0.85,
+          depthTest: false,
+          depthWrite: false
+        });
+        const dropLines = new THREE.LineSegments(dropGeom, dropMat);
+        dropLines.computeLineDistances();
+        dropLines.renderOrder = 1205;
+        this.multiPointAreaDropLines = dropLines;
+        this.scene.add(this.multiPointAreaDropLines);
+      }
+    }
+
+    // Update 3D centroid position
+    if (is3D) {
+      this.multiPointAreaCentroid3D.copy(areaData.centroid3D);
+    } else {
+      this.multiPointAreaCentroid3D.set(areaData.centroid3D.x, areaData.minY, areaData.centroid3D.z);
+    }
   }
 
   removeMultiPointAreaMesh() {
@@ -14020,6 +14179,16 @@ class BIMViewerApp {
       if (this.multiPointAreaMesh.geometry) this.multiPointAreaMesh.geometry.dispose();
       if (this.multiPointAreaMesh.material) this.multiPointAreaMesh.material.dispose();
       this.multiPointAreaMesh = null;
+    }
+    this.removeMultiPointAreaDropLines();
+  }
+
+  removeMultiPointAreaDropLines() {
+    if (this.multiPointAreaDropLines) {
+      this.scene.remove(this.multiPointAreaDropLines);
+      if (this.multiPointAreaDropLines.geometry) this.multiPointAreaDropLines.geometry.dispose();
+      if (this.multiPointAreaDropLines.material) this.multiPointAreaDropLines.material.dispose();
+      this.multiPointAreaDropLines = null;
     }
   }
 
@@ -14166,11 +14335,18 @@ class BIMViewerApp {
       if (elProjLabel) elProjLabel.textContent = I18N.t('measureMultiProjArea') || 'Proj Area';
 
       const areaData = this.computeMultiPointClosedArea();
+      this.multiPointAreaDataCache = areaData;
       this.multiPointSelfIntersectingSegs = areaData.intersectingSegs || [];
       this.multiPointSelfIntersectPoints = areaData.intersectionPoints3D || [];
 
       if (el3DVal) el3DVal.textContent = (areaData.area3D * areaScale).toFixed(areaDecimals) + ' ' + areaUnit;
       if (elProjVal) elProjVal.textContent = (areaData.areaProj * areaScale).toFixed(areaDecimals) + ' ' + areaUnit;
+
+      // Update active highlight on side panel row
+      const row3D = document.getElementById('measure-multi-3d-area-row');
+      const rowProj = document.getElementById('measure-multi-proj-area-row');
+      if (row3D) row3D.classList.toggle('measure-area-row-active', (this.multiPointAreaMode || '3d') === '3d');
+      if (rowProj) rowProj.classList.toggle('measure-area-row-active', (this.multiPointAreaMode || '3d') === 'horizontal');
 
       if (btnSelfIntersect) {
         btnSelfIntersect.style.display = areaData.isSelfIntersecting ? 'inline-flex' : 'none';
@@ -14189,8 +14365,9 @@ class BIMViewerApp {
         });
       }
 
-      // Update 3D translucent surface fill mesh
-      this.updateMultiPointAreaMesh(areaData.subLoops3D);
+      // Update 3D translucent surface fill mesh & drop lines
+      this.updateMultiPointAreaMesh(areaData);
+      this.updateMultiPointAreaCalloutDOM(areaData);
     }
 
     listEl.innerHTML = '';
@@ -14268,7 +14445,8 @@ class BIMViewerApp {
     this.multiPointState.hoveredSegmentIndex = segIdx;
 
     if (prevIdx >= 0 && this.multiPointState.lines[prevIdx]) {
-      this.multiPointState.lines[prevIdx].material.color.setHex(0xf59e0b);
+      const isSelf = this.multiPointSelfIntersectingSegs && this.multiPointSelfIntersectingSegs.includes(prevIdx);
+      this.multiPointState.lines[prevIdx].material.color.setHex(isSelf ? 0xff3b30 : 0xf59e0b);
     }
     if (segIdx >= 0 && this.multiPointState.lines[segIdx]) {
       this.multiPointState.lines[segIdx].material.color.setHex(0x38bdf8);
@@ -15911,6 +16089,26 @@ class BIMViewerApp {
     if (btnDoneMeasure) {
       btnDoneMeasure.addEventListener('click', () => {
         this.finishMultiPointMeasurement();
+      });
+    }
+
+    // Measure Multi-Point Area Row Click to Toggle Mode
+    const row3D = document.getElementById('measure-multi-3d-area-row');
+    if (row3D) {
+      row3D.addEventListener('click', (e) => {
+        if (e.target.closest('.measure-val-copy-btn') || e.target.closest('.measure-self-intersect-btn')) return;
+        if (this.multiPointState && this.multiPointState.isClosed && this.multiPointAreaMode !== '3d') {
+          this.toggleMultiPointAreaMode();
+        }
+      });
+    }
+    const rowProj = document.getElementById('measure-multi-proj-area-row');
+    if (rowProj) {
+      rowProj.addEventListener('click', (e) => {
+        if (e.target.closest('.measure-val-copy-btn')) return;
+        if (this.multiPointState && this.multiPointState.isClosed && this.multiPointAreaMode !== 'horizontal') {
+          this.toggleMultiPointAreaMode();
+        }
       });
     }
 

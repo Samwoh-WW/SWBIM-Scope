@@ -1138,7 +1138,7 @@ def generate_html(variant_cfg, sources):
                       </div>
                     </div>
                     <!-- Multi-Point 3D Spatial Area Row -->
-                    <div class="measure-detail-row" style="margin-top:5px;align-items:center;">
+                    <div class="measure-detail-row" id="measure-multi-3d-area-row" style="margin-top:5px;align-items:center;padding:2px 4px;cursor:pointer;" title="Click to activate 3D Area in viewport">
                       <div style="display:inline-flex;align-items:center;gap:4px;">
                         <span class="measure-result-label" id="measure-multi-3d-area-label" data-i18n="measureMulti3DAreaClosed" style="font-size:11px;">3D Area (when closed)</span>
                         <button type="button" class="measure-self-intersect-btn" id="measure-multi-self-intersect-btn" style="display:none;" title="Self-intersecting" data-i18n-title="measureSelfIntersectTitle">
@@ -1153,7 +1153,7 @@ def generate_html(variant_cfg, sources):
                       </div>
                     </div>
                     <!-- Multi-Point Horizontal Projected Area Row -->
-                    <div class="measure-detail-row" style="margin-top:3px;align-items:center;">
+                    <div class="measure-detail-row" id="measure-multi-proj-area-row" style="margin-top:3px;align-items:center;padding:2px 4px;cursor:pointer;" title="Click to activate Projected Area in viewport">
                       <div style="display:inline-flex;align-items:center;gap:4px;">
                         <span class="measure-result-label" id="measure-multi-proj-area-label" data-i18n="measureMultiProjAreaClosed" style="font-size:11px;">Proj Area (when closed)</span>
                       </div>
