@@ -5810,3 +5810,177 @@ mark.help-match-highlight {
   background: #0284c7;
   color: #ffffff;
 }
+
+/* =========================================================================
+   MULTI-POINT CUMULATIVE DISTANCE MEASUREMENT
+   ========================================================================= */
+.measure-done-btn {
+  background: #0284c7 !important;
+  border-color: #38bdf8 !important;
+  color: #ffffff !important;
+  font-weight: 700;
+  box-shadow: 0 0 8px rgba(2, 132, 199, 0.45);
+  transition: all 0.15s ease;
+}
+
+.measure-done-btn:hover {
+  background: #0369a1 !important;
+  border-color: #7dd3fc !important;
+  box-shadow: 0 0 12px rgba(2, 132, 199, 0.65);
+}
+
+.measure-multi-count-badge {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  font-weight: 700;
+  color: #38bdf8;
+  background: rgba(2, 132, 199, 0.18);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  padding: 1px 5px;
+  border-radius: 3px;
+  line-height: 1.2;
+}
+
+[data-theme="light"] .measure-multi-count-badge {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+  color: #0369a1;
+}
+
+#measure-multi-segments-container {
+  max-height: 280px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  padding-right: 2px;
+}
+
+#measure-multi-segments-container::-webkit-scrollbar {
+  width: 5px;
+}
+
+#measure-multi-segments-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#measure-multi-segments-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+[data-theme="light"] #measure-multi-segments-container::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.18);
+}
+
+.measure-multi-segment-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+}
+
+.measure-multi-segment-row:hover,
+.measure-multi-segment-row.active {
+  background: rgba(56, 189, 248, 0.12);
+  border-left-color: #38bdf8;
+}
+
+[data-theme="light"] .measure-multi-segment-row:hover,
+[data-theme="light"] .measure-multi-segment-row.active {
+  background: rgba(2, 132, 199, 0.08);
+  border-left-color: #0284c7;
+}
+
+.measure-multi-seg-label {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.measure-multi-seg-val {
+  font-family: var(--font-mono, monospace);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #cdcbb4;
+}
+
+[data-theme="light"] .measure-multi-seg-val {
+  color: #334155;
+}
+
+.measure-multipoint-badge {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 1px 5px;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(245, 158, 11, 0.65);
+  border-radius: 3px;
+  color: #fbbf24;
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: auto;
+  user-select: none;
+  cursor: grab;
+  z-index: 34;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  transition: transform 0.1s ease, background 0.12s ease;
+}
+
+.measure-multipoint-badge:hover {
+  background: #5a698e;
+  border-color: #7e8ea6;
+  color: #ffffff;
+}
+
+[data-theme="light"] .measure-multipoint-badge {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(217, 119, 6, 0.7);
+  color: #b45309;
+}
+
+[data-theme="light"] .measure-multipoint-badge:hover {
+  background: #fef3c7;
+  border-color: #b45309;
+  color: #78350f;
+}
+
+.measure-multipoint-seg-hover-callout {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 3px 8px;
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid #38bdf8;
+  border-radius: 4px;
+  color: #ffffff;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  z-index: 36;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6), 0 0 10px rgba(56, 189, 248, 0.45);
+  transition: opacity 0.12s ease;
+}
+
+[data-theme="light"] .measure-multipoint-seg-hover-callout {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: #0284c7;
+  color: #0369a1;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.18), 0 0 8px rgba(2, 132, 199, 0.3);
+}

@@ -927,7 +927,10 @@ def generate_html(variant_cfg, sources):
               <div class="control-section" id="measure-results-panel">
                 <div class="control-title" style="display:flex;justify-content:space-between;align-items:center;">
                   <span data-i18n="measureResultsTitle">Measurement Results</span>
-                  <button type="button" class="small-btn" id="btn-measure-clear" data-i18n="measureClearBtn" style="padding:2px 8px;font-size:10.5px;">Clear</button>
+                  <div style="display:inline-flex;align-items:center;gap:6px;">
+                    <button type="button" class="small-btn measure-done-btn" id="btn-measure-multi-done" style="display:none;padding:2px 8px;font-size:10.5px;background:#0284c7;color:#fff;border-color:#38bdf8;" data-i18n="measureDoneBtn">Done</button>
+                    <button type="button" class="small-btn" id="btn-measure-clear" data-i18n="measureClearBtn" style="padding:2px 8px;font-size:10.5px;">Clear</button>
+                  </div>
                 </div>
                 
                 <div class="measure-result-card" id="measure-result-card">
@@ -1118,6 +1121,25 @@ def generate_html(variant_cfg, sources):
                           <span class="measure-coord-val" id="measure-res-target-pt">--</span>
                           <button type="button" class="measure-val-copy-btn" data-target="measure-res-target-pt" title="Copy" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
                         </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Multi-Point Cumulative Distance Result View -->
+                  <div id="measure-result-multi-view" style="display:none;">
+                    <div class="measure-result-primary">
+                      <div style="display:inline-flex;align-items:center;gap:6px;">
+                        <span class="measure-result-label" data-i18n="measureMultiTotal">Total Length</span>
+                        <span class="measure-multi-count-badge" id="measure-multi-seg-count">0 segs</span>
+                      </div>
+                      <div class="measure-val-box">
+                        <span class="measure-result-val" id="measure-res-multi-total">--</span>
+                        <button type="button" class="measure-val-copy-btn" data-target="measure-res-multi-total" title="Copy Total Distance" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                      </div>
+                    </div>
+                    <div class="measure-result-details" id="measure-multi-segments-container" style="margin-top:6px;">
+                      <div class="measure-multi-segments-list" id="measure-multi-segments-list">
+                        <!-- Dynamically populated segment items: Pt #1 ~ Pt #2 : 3.520 m [copy] -->
                       </div>
                     </div>
                   </div>

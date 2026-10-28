@@ -2132,6 +2132,17 @@ class BIMViewerApp {
     this.anglePreviewCalloutEl = null;
     this.distancePreviewLine = null;
     this.distancePreviewBadgeEl = null;
+    this.multiPointState = {
+      isDrawing: false,
+      points: [],
+      markers: [],
+      lines: [],
+      segments: [],
+      totalLength: 0,
+      hoveredSegmentIndex: -1
+    };
+    this.multiPointPreviewLine = null;
+    this.multiPointHoverCalloutEl = null;
     this.measureMarkers = [];
     this.measurePointCounter = 0;
     this.activeMeasurePointId = null;
@@ -8411,13 +8422,23 @@ class BIMViewerApp {
               if (this.pendingAngleState) {
                 this.updateAnglePreview(effectiveHit);
               }
+            } else if (this.measureMode === 'multipoint') {
+              if (this.multiPointState && this.multiPointState.isDrawing) {
+                this.updateMultiPointPreview(effectiveHit);
+              }
             }
           } else {
             this.hideMeasurePointPreview();
             this.hideRadiusPreview();
             this.hideDistancePreview();
             this.hideAnglePreview();
+            this.hideMultiPointPreview();
           }
+
+          if (this.measureMode === 'multipoint' && this.multiPointState && !this.multiPointState.isDrawing) {
+            this.checkMultiPointSegmentHover(clientX, clientY);
+          }
+
           return;
         }
 
@@ -8535,6 +8556,8 @@ class BIMViewerApp {
                 this.lastMeasurementData = angleRec.data;
                 this.renderMeasurementResults();
               }
+            } else if (hitMarker.mode === 'multipoint') {
+              this.renderMeasurementResults();
             }
             this.isDraggingMeasurePoint = true;
             this.draggingMeasureMarker = hitMarker;
@@ -8620,6 +8643,8 @@ class BIMViewerApp {
             this.updateDistanceEndpointFromHit(this.draggingMeasureMarker, effectiveHit);
           } else if (this.draggingMeasureMarker.mode === 'angle') {
             this.updateAnglePointFromHit(this.draggingMeasureMarker, effectiveHit);
+          } else if (this.draggingMeasureMarker.mode === 'multipoint') {
+            this.updateMultiPointFromHit(this.draggingMeasureMarker, effectiveHit);
           } else {
             this.updateMeasurePointFromHit(this.draggingMeasureMarker, effectiveHit);
           }
@@ -8713,6 +8738,13 @@ class BIMViewerApp {
             if (this.pivotHelper) this.pivotHelper.visible = false;
           }, 1200);
         }
+      }
+    });
+
+    // Double-click to finish Multi-Point measurement
+    this.canvas.addEventListener('dblclick', (e) => {
+      if (this.measureMode === 'multipoint' && this.multiPointState && this.multiPointState.isDrawing) {
+        this.finishMultiPointMeasurement();
       }
     });
 
@@ -9068,9 +9100,19 @@ class BIMViewerApp {
         if (this.pendingDistanceStart) {
           this.cancelPendingDistanceStart();
         }
+        if (this.pendingAngleState) {
+          this.cancelPendingAngleStart();
+        }
+        if (this.multiPointState && this.multiPointState.isDrawing) {
+          this.cancelPendingMultiPoint();
+        }
         if (this.compareEngine && this.compareEngine.isModalOpen()) {
           this.compareEngine.closeSetupModal();
           return;
+        }
+      } else if (e.key === 'Enter') {
+        if (this.measureMode === 'multipoint' && this.multiPointState && this.multiPointState.isDrawing) {
+          this.finishMultiPointMeasurement();
         }
       }
 
@@ -9603,7 +9645,81 @@ class BIMViewerApp {
           };
         }
       }
-      if (this.measureMode === 'radius') {
+      if (this.measureMode === 'multipoint') {
+      if (!isHitObj) return;
+      const isShift = Boolean(event && event.shiftKey);
+      if (isShift) return;
+
+      const pt = effectiveHit.point.clone();
+
+      if (!this.multiPointState.isDrawing) {
+        if (this.multiPointState.points.length > 0) {
+          this.clearMultiPointMeasurement();
+        }
+
+        this.multiPointState.isDrawing = true;
+        this.multiPointState.points = [pt];
+        const marker = this.createMultiPointMarker(effectiveHit, 1);
+        this.multiPointState.markers = [marker];
+        this.multiPointState.lines = [];
+        this.multiPointState.segments = [];
+        this.multiPointState.totalLength = 0;
+
+        const hintEl = document.getElementById('measure-mode-hint');
+        if (hintEl) hintEl.textContent = I18N.t('measureMultiPromptPickNext') || "Click surface to add next point | Double-click or click 'Done' to finish";
+
+        const btnDone = document.getElementById('btn-measure-multi-done');
+        if (btnDone) btnDone.style.display = 'none';
+
+        this.renderMultiPointResults();
+        this.initMultiPointPreview();
+        this.requestRender(200);
+        return;
+      }
+
+      const points = this.multiPointState.points;
+      const lastPt = points[points.length - 1];
+
+      if (pt.distanceTo(lastPt) < 1e-3) {
+        this.finishMultiPointMeasurement();
+        return;
+      }
+
+      points.push(pt);
+      const newIdx = points.length;
+      const marker = this.createMultiPointMarker(effectiveHit, newIdx);
+      this.multiPointState.markers.push(marker);
+
+      const geom = new THREE.BufferGeometry().setFromPoints([lastPt, pt]);
+      const line = new THREE.Line(geom, new THREE.LineBasicMaterial({
+        color: 0xf59e0b,
+        linewidth: 3,
+        depthTest: false,
+        depthWrite: false
+      }));
+      line.renderOrder = 1205;
+      line.userData = { isMeasureLine: true, isMultiPointLine: true, segmentIndex: points.length - 2 };
+      this.scene.add(line);
+      this.multiPointState.lines.push(line);
+
+      const segLen = lastPt.distanceTo(pt);
+      this.multiPointState.segments.push({
+        from: points.length - 2,
+        to: points.length - 1,
+        length: segLen
+      });
+      this.multiPointState.totalLength += segLen;
+
+      const btnDone = document.getElementById('btn-measure-multi-done');
+      if (btnDone) btnDone.style.display = 'inline-block';
+
+      this.renderMultiPointResults();
+      this.updateMeasureMarkersAndCallouts();
+      this.requestRender(200);
+      return;
+    }
+
+    if (this.measureMode === 'radius') {
         const radTarget = this.currentRadiusTarget || this.detectRadiusTarget(hit, e.clientX, e.clientY);
         if (radTarget) {
           this.createOrUpdateRadiusMeasurement(radTarget, e);
@@ -9803,6 +9919,7 @@ class BIMViewerApp {
     this.activeDistanceMeasurementId = null;
     this.pendingDistanceStart = null;
     this.initDistancePreview();
+    this.initMultiPointPreview();
   }
 
   initMeasurePointPreview() {
@@ -12320,6 +12437,14 @@ class BIMViewerApp {
         const sx = (projVec.x * 0.5 + 0.5) * cw;
         const sy = (-projVec.y * 0.5 + 0.5) * ch;
 
+        if (marker.mode === 'multipoint') {
+          if (marker.calloutEl) {
+            marker.calloutEl.style.display = 'block';
+            marker.calloutEl.style.transform = `translate3d(${Math.round(sx + 10)}px, ${Math.round(sy - 22)}px, 0)`;
+          }
+          continue;
+        }
+
         if (marker.calloutEl) {
           marker.calloutEl.style.display = 'block';
           const cardW = marker.calloutEl.offsetWidth || 185;
@@ -12386,6 +12511,18 @@ class BIMViewerApp {
 
           distRec.calloutEl.style.display = 'block';
           distRec.calloutEl.style.transform = `translate3d(${Math.round(bx)}px, ${Math.round(by)}px, 0) translate(-50%, -50%)`;
+        }
+      }
+    }
+
+    // Update Multi-Point Hover Callout
+    if (this.multiPointState && this.multiPointState.hoveredSegmentIndex >= 0) {
+      const hSeg = this.multiPointState.segments[this.multiPointState.hoveredSegmentIndex];
+      if (hSeg) {
+        const p0 = this.multiPointState.points[hSeg.from];
+        const p1 = this.multiPointState.points[hSeg.to];
+        if (p0 && p1) {
+          this.updateMultiPointHoverCalloutPosition(p0, p1);
         }
       }
     }
@@ -12483,6 +12620,469 @@ class BIMViewerApp {
       this.updateMeasureMarkersAndCallouts();
     }
     this.renderMeasurementResults();
+  }
+
+  // =========================================================================
+  // MULTI-POINT CUMULATIVE DISTANCE MEASUREMENT SYSTEM
+  // =========================================================================
+  initMultiPointPreview() {
+    if (this.multiPointPreviewLine) return;
+    const lineGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+    this.multiPointPreviewLine = new THREE.Line(lineGeom, new THREE.LineDashedMaterial({
+      color: 0xf59e0b,
+      dashSize: 0.20,
+      gapSize: 0.12,
+      depthTest: false,
+      depthWrite: false
+    }));
+    this.multiPointPreviewLine.computeLineDistances();
+    this.multiPointPreviewLine.visible = false;
+    this.multiPointPreviewLine.renderOrder = 2300;
+    this.scene.add(this.multiPointPreviewLine);
+
+    const listEl = document.getElementById('measure-callouts-layer') || this.container;
+    if (listEl) {
+      this.multiPointHoverCalloutEl = document.createElement('div');
+      this.multiPointHoverCalloutEl.className = 'measure-multipoint-seg-hover-callout';
+      this.multiPointHoverCalloutEl.style.display = 'none';
+      this.multiPointHoverCalloutEl.style.pointerEvents = 'none';
+      this.multiPointHoverCalloutEl.textContent = '--';
+      listEl.appendChild(this.multiPointHoverCalloutEl);
+    }
+  }
+
+  hideMultiPointPreview() {
+    if (this.multiPointPreviewLine) {
+      this.multiPointPreviewLine.visible = false;
+    }
+    if (this.multiPointHoverCalloutEl) {
+      this.multiPointHoverCalloutEl.style.display = 'none';
+    }
+    this.requestRender(100);
+  }
+
+  updateMultiPointPreview(candidateHit) {
+    if (!this.multiPointState || !this.multiPointState.isDrawing || this.multiPointState.points.length === 0 || !candidateHit || !candidateHit.point) {
+      this.hideMultiPointPreview();
+      return;
+    }
+    const lastPt = this.multiPointState.points[this.multiPointState.points.length - 1];
+    const curPt = candidateHit.point;
+
+    if (!this.multiPointPreviewLine) this.initMultiPointPreview();
+
+    if (this.multiPointPreviewLine) {
+      const positions = this.multiPointPreviewLine.geometry.attributes.position;
+      positions.setXYZ(0, lastPt.x, lastPt.y, lastPt.z);
+      positions.setXYZ(1, curPt.x, curPt.y, curPt.z);
+      positions.needsUpdate = true;
+      if (this.multiPointPreviewLine.computeLineDistances) {
+        this.multiPointPreviewLine.computeLineDistances();
+      }
+      this.multiPointPreviewLine.visible = true;
+    }
+    this.requestRender(100);
+  }
+
+  createMultiPointMarker(hit, index) {
+    if (!hit || !hit.point) return null;
+    if (!this.measureMarkersGroup) this.initMeasurementSystem();
+
+    const id = `multi-pt-${++this.measurePointCounter}`;
+    const slopeData = this.computeSurfaceNormalAndSlope(hit);
+    const meshParts = this.createStandardMeasureMarkerMesh(id, {
+      showSlopeArrow: false,
+      themeColor: 0xf59e0b
+    });
+
+    const listEl = document.getElementById('measure-callouts-layer') || this.container;
+    const badgeEl = document.createElement('div');
+    badgeEl.className = 'measure-multipoint-badge';
+    badgeEl.textContent = `Pt #${index}`;
+    badgeEl.title = `Pt #${index}: click to inspect, drag to adjust position`;
+    if (listEl) listEl.appendChild(badgeEl);
+
+    const marker = {
+      id,
+      mode: 'multipoint',
+      multiPointIndex: index - 1,
+      point: hit.point.clone(),
+      normal: slopeData.normal.clone(),
+      slopeData,
+      showSlopeArrow: false,
+      baseColor: 0xf59e0b,
+      calloutOffset: { x: 0, y: 0 },
+      calloutEl: badgeEl,
+      leaderLineEl: null,
+      leaderDotEl: null,
+      ...meshParts
+    };
+
+    badgeEl.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      this.isDraggingMeasurePoint = true;
+      this.draggingMeasureMarker = marker;
+      this.setMeasureMarkerDragging(marker, true);
+      this.canvas.style.cursor = 'grabbing';
+    });
+
+    this.measureMarkersGroup.add(marker.group);
+    this.measureMarkers.push(marker);
+
+    this.orientMeasureMarkerToSurface(marker);
+    this.updateMeasureMarkersAndCallouts();
+    this.requestRender(200);
+    return marker;
+  }
+
+  finishMultiPointMeasurement() {
+    if (!this.multiPointState || !this.multiPointState.isDrawing) return;
+
+    const points = this.multiPointState.points;
+    if (points.length < 2) {
+      this.cancelPendingMultiPoint();
+      return;
+    }
+
+    // Check if the last two points are identical (e.g. from dblclick second tap)
+    if (points.length >= 2) {
+      const pLast = points[points.length - 1];
+      const pPrev = points[points.length - 2];
+      if (pLast.distanceTo(pPrev) < 1e-3) {
+        points.pop();
+        const lastMarker = this.multiPointState.markers.pop();
+        if (lastMarker) this.deleteMeasurePoint(lastMarker.id);
+        const lastLine = this.multiPointState.lines.pop();
+        if (lastLine) {
+          this.scene.remove(lastLine);
+          if (lastLine.geometry) lastLine.geometry.dispose();
+          if (lastLine.material) lastLine.material.dispose();
+        }
+        if (this.multiPointState.segments.length > 0) {
+          const removedSeg = this.multiPointState.segments.pop();
+          this.multiPointState.totalLength -= (removedSeg ? removedSeg.length : 0);
+        }
+      }
+    }
+
+    this.multiPointState.isDrawing = false;
+    this.hideMultiPointPreview();
+
+    const btnDone = document.getElementById('btn-measure-multi-done');
+    if (btnDone) btnDone.style.display = 'none';
+
+    const unit = this.measureUnit || 'm';
+    const scale = unit === 'mm' ? 1000 : 1;
+    const decimals = unit === 'mm' ? 0 : 3;
+    const formattedTotal = (this.multiPointState.totalLength * scale).toFixed(decimals);
+
+    const hintEl = document.getElementById('measure-mode-hint');
+    if (hintEl) {
+      hintEl.textContent = `${I18N.t('measureMultiTotal') || 'Total Length'}: ${formattedTotal} ${unit}. ${I18N.t('measureMultiHint') || 'Drag points to adjust'}`;
+    }
+
+    showToast(`${I18N.t('measureMultiTotal') || 'Total'}: ${formattedTotal} ${unit} (${this.multiPointState.segments.length} segs)`, 'success');
+
+    this.renderMultiPointResults();
+    this.requestRender(200);
+  }
+
+  cancelPendingMultiPoint() {
+    if (!this.multiPointState || !this.multiPointState.isDrawing) return;
+    this.clearMultiPointMeasurement();
+    const hintEl = document.getElementById('measure-mode-hint');
+    if (hintEl && this.measureMode === 'multipoint') {
+      hintEl.textContent = I18N.t('measureMultiPromptPickFirst') || 'Click surface to place Point #1 (Start)';
+    }
+  }
+
+  clearMultiPointMeasurement() {
+    if (!this.multiPointState) return;
+
+    if (this.multiPointState.lines) {
+      for (const line of this.multiPointState.lines) {
+        if (!line) continue;
+        this.scene.remove(line);
+        if (line.geometry) line.geometry.dispose();
+        if (line.material) line.material.dispose();
+      }
+    }
+
+    if (this.multiPointState.markers) {
+      for (const marker of this.multiPointState.markers) {
+        if (!marker) continue;
+        this.deleteMeasurePoint(marker.id);
+      }
+    }
+
+    this.multiPointState = {
+      isDrawing: false,
+      points: [],
+      markers: [],
+      lines: [],
+      segments: [],
+      totalLength: 0,
+      hoveredSegmentIndex: -1
+    };
+
+    this.hideMultiPointPreview();
+
+    const btnDone = document.getElementById('btn-measure-multi-done');
+    if (btnDone) btnDone.style.display = 'none';
+
+    const totalEl = document.getElementById('measure-res-multi-total');
+    if (totalEl) totalEl.textContent = '--';
+
+    const countEl = document.getElementById('measure-multi-seg-count');
+    if (countEl) countEl.textContent = '0 segs';
+
+    const segListEl = document.getElementById('measure-multi-segments-list');
+    if (segListEl) segListEl.innerHTML = '';
+
+    this.requestRender(150);
+  }
+
+  updateMultiPointFromHit(marker, hit) {
+    if (!marker || !hit || !hit.point) return;
+    const slopeData = this.computeSurfaceNormalAndSlope(hit);
+    marker.point.copy(hit.point);
+    marker.normal.copy(slopeData.normal);
+    marker.slopeData = slopeData;
+
+    this.orientMeasureMarkerToSurface(marker);
+
+    const idx = marker.multiPointIndex;
+    if (idx !== undefined && this.multiPointState && this.multiPointState.points[idx]) {
+      this.multiPointState.points[idx].copy(hit.point);
+
+      let total = 0;
+      for (let i = 0; i < this.multiPointState.segments.length; i++) {
+        const seg = this.multiPointState.segments[i];
+        const p0 = this.multiPointState.points[seg.from];
+        const p1 = this.multiPointState.points[seg.to];
+        seg.length = p0.distanceTo(p1);
+        total += seg.length;
+
+        const line = this.multiPointState.lines[i];
+        if (line && (seg.from === idx || seg.to === idx)) {
+          line.geometry.setFromPoints([p0, p1]);
+          line.geometry.attributes.position.needsUpdate = true;
+        }
+      }
+      this.multiPointState.totalLength = total;
+
+      if (this.multiPointState.hoveredSegmentIndex >= 0) {
+        const hSeg = this.multiPointState.segments[this.multiPointState.hoveredSegmentIndex];
+        if (hSeg) {
+          const p0 = this.multiPointState.points[hSeg.from];
+          const p1 = this.multiPointState.points[hSeg.to];
+          this.updateMultiPointHoverCalloutPosition(p0, p1);
+        }
+      }
+
+      this.renderMultiPointResults();
+    }
+
+    this.updateMeasureMarkersAndCallouts();
+    this.requestRender(200);
+  }
+
+  renderMultiPointResults() {
+    const totalEl = document.getElementById('measure-res-multi-total');
+    const countEl = document.getElementById('measure-multi-seg-count');
+    const listEl = document.getElementById('measure-multi-segments-list');
+    if (!totalEl || !listEl) return;
+
+    const unit = this.measureUnit || 'm';
+    const scale = unit === 'mm' ? 1000 : 1;
+    const decimals = unit === 'mm' ? 0 : 3;
+
+    if (!this.multiPointState || this.multiPointState.points.length === 0) {
+      totalEl.textContent = '--';
+      if (countEl) countEl.textContent = '0 segs';
+      listEl.innerHTML = '';
+      return;
+    }
+
+    const totalFormatted = (this.multiPointState.totalLength * scale).toFixed(decimals) + ' ' + unit;
+    totalEl.textContent = totalFormatted;
+
+    const segCount = this.multiPointState.segments.length;
+    if (countEl) {
+      const template = I18N.t('measureMultiSegCount') || '{count} segs';
+      countEl.textContent = template.replace('{count}', segCount);
+    }
+
+    listEl.innerHTML = '';
+    this.multiPointState.segments.forEach((seg, idx) => {
+      const segFormatted = (seg.length * scale).toFixed(decimals) + ' ' + unit;
+      const row = document.createElement('div');
+      row.className = 'measure-multi-segment-row';
+      if (this.multiPointState.hoveredSegmentIndex === idx) {
+        row.classList.add('active');
+      }
+      row.setAttribute('data-seg-idx', idx);
+
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'measure-multi-seg-label';
+      labelSpan.textContent = `Pt #${seg.from + 1} ~ Pt #${seg.to + 1}`;
+
+      const rightBox = document.createElement('div');
+      rightBox.style.display = 'inline-flex';
+      rightBox.style.alignItems = 'center';
+      rightBox.style.gap = '6px';
+
+      const valSpan = document.createElement('span');
+      valSpan.className = 'measure-multi-seg-val';
+      valSpan.textContent = segFormatted;
+
+      const copyBtn = document.createElement('button');
+      copyBtn.type = 'button';
+      copyBtn.className = 'measure-val-copy-btn';
+      copyBtn.title = 'Copy segment distance';
+      copyBtn.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+
+      copyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(segFormatted).catch(() => {});
+        }
+        showToast(`${I18N.t('measureCopied') || 'Copied'}: ${segFormatted}`, 'info');
+        copyBtn.classList.add('copied');
+        setTimeout(() => copyBtn.classList.remove('copied'), 1000);
+      });
+
+      rightBox.appendChild(valSpan);
+      rightBox.appendChild(copyBtn);
+      row.appendChild(labelSpan);
+      row.appendChild(rightBox);
+
+      row.addEventListener('mouseenter', () => {
+        this.setMultiPointHoveredSegment(idx);
+      });
+      row.addEventListener('mouseleave', () => {
+        this.setMultiPointHoveredSegment(-1);
+      });
+
+      listEl.appendChild(row);
+    });
+  }
+
+  setMultiPointHoveredSegment(segIdx) {
+    if (!this.multiPointState) return;
+    if (this.multiPointState.hoveredSegmentIndex === segIdx) return;
+
+    const prevIdx = this.multiPointState.hoveredSegmentIndex;
+    this.multiPointState.hoveredSegmentIndex = segIdx;
+
+    if (prevIdx >= 0 && this.multiPointState.lines[prevIdx]) {
+      this.multiPointState.lines[prevIdx].material.color.setHex(0xf59e0b);
+    }
+    if (segIdx >= 0 && this.multiPointState.lines[segIdx]) {
+      this.multiPointState.lines[segIdx].material.color.setHex(0x38bdf8);
+    }
+
+    const listEl = document.getElementById('measure-multi-segments-list');
+    if (listEl) {
+      listEl.querySelectorAll('.measure-multi-segment-row').forEach((r, idx) => {
+        r.classList.toggle('active', idx === segIdx);
+      });
+    }
+
+    if (segIdx >= 0 && this.multiPointState.segments[segIdx]) {
+      const seg = this.multiPointState.segments[segIdx];
+      const p0 = this.multiPointState.points[seg.from];
+      const p1 = this.multiPointState.points[seg.to];
+      if (p0 && p1) {
+        if (!this.multiPointHoverCalloutEl) this.initMultiPointPreview();
+        const unit = this.measureUnit || 'm';
+        const scale = unit === 'mm' ? 1000 : 1;
+        const decimals = unit === 'mm' ? 0 : 3;
+        const segFormatted = (seg.length * scale).toFixed(decimals) + ' ' + unit;
+        if (this.multiPointHoverCalloutEl) {
+          this.multiPointHoverCalloutEl.textContent = `Pt #${seg.from + 1} ~ Pt #${seg.to + 1}: ${segFormatted}`;
+          this.multiPointHoverCalloutEl.style.display = 'block';
+        }
+        this.updateMultiPointHoverCalloutPosition(p0, p1);
+      }
+    } else {
+      if (this.multiPointHoverCalloutEl) {
+        this.multiPointHoverCalloutEl.style.display = 'none';
+      }
+    }
+
+    this.requestRender(100);
+  }
+
+  updateMultiPointHoverCalloutPosition(p0, p1) {
+    if (!this.multiPointHoverCalloutEl || !this.camera || !this.container) return;
+    const midPoint = new THREE.Vector3().addVectors(p0, p1).multiplyScalar(0.5);
+    const projVec = midPoint.clone().project(this.camera);
+    if (projVec.z > 1.0 || projVec.z < -1.0) {
+      this.multiPointHoverCalloutEl.style.display = 'none';
+      return;
+    }
+    const cw = this.container.clientWidth || 1;
+    const ch = this.container.clientHeight || 1;
+    const sx = (projVec.x * 0.5 + 0.5) * cw;
+    const sy = (-projVec.y * 0.5 + 0.5) * ch;
+
+    this.multiPointHoverCalloutEl.style.display = 'block';
+    this.multiPointHoverCalloutEl.style.transform = `translate3d(${Math.round(sx)}px, ${Math.round(sy - 16)}px, 0) translate(-50%, -100%)`;
+  }
+
+  checkMultiPointSegmentHover(clientX, clientY) {
+    if (!this.multiPointState || !this.multiPointState.segments || this.multiPointState.segments.length === 0) return;
+    if (!this.camera || !this.container) return;
+    const rect = this.canvas.getBoundingClientRect();
+    const mx = clientX;
+    const my = clientY;
+    const cw = this.container.clientWidth || 1;
+    const ch = this.container.clientHeight || 1;
+
+    let bestDistSq = Infinity;
+    let bestIdx = -1;
+
+    const proj0 = new THREE.Vector3();
+    const proj1 = new THREE.Vector3();
+
+    for (let i = 0; i < this.multiPointState.segments.length; i++) {
+      const seg = this.multiPointState.segments[i];
+      const p0 = this.multiPointState.points[seg.from];
+      const p1 = this.multiPointState.points[seg.to];
+      if (!p0 || !p1) continue;
+
+      proj0.copy(p0).project(this.camera);
+      proj1.copy(p1).project(this.camera);
+
+      if ((proj0.z > 1.0 || proj0.z < -1.0) && (proj1.z > 1.0 || proj1.z < -1.0)) continue;
+
+      const s0x = rect.left + (proj0.x * 0.5 + 0.5) * cw;
+      const s0y = rect.top + (-proj0.y * 0.5 + 0.5) * ch;
+      const s1x = rect.left + (proj1.x * 0.5 + 0.5) * cw;
+      const s1y = rect.top + (-proj1.y * 0.5 + 0.5) * ch;
+
+      const dx = s1x - s0x;
+      const dy = s1y - s0y;
+      const lenSq = dx * dx + dy * dy;
+      let dSq;
+      if (lenSq === 0) {
+        dSq = (mx - s0x) ** 2 + (my - s0y) ** 2;
+      } else {
+        let t = ((mx - s0x) * dx + (my - s0y) * dy) / lenSq;
+        t = Math.max(0, Math.min(1, t));
+        const projX = s0x + t * dx;
+        const projY = s0y + t * dy;
+        dSq = (mx - projX) ** 2 + (my - projY) ** 2;
+      }
+
+      if (dSq < 64 && dSq < bestDistSq) {
+        bestDistSq = dSq;
+        bestIdx = i;
+      }
+    }
+
+    this.setMultiPointHoveredSegment(bestIdx);
   }
 
   handleMeasureClick(hitOrPoint, event = null) {
@@ -12832,15 +13432,20 @@ class BIMViewerApp {
     const distView = document.getElementById('measure-result-dist-view');
     const radView = document.getElementById('measure-result-radius-view');
     const angleView = document.getElementById('measure-result-angle-view');
+    const multiView = document.getElementById('measure-result-multi-view');
     if (ptView && distView) {
       const showPt = this.measureMode === 'point';
       const showRad = this.measureMode === 'radius';
       const showAngle = this.measureMode === 'angle';
+      const showMulti = this.measureMode === 'multipoint';
       ptView.style.display = showPt ? 'block' : 'none';
       distView.style.display = (this.measureMode === 'distance') ? 'block' : 'none';
       if (radView) radView.style.display = showRad ? 'block' : 'none';
       if (angleView) angleView.style.display = showAngle ? 'block' : 'none';
+      if (multiView) multiView.style.display = showMulti ? 'block' : 'none';
     }
+
+    this.renderMultiPointResults();
 
     // 1. Update Point Measurement Panel Card
     const activePt = this.getActiveMeasurePoint();
@@ -13031,6 +13636,9 @@ class BIMViewerApp {
     this.measurePoints = [];
     this.lastMeasurementData = null;
 
+    // 0. Clear Multi-Point Measurements
+    this.clearMultiPointMeasurement();
+
     // 1. Clear Angle Measurements (arms, arc lines, proj groups, endpoints, callouts)
     if (this.angleMeasurements && this.angleMeasurements.length > 0) {
       const angleIds = this.angleMeasurements.map(a => a.id);
@@ -13144,8 +13752,10 @@ class BIMViewerApp {
           : (this.measureMode === 'distance'
             ? I18N.t('measurePromptPickFirst')
             : (this.measureMode === 'angle'
-              ? (I18N.t('measureAnglePromptPickVertex') || 'Click surface to place Angle Vertex (Point 1/3)')
-              : I18N.t('measurePendingNotice'))));
+              ? (I18N.t('measurePromptPickAngleVertex') || 'Click surface to place Angle Vertex (Point 1/3)')
+              : (this.measureMode === 'multipoint'
+                ? (I18N.t('measureMultiPromptPickFirst') || 'Click surface to place Point #1 (Start)')
+                : I18N.t('measurePendingNotice')))));
     }
     this.requestRender(200);
   }
@@ -13751,6 +14361,14 @@ class BIMViewerApp {
       });
     }
 
+    // Measure Multi-Point Done Button
+    const btnDoneMeasure = document.getElementById('btn-measure-multi-done');
+    if (btnDoneMeasure) {
+      btnDoneMeasure.addEventListener('click', () => {
+        this.finishMultiPointMeasurement();
+      });
+    }
+
     // Measure Value Copy Buttons in Floating Tool Panel (Visual #0284c7 flash with 1s fade, no text change)
     document.querySelectorAll('.measure-val-copy-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -14339,6 +14957,9 @@ class BIMViewerApp {
         this.isMeasureMode = false;
         this.hideMeasurePointPreview();
         this.hideRadiusPreview();
+        this.hideDistancePreview();
+        this.hideAnglePreview();
+        this.hideMultiPointPreview();
         if (this.snapEngine) this.snapEngine.hideIndicator();
         if (this.canvas) this.canvas.style.cursor = 'default';
       }
@@ -14356,6 +14977,9 @@ class BIMViewerApp {
     }
     if (mode !== 'angle') {
       this.cancelPendingAngleStart();
+    }
+    if (mode !== 'multipoint') {
+      this.cancelPendingMultiPoint();
     }
     if (mode === 'point') {
       if (hintEl) hintEl.textContent = I18N.t('measurePointHint');
@@ -14387,6 +15011,21 @@ class BIMViewerApp {
       this.hideMeasurePointPreview();
       this.hideRadiusPreview();
       this.hideDistancePreview();
+      this.hideMultiPointPreview();
+    } else if (mode === 'multipoint') {
+      if (hintEl) {
+        if (!this.multiPointState || !this.multiPointState.isDrawing) {
+          hintEl.textContent = I18N.t('measureMultiPromptPickFirst') || 'Click surface to place Point #1 (Start)';
+        } else {
+          hintEl.textContent = I18N.t('measureMultiPromptPickNext') || "Click surface to add next point | Double-click or click 'Done' to finish";
+        }
+      }
+      this.isMeasureMode = true;
+      if (this.canvas) this.canvas.style.cursor = 'crosshair';
+      this.hideMeasurePointPreview();
+      this.hideRadiusPreview();
+      this.hideDistancePreview();
+      this.hideAnglePreview();
     } else {
       if (hintEl) hintEl.textContent = I18N.t('measurePendingNotice');
       this.isMeasureMode = false;
