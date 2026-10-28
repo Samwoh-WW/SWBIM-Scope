@@ -1234,6 +1234,10 @@ def generate_html(variant_cfg, sources):
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><polyline points="12 5 19 12 12 19"></polyline></svg>
             <span data-i18n="menuAppendMeasurePoint">Add Point After</span>
           </div>
+          <div class="context-menu-item" id="menu-measure-break-closure" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><line x1="6" y1="9" x2="6" y2="15"></line><line x1="9" y1="18" x2="15" y2="18"></line></svg>
+            <span data-i18n="menuBreakClosure">Break Closed Polyline</span>
+          </div>
         </div>
 
         <!-- Animation Player Bar (for DAE, FBX & GLTF models with animations) -->

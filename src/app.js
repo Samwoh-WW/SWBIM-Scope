@@ -2134,6 +2134,7 @@ class BIMViewerApp {
     this.distancePreviewBadgeEl = null;
     this.multiPointState = {
       isDrawing: false,
+      isClosed: false,
       points: [],
       markers: [],
       lines: [],
@@ -2147,6 +2148,8 @@ class BIMViewerApp {
     this.multiPointDrawDir = 'append';
     this.multiPointInsertPreviewLine = null;
     this.contextMenuMultiPointSegIdx = -1;
+    this.multiPointClosurePopoverEl = null;
+    this.pendingClosureAction = null;
     this.measureMarkers = [];
     this.measurePointCounter = 0;
     this.activeMeasurePointId = null;
@@ -8427,7 +8430,11 @@ class BIMViewerApp {
                 this.updateAnglePreview(effectiveHit);
               }
             } else if (this.measureMode === 'multipoint') {
-              if (this.multiPointInsertSegIdx >= 0) {
+              if (this.pendingClosureAction) {
+          this.hideMultiPointClosurePopover();
+          return;
+        }
+        if (this.multiPointInsertSegIdx >= 0) {
                 this.updateMultiPointInsertPreview(effectiveHit);
               } else if (this.multiPointState && this.multiPointState.isDrawing) {
                 this.updateMultiPointPreview(effectiveHit);
@@ -8703,6 +8710,20 @@ class BIMViewerApp {
       }
       if (this.isDraggingMeasurePoint) {
         if (this.draggingMeasureMarker) {
+          if (this.draggingMeasureMarker.mode === 'multipoint' && !this.multiPointState.isClosed && this.multiPointState.points.length >= 3) {
+            const mIdx = this.draggingMeasureMarker.multiPointIndex;
+            const totalPts = this.multiPointState.points.length;
+            if (mIdx === 0 || mIdx === totalPts - 1) {
+              const targetIdx = (mIdx === 0) ? (totalPts - 1) : 0;
+              const targetPt = this.multiPointState.points[targetIdx];
+              const curPt = this.draggingMeasureMarker.point;
+              if (curPt.distanceTo(targetPt) < 0.65) {
+                this.showMultiPointClosurePopover(targetPt, () => {
+                  this.closeMultiPointMeasurement();
+                }, () => {});
+              }
+            }
+          }
           this.setMeasureMarkerDragging(this.draggingMeasureMarker, false);
         }
         this.isDraggingMeasurePoint = false;
@@ -9008,16 +9029,19 @@ class BIMViewerApp {
     const itemMeasureInsert = document.getElementById('menu-measure-insert-point');
     const itemMeasurePrepend = document.getElementById('menu-measure-prepend-point');
     const itemMeasureAppend = document.getElementById('menu-measure-append-point');
+    const itemMeasureBreak = document.getElementById('menu-measure-break-closure');
 
     const canCreateMeasurePt = !!(this.isMeasureMode && this.measureMode === 'point' && !this.contextMenuMeasureMarker && this.contextMenuMeasureSurfaceHit);
     const marker = this.contextMenuMeasureMarker;
     const isMultiPtMarker = !!(marker && marker.mode === 'multipoint' && this.multiPointState && this.multiPointState.markers);
+    const isClosedPolyline = !!(this.multiPointState && this.multiPointState.isClosed);
     const canDeleteMeasurePt = !!(marker && (marker.mode === 'point' || marker.mode === 'multipoint'));
     const canDeleteMeasurement = !!(marker && (marker.mode === 'distance' || marker.mode === 'angle'));
 
     const canInsertPt = !!(this.contextMenuMultiPointSegIdx >= 0 && this.multiPointState && !this.multiPointState.isDrawing && this.multiPointInsertSegIdx < 0);
-    const canPrependPt = !!(isMultiPtMarker && marker.multiPointIndex === 0 && !this.multiPointState.isDrawing && this.multiPointInsertSegIdx < 0);
-    const canAppendPt = !!(isMultiPtMarker && marker.multiPointIndex === (this.multiPointState.markers.length - 1) && !this.multiPointState.isDrawing && this.multiPointInsertSegIdx < 0);
+    const canPrependPt = !!(isMultiPtMarker && marker.multiPointIndex === 0 && !this.multiPointState.isDrawing && this.multiPointInsertSegIdx < 0 && !isClosedPolyline);
+    const canAppendPt = !!(isMultiPtMarker && marker.multiPointIndex === (this.multiPointState.markers.length - 1) && !this.multiPointState.isDrawing && this.multiPointInsertSegIdx < 0 && !isClosedPolyline);
+    const canBreakClosure = !!(isMultiPtMarker && isClosedPolyline);
 
     if (itemMeasureCreate) itemMeasureCreate.style.display = canCreateMeasurePt ? 'flex' : 'none';
     if (itemMeasureDeletePt) itemMeasureDeletePt.style.display = canDeleteMeasurePt ? 'flex' : 'none';
@@ -9025,8 +9049,9 @@ class BIMViewerApp {
     if (itemMeasureInsert) itemMeasureInsert.style.display = canInsertPt ? 'flex' : 'none';
     if (itemMeasurePrepend) itemMeasurePrepend.style.display = canPrependPt ? 'flex' : 'none';
     if (itemMeasureAppend) itemMeasureAppend.style.display = canAppendPt ? 'flex' : 'none';
+    if (itemMeasureBreak) itemMeasureBreak.style.display = canBreakClosure ? 'flex' : 'none';
     if (itemMeasureDivider) {
-      itemMeasureDivider.style.display = (canCreateMeasurePt || canDeleteMeasurePt || canDeleteMeasurement || canInsertPt || canPrependPt || canAppendPt) ? 'block' : 'none';
+      itemMeasureDivider.style.display = (canCreateMeasurePt || canDeleteMeasurePt || canDeleteMeasurement || canInsertPt || canPrependPt || canAppendPt || canBreakClosure) ? 'block' : 'none';
     }
 
     // Position menu within viewport bounds
@@ -9191,6 +9216,12 @@ class BIMViewerApp {
           return;
         }
       } else if (e.key === 'Enter') {
+        if (this.pendingClosureAction) {
+          const action = this.pendingClosureAction;
+          this.hideMultiPointClosurePopover();
+          if (action && action.onConfirm) action.onConfirm();
+          return;
+        }
         if (this.measureMode === 'multipoint' && this.multiPointState && this.multiPointState.isDrawing) {
           this.finishMultiPointMeasurement();
         }
@@ -9431,6 +9462,17 @@ class BIMViewerApp {
       btnMeasureAppend.onclick = () => {
         this.hideContextMenu();
         this.startMultiPointAppend();
+      };
+    }
+
+    const btnMeasureBreak = document.getElementById('menu-measure-break-closure');
+    if (btnMeasureBreak) {
+      btnMeasureBreak.onclick = () => {
+        const marker = this.contextMenuMeasureMarker;
+        this.hideContextMenu();
+        if (marker) {
+          this.breakMultiPointClosure(marker.id);
+        }
       };
     }
   }
@@ -12571,6 +12613,7 @@ class BIMViewerApp {
     }
 
     // Update Multi-Point Hover Callout
+    this.updateMultiPointClosurePopoverPosition();
     if (this.multiPointState && this.multiPointState.hoveredSegmentIndex >= 0) {
       const hSeg = this.multiPointState.segments[this.multiPointState.hoveredSegmentIndex];
       if (hSeg) {
@@ -12720,6 +12763,235 @@ class BIMViewerApp {
       this.multiPointPreviewLine.visible = false;
     }
     this.requestRender(100);
+  }
+
+  ensureMultiPointClosurePopoverDOM() {
+    if (this.multiPointClosurePopoverEl && this.multiPointClosurePopoverEl.parentNode) return;
+    const listEl = document.getElementById('measure-callouts-layer') || this.container;
+    if (!listEl) return;
+
+    const pop = document.createElement('div');
+    pop.className = 'measure-closure-popover';
+    pop.id = 'measure-closure-popover';
+    pop.style.display = 'none';
+
+    const textEl = document.createElement('div');
+    textEl.className = 'measure-closure-popover-text';
+    textEl.textContent = I18N.t('measureMultiConfirmClose') || 'Close polyline?';
+
+    const acts = document.createElement('div');
+    acts.className = 'measure-closure-popover-actions';
+
+    const btnConfirm = document.createElement('button');
+    btnConfirm.type = 'button';
+    btnConfirm.className = 'measure-closure-btn-close';
+    btnConfirm.textContent = I18N.t('measureMultiBtnClose') || 'Close';
+
+    const btnCancel = document.createElement('button');
+    btnCancel.type = 'button';
+    btnCancel.className = 'measure-closure-btn-cancel';
+    btnCancel.textContent = I18N.t('measureMultiBtnCancel') || 'Cancel';
+
+    btnConfirm.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const action = this.pendingClosureAction;
+      this.hideMultiPointClosurePopover();
+      if (action && action.onConfirm) action.onConfirm();
+    });
+
+    btnCancel.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const action = this.pendingClosureAction;
+      this.hideMultiPointClosurePopover();
+      if (action && action.onCancel) action.onCancel();
+    });
+
+    acts.appendChild(btnCancel);
+    acts.appendChild(btnConfirm);
+    pop.appendChild(textEl);
+    pop.appendChild(acts);
+    listEl.appendChild(pop);
+
+    this.multiPointClosurePopoverEl = pop;
+  }
+
+  showMultiPointClosurePopover(anchorPoint, onConfirm, onCancel) {
+    this.ensureMultiPointClosurePopoverDOM();
+    if (!this.multiPointClosurePopoverEl) return;
+
+    this.pendingClosureAction = {
+      point: anchorPoint.clone(),
+      onConfirm,
+      onCancel
+    };
+
+    const textEl = this.multiPointClosurePopoverEl.querySelector('.measure-closure-popover-text');
+    if (textEl) textEl.textContent = I18N.t('measureMultiConfirmClose') || 'Close polyline?';
+    const btnClose = this.multiPointClosurePopoverEl.querySelector('.measure-closure-btn-close');
+    if (btnClose) btnClose.textContent = I18N.t('measureMultiBtnClose') || 'Close';
+    const btnCancel = this.multiPointClosurePopoverEl.querySelector('.measure-closure-btn-cancel');
+    if (btnCancel) btnCancel.textContent = I18N.t('measureMultiBtnCancel') || 'Cancel';
+
+    this.multiPointClosurePopoverEl.style.display = 'flex';
+    this.updateMultiPointClosurePopoverPosition();
+    this.requestRender(100);
+  }
+
+  hideMultiPointClosurePopover() {
+    if (this.multiPointClosurePopoverEl) {
+      this.multiPointClosurePopoverEl.style.display = 'none';
+    }
+    this.pendingClosureAction = null;
+    this.requestRender(100);
+  }
+
+  updateMultiPointClosurePopoverPosition() {
+    if (!this.pendingClosureAction || !this.multiPointClosurePopoverEl || !this.camera || !this.container) return;
+    const p = this.pendingClosureAction.point;
+    const projVec = p.clone().project(this.camera);
+    if (projVec.z > 1.0 || projVec.z < -1.0) {
+      this.multiPointClosurePopoverEl.style.display = 'none';
+      return;
+    }
+    const cw = this.container.clientWidth || 1;
+    const ch = this.container.clientHeight || 1;
+    const sx = (projVec.x * 0.5 + 0.5) * cw;
+    const sy = (-projVec.y * 0.5 + 0.5) * ch;
+
+    this.multiPointClosurePopoverEl.style.display = 'flex';
+    this.multiPointClosurePopoverEl.style.transform = `translate3d(${Math.round(sx)}px, ${Math.round(sy - 12)}px, 0) translate(-50%, -125%)`;
+  }
+
+  closeMultiPointMeasurement() {
+    if (!this.multiPointState || this.multiPointState.points.length < 3) return;
+    if (this.multiPointState.isClosed) return;
+
+    const points = this.multiPointState.points;
+    const N = points.length;
+    const pLast = points[N - 1];
+    const pFirst = points[0];
+
+    const geom = new THREE.BufferGeometry().setFromPoints([pLast, pFirst]);
+    const line = new THREE.Line(geom, new THREE.LineBasicMaterial({
+      color: 0xf59e0b,
+      linewidth: 3,
+      depthTest: false,
+      depthWrite: false
+    }));
+    line.renderOrder = 1205;
+    line.userData = { isMeasureLine: true, isMultiPointLine: true, segmentIndex: N - 1 };
+    this.scene.add(line);
+    this.multiPointState.lines.push(line);
+
+    const closeLen = pLast.distanceTo(pFirst);
+    this.multiPointState.segments.push({
+      from: N - 1,
+      to: 0,
+      length: closeLen
+    });
+    this.multiPointState.totalLength += closeLen;
+
+    this.multiPointState.isClosed = true;
+    this.multiPointState.isDrawing = false;
+    this.multiPointDrawDir = 'append';
+    this.hideMultiPointPreview();
+    this.hideMultiPointInsertPreview();
+
+    const btnDone = document.getElementById('btn-measure-multi-done');
+    if (btnDone) btnDone.style.display = 'none';
+
+    const hintEl = document.getElementById('measure-mode-hint');
+    if (hintEl) hintEl.textContent = (I18N.t('measureMultiClosed') || 'Closed') + ' polyline';
+
+    this.renderMultiPointResults();
+    this.updateMeasureMarkersAndCallouts();
+    this.requestRender(200);
+  }
+
+  breakMultiPointClosure(markerId) {
+    if (!this.multiPointState || !this.multiPointState.isClosed) return;
+    const mIdx = this.multiPointState.markers.findIndex(m => m.id === markerId);
+    if (mIdx < 0) return;
+
+    const k = mIdx;
+    const N = this.multiPointState.points.length;
+    const oldPoints = this.multiPointState.points;
+    const oldMarkers = this.multiPointState.markers;
+
+    // 1. Re-order points starting from k and append a duplicate of Pk as new endpoint
+    const newPoints = [];
+    const newMarkers = [];
+    for (let i = 0; i < N; i++) {
+      const idx = (k + i) % N;
+      newPoints.push(oldPoints[idx].clone());
+      newMarkers.push(oldMarkers[idx]);
+    }
+    // Duplicate of Pk as final endpoint
+    const pEnd = oldPoints[k].clone();
+    newPoints.push(pEnd);
+
+    // Create new marker at pEnd
+    const endHit = {
+      point: pEnd,
+      normal: oldMarkers[k].normal || new THREE.Vector3(0, 1, 0),
+      object: oldMarkers[k].group
+    };
+    const endMarker = this.createMultiPointMarker(endHit, N + 1);
+    newMarkers.push(endMarker);
+
+    // 2. Recreate all 3D lines
+    this.multiPointState.lines.forEach(line => {
+      if (line) {
+        this.scene.remove(line);
+        if (line.geometry) line.geometry.dispose();
+        if (line.material) line.material.dispose();
+      }
+    });
+
+    const newLines = [];
+    const newSegments = [];
+    let newTotal = 0;
+
+    for (let i = 0; i < N; i++) {
+      const pA = newPoints[i];
+      const pB = newPoints[i + 1];
+      const geom = new THREE.BufferGeometry().setFromPoints([pA, pB]);
+      const line = new THREE.Line(geom, new THREE.LineBasicMaterial({
+        color: 0xf59e0b,
+        linewidth: 3,
+        depthTest: false,
+        depthWrite: false
+      }));
+      line.renderOrder = 1205;
+      line.userData = { isMeasureLine: true, isMultiPointLine: true, segmentIndex: i };
+      this.scene.add(line);
+      newLines.push(line);
+
+      const len = pA.distanceTo(pB);
+      newSegments.push({ from: i, to: i + 1, length: len });
+      newTotal += len;
+    }
+
+    // 3. Update multiPointState
+    this.multiPointState.points = newPoints;
+    this.multiPointState.markers = newMarkers;
+    this.multiPointState.lines = newLines;
+    this.multiPointState.segments = newSegments;
+    this.multiPointState.totalLength = newTotal;
+    this.multiPointState.isClosed = false;
+
+    // 4. Renumber all markers
+    this.multiPointState.markers.forEach((m, idx) => {
+      m.multiPointIndex = idx;
+      if (m.calloutEl) {
+        m.calloutEl.textContent = `Pt #${idx + 1}`;
+        m.calloutEl.title = `Pt #${idx + 1}: click to inspect, drag to adjust position`;
+      }
+    });
+
+    this.renderMultiPointResults();
+    this.updateMeasureMarkersAndCallouts();
+    this.requestRender(200);
   }
 
   startMultiPointInsert(segIdx) {
@@ -13121,6 +13393,7 @@ class BIMViewerApp {
 
     this.multiPointState = {
       isDrawing: false,
+      isClosed: false,
       points: [],
       markers: [],
       lines: [],
@@ -13130,6 +13403,8 @@ class BIMViewerApp {
     };
 
     this.hideMultiPointPreview();
+    this.hideMultiPointInsertPreview();
+    this.hideMultiPointClosurePopover();
 
     const btnDone = document.getElementById('btn-measure-multi-done');
     if (btnDone) btnDone.style.display = 'none';
@@ -13214,7 +13489,11 @@ class BIMViewerApp {
     const segCount = this.multiPointState.segments.length;
     if (countEl) {
       const template = I18N.t('measureMultiSegCount') || '{count} segs';
-      countEl.textContent = template.replace('{count}', segCount);
+      let text = template.replace('{count}', segCount);
+      if (this.multiPointState.isClosed) {
+        text += ' (' + (I18N.t('measureMultiClosed') || 'Closed') + ')';
+      }
+      countEl.textContent = text;
     }
 
     listEl.innerHTML = '';
@@ -13521,6 +13800,16 @@ class BIMViewerApp {
       // CASE B: Prepending points before Pt #1
       if (this.multiPointState.isDrawing && this.multiPointDrawDir === 'prepend') {
         const firstPt = this.multiPointState.points[0];
+        const points = this.multiPointState.points;
+        if (points.length >= 2) {
+          const lastPt = points[points.length - 1];
+          if (pt.distanceTo(lastPt) < 0.45) {
+            this.showMultiPointClosurePopover(lastPt, () => {
+              this.closeMultiPointMeasurement();
+            }, () => {});
+            return;
+          }
+        }
         if (pt.distanceTo(firstPt) < 1e-3) {
           this.finishMultiPointMeasurement();
           return;
@@ -13604,6 +13893,17 @@ class BIMViewerApp {
 
       const points = this.multiPointState.points;
       const lastPt = points[points.length - 1];
+
+      // Check if clicking on first point Pt #1 to close polyline (allowed from 3rd point onwards)
+      if (points.length >= 2) {
+        const firstPt = points[0];
+        if (pt.distanceTo(firstPt) < 0.45) {
+          this.showMultiPointClosurePopover(firstPt, () => {
+            this.closeMultiPointMeasurement();
+          }, () => {});
+          return;
+        }
+      }
 
       if (pt.distanceTo(lastPt) < 1e-3) {
         this.finishMultiPointMeasurement();
