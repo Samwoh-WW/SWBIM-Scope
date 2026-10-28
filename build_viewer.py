@@ -1137,6 +1137,31 @@ def generate_html(variant_cfg, sources):
                         <button type="button" class="measure-val-copy-btn" data-target="measure-res-multi-total" title="Copy Total Distance" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
                       </div>
                     </div>
+                    <!-- Multi-Point 3D Spatial Area Row -->
+                    <div class="measure-detail-row" style="margin-top:5px;align-items:center;">
+                      <div style="display:inline-flex;align-items:center;gap:4px;">
+                        <span class="measure-result-label" id="measure-multi-3d-area-label" data-i18n="measureMulti3DAreaClosed" style="font-size:11px;">3D Area (when closed)</span>
+                        <button type="button" class="measure-self-intersect-btn" id="measure-multi-self-intersect-btn" style="display:none;" title="Self-intersecting" data-i18n-title="measureSelfIntersectTitle">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="rgba(255, 59, 48, 0.25)" stroke="#ff3b30" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M5 4h14l-7 8 7 8H5l7-8-7-8z"></path>
+                          </svg>
+                        </button>
+                      </div>
+                      <div class="measure-val-box">
+                        <span class="measure-detail-val" id="measure-res-multi-3d-area" style="font-weight:600;font-size:12px;">-.--- m²</span>
+                        <button type="button" class="measure-val-copy-btn" data-target="measure-res-multi-3d-area" title="Copy 3D Area" data-i18n-title="measureCopy3DArea"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                      </div>
+                    </div>
+                    <!-- Multi-Point Horizontal Projected Area Row -->
+                    <div class="measure-detail-row" style="margin-top:3px;align-items:center;">
+                      <div style="display:inline-flex;align-items:center;gap:4px;">
+                        <span class="measure-result-label" id="measure-multi-proj-area-label" data-i18n="measureMultiProjAreaClosed" style="font-size:11px;">Proj Area (when closed)</span>
+                      </div>
+                      <div class="measure-val-box">
+                        <span class="measure-detail-val" id="measure-res-multi-proj-area" style="font-weight:600;font-size:12px;">-.--- m²</span>
+                        <button type="button" class="measure-val-copy-btn" data-target="measure-res-multi-proj-area" title="Copy Projected Area" data-i18n-title="measureCopyProjArea"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                      </div>
+                    </div>
                     <div class="measure-result-details" id="measure-multi-segments-container" style="margin-top:6px;">
                       <div class="measure-multi-segments-list" id="measure-multi-segments-list">
                         <!-- Dynamically populated segment items: Pt #1 ~ Pt #2 : 3.520 m [copy] -->

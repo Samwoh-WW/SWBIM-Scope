@@ -6073,3 +6073,22 @@ mark.help-match-highlight {
   background: rgba(15, 23, 42, 0.1);
   color: #0f172a;
 }
+
+.measure-self-intersect-btn {
+  background: transparent;
+  border: none;
+  padding: 0 1px;
+  margin: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  line-height: 1;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.measure-self-intersect-btn:hover {
+  transform: scale(1.22);
+  filter: drop-shadow(0 0 4px #ff3b30);
+}

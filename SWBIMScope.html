@@ -6099,6 +6099,25 @@ mark.help-match-highlight {
   color: #0f172a;
 }
 
+.measure-self-intersect-btn {
+  background: transparent;
+  border: none;
+  padding: 0 1px;
+  margin: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  line-height: 1;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.measure-self-intersect-btn:hover {
+  transform: scale(1.22);
+  filter: drop-shadow(0 0 4px #ff3b30);
+}
+
   </style>
   <style id="variant-brand-tokens">
     :root,
@@ -7009,6 +7028,31 @@ mark.help-match-highlight {
                       <div class="measure-val-box">
                         <span class="measure-result-val" id="measure-res-multi-total">--</span>
                         <button type="button" class="measure-val-copy-btn" data-target="measure-res-multi-total" title="Copy Total Distance" data-i18n-title="measureCopyTooltip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                      </div>
+                    </div>
+                    <!-- Multi-Point 3D Spatial Area Row -->
+                    <div class="measure-detail-row" style="margin-top:5px;align-items:center;">
+                      <div style="display:inline-flex;align-items:center;gap:4px;">
+                        <span class="measure-result-label" id="measure-multi-3d-area-label" data-i18n="measureMulti3DAreaClosed" style="font-size:11px;">3D Area (when closed)</span>
+                        <button type="button" class="measure-self-intersect-btn" id="measure-multi-self-intersect-btn" style="display:none;" title="Self-intersecting" data-i18n-title="measureSelfIntersectTitle">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="rgba(255, 59, 48, 0.25)" stroke="#ff3b30" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M5 4h14l-7 8 7 8H5l7-8-7-8z"></path>
+                          </svg>
+                        </button>
+                      </div>
+                      <div class="measure-val-box">
+                        <span class="measure-detail-val" id="measure-res-multi-3d-area" style="font-weight:600;font-size:12px;">-.--- m²</span>
+                        <button type="button" class="measure-val-copy-btn" data-target="measure-res-multi-3d-area" title="Copy 3D Area" data-i18n-title="measureCopy3DArea"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                      </div>
+                    </div>
+                    <!-- Multi-Point Horizontal Projected Area Row -->
+                    <div class="measure-detail-row" style="margin-top:3px;align-items:center;">
+                      <div style="display:inline-flex;align-items:center;gap:4px;">
+                        <span class="measure-result-label" id="measure-multi-proj-area-label" data-i18n="measureMultiProjAreaClosed" style="font-size:11px;">Proj Area (when closed)</span>
+                      </div>
+                      <div class="measure-val-box">
+                        <span class="measure-detail-val" id="measure-res-multi-proj-area" style="font-weight:600;font-size:12px;">-.--- m²</span>
+                        <button type="button" class="measure-val-copy-btn" data-target="measure-res-multi-proj-area" title="Copy Projected Area" data-i18n-title="measureCopyProjArea"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
                       </div>
                     </div>
                     <div class="measure-result-details" id="measure-multi-segments-container" style="margin-top:6px;">
@@ -21839,6 +21883,13 @@ const I18N = {
       measureMultiConfirmClose: "Close polyline?",
       measureMultiBtnClose: "Close",
       measureMultiBtnCancel: "Cancel",
+      measureMulti3DAreaClosed: "3D Area (when closed)",
+      measureMulti3DArea: "3D Area",
+      measureMultiProjAreaClosed: "Proj Area (when closed)",
+      measureMultiProjArea: "Proj Area",
+      measureSelfIntersectTitle: "Self-intersecting",
+      measureCopy3DArea: "Copy 3D Area",
+      measureCopyProjArea: "Copy Projected Area",
       menuInsertMeasurePoint: "Insert Measurement Point",
       menuPrependMeasurePoint: "Add Point Before",
       menuAppendMeasurePoint: "Add Point After",
@@ -22352,6 +22403,13 @@ const I18N = {
       measureMultiConfirmClose: "是否闭合多段线？",
       measureMultiBtnClose: "闭合",
       measureMultiBtnCancel: "取消",
+      measureMulti3DAreaClosed: "空间面积 (闭合后)",
+      measureMulti3DArea: "空间面积",
+      measureMultiProjAreaClosed: "投影面积 (闭合后)",
+      measureMultiProjArea: "投影面积",
+      measureSelfIntersectTitle: "自交",
+      measureCopy3DArea: "复制空间面积",
+      measureCopyProjArea: "复制投影面积",
       menuInsertMeasurePoint: "在中间插入测量点",
       menuPrependMeasurePoint: "向前增加测量点",
       menuAppendMeasurePoint: "向后增加测量点",
@@ -35433,6 +35491,11 @@ class BIMViewerApp {
     this.pendingClosureAction = null;
     this.isSnappedToClosurePoint = false;
     this.isDraggedSnapToOpposite = false;
+    this.multiPointAreaMesh = null;
+    this.multiPointSelfIntersectingSegs = [];
+    this.multiPointSelfIntersectPoints = [];
+    this.multiPointSelfIntersectCenter = null;
+    this.multiPointGlowAnimId = null;
     this.measureMarkers = [];
     this.measurePointCounter = 0;
     this.activeMeasurePointId = null;
@@ -46949,6 +47012,24 @@ class BIMViewerApp {
     const segListEl = document.getElementById('measure-multi-segments-list');
     if (segListEl) segListEl.innerHTML = '';
 
+    const unit = this.measureUnit || 'm';
+    const areaUnit = unit === 'mm' ? 'mm²' : 'm²';
+    const el3DLabel = document.getElementById('measure-multi-3d-area-label');
+    const el3DVal = document.getElementById('measure-res-multi-3d-area');
+    const elProjLabel = document.getElementById('measure-multi-proj-area-label');
+    const elProjVal = document.getElementById('measure-res-multi-proj-area');
+    const btnSelfIntersect = document.getElementById('measure-multi-self-intersect-btn');
+
+    if (el3DLabel) el3DLabel.textContent = I18N.t('measureMulti3DAreaClosed') || '3D Area (when closed)';
+    if (el3DVal) el3DVal.textContent = '-.--- ' + areaUnit;
+    if (elProjLabel) elProjLabel.textContent = I18N.t('measureMultiProjAreaClosed') || 'Proj Area (when closed)';
+    if (elProjVal) elProjVal.textContent = '-.--- ' + areaUnit;
+    if (btnSelfIntersect) btnSelfIntersect.style.display = 'none';
+
+    this.multiPointSelfIntersectingSegs = [];
+    this.multiPointSelfIntersectPoints = [];
+    this.removeMultiPointAreaMesh();
+
     this.requestRender(150);
   }
 
@@ -46997,6 +47078,369 @@ class BIMViewerApp {
     this.requestRender(200);
   }
 
+  checkLineSegmentIntersection2D(p1, p2, p3, p4) {
+    const dx12 = p2.x - p1.x;
+    const dy12 = p2.y - p1.y;
+    const dx34 = p4.x - p3.x;
+    const dy34 = p4.y - p3.y;
+
+    const denom = dx12 * dy34 - dy12 * dx34;
+    if (Math.abs(denom) < 1e-9) return null; // Parallel or collinear
+
+    const dx31 = p3.x - p1.x;
+    const dy31 = p3.y - p1.y;
+
+    const t = (dx31 * dy34 - dy31 * dx34) / denom;
+    const u = (dx31 * dy12 - dy31 * dx12) / denom;
+
+    // Strict interior intersection (not sharing endpoints)
+    if (t > 1e-4 && t < 1 - 1e-4 && u > 1e-4 && u < 1 - 1e-4) {
+      return {
+        x: p1.x + t * dx12,
+        y: p1.y + t * dy12,
+        t,
+        u
+      };
+    }
+    return null;
+  }
+
+  computePolygonAreaScheme1(pts2D) {
+    const N = pts2D.length;
+    if (N < 3) return { area: 0, isSelfIntersecting: false, intersectingSegs: [], intersectionPoints: [], subLoops: [] };
+
+    // 1. Detect all pairwise non-adjacent segment intersections
+    const intersections = [];
+    const intersectingSegSet = new Set();
+
+    for (let i = 0; i < N; i++) {
+      const p1 = pts2D[i];
+      const p2 = pts2D[(i + 1) % N];
+
+      for (let j = i + 2; j < N; j++) {
+        // Skip if adjacent in loop (first and last segment share p0)
+        if (i === 0 && j === N - 1) continue;
+
+        const p3 = pts2D[j];
+        const p4 = pts2D[(j + 1) % N];
+
+        const inter = this.checkLineSegmentIntersection2D(p1, p2, p3, p4);
+        if (inter) {
+          intersectingSegSet.add(i);
+          intersectingSegSet.add(j);
+          intersections.push({
+            segA: i,
+            segB: j,
+            tA: inter.t,
+            tB: inter.u,
+            point: { x: inter.x, y: inter.y }
+          });
+        }
+      }
+    }
+
+    const isSelfIntersecting = intersectingSegSet.size > 0;
+    const intersectingSegs = Array.from(intersectingSegSet);
+
+    // If no self-intersection: standard Shoelace formula
+    if (!isSelfIntersecting) {
+      let area = 0;
+      for (let i = 0; i < N; i++) {
+        const pA = pts2D[i];
+        const pB = pts2D[(i + 1) % N];
+        area += pA.x * pB.y - pB.x * pA.y;
+      }
+      return {
+        area: Math.abs(area) * 0.5,
+        isSelfIntersecting: false,
+        intersectingSegs: [],
+        intersectionPoints: [],
+        subLoops: [pts2D]
+      };
+    }
+
+    // Scheme 1: Decompose into sub-loops at intersection points
+    const path = [];
+    for (let i = 0; i < N; i++) {
+      path.push({ pt: pts2D[i], id: `v-${i}` });
+
+      const onSeg = [];
+      intersections.forEach(inter => {
+        if (inter.segA === i) {
+          onSeg.push({ t: inter.tA, pt: inter.point, interId: `x-${Math.min(inter.segA, inter.segB)}-${Math.max(inter.segA, inter.segB)}` });
+        } else if (inter.segB === i) {
+          onSeg.push({ t: inter.tB, pt: inter.point, interId: `x-${Math.min(inter.segA, inter.segB)}-${Math.max(inter.segA, inter.segB)}` });
+        }
+      });
+      onSeg.sort((a, b) => a.t - b.t);
+      onSeg.forEach(item => {
+        path.push({ pt: item.pt, id: item.interId });
+      });
+    }
+
+    // Cycle-popping to extract all sub-polygons
+    const stack = [];
+    const subLoops = [];
+    let totalAbsArea = 0;
+
+    for (let k = 0; k < path.length; k++) {
+      const node = path[k];
+      const matchIdx = stack.findIndex(s => s.id === node.id);
+      if (matchIdx >= 0) {
+        // Cycle found from matchIdx to end of stack!
+        const cycle = stack.splice(matchIdx).map(s => s.pt);
+        if (cycle.length >= 3) {
+          let subA = 0;
+          for (let m = 0; m < cycle.length; m++) {
+            const c1 = cycle[m];
+            const c2 = cycle[(m + 1) % cycle.length];
+            subA += c1.x * c2.y - c2.x * c1.y;
+          }
+          const absA = Math.abs(subA) * 0.5;
+          totalAbsArea += absA;
+          subLoops.push(cycle);
+        }
+        stack.push(node);
+      } else {
+        stack.push(node);
+      }
+    }
+
+    if (stack.length >= 3) {
+      const cycle = stack.map(s => s.pt);
+      let remA = 0;
+      for (let m = 0; m < cycle.length; m++) {
+        const c1 = cycle[m];
+        const c2 = cycle[(m + 1) % cycle.length];
+        remA += c1.x * c2.y - c2.x * c1.y;
+      }
+      const absRem = Math.abs(remA) * 0.5;
+      totalAbsArea += absRem;
+      subLoops.push(cycle);
+    }
+
+    return {
+      area: totalAbsArea,
+      isSelfIntersecting: true,
+      intersectingSegs,
+      intersectionPoints: intersections.map(item => item.point),
+      subLoops
+    };
+  }
+
+  computeMultiPointClosedArea() {
+    if (!this.multiPointState || !this.multiPointState.isClosed || this.multiPointState.points.length < 3) {
+      return {
+        area3D: 0,
+        areaProj: 0,
+        isSelfIntersecting: false,
+        intersectingSegs: [],
+        intersectionPoints3D: [],
+        subLoops3D: []
+      };
+    }
+
+    const points = this.multiPointState.points;
+    const N = points.length;
+
+    // 1. Compute Newell Normal for best-fit 3D plane
+    const normal = new THREE.Vector3();
+    for (let i = 0; i < N; i++) {
+      const pA = points[i];
+      const pB = points[(i + 1) % N];
+      normal.x += (pA.y - pB.y) * (pA.z + pB.z);
+      normal.y += (pA.z - pB.z) * (pA.x + pB.x);
+      normal.z += (pA.x - pB.x) * (pA.y + pB.y);
+    }
+    if (normal.lengthSq() < 1e-12) normal.set(0, 1, 0);
+    else normal.normalize();
+
+    // Orthonormal basis (uAxis, vAxis)
+    const up = Math.abs(normal.y) < 0.99 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+    const uAxis = new THREE.Vector3().crossVectors(normal, up).normalize();
+    const vAxis = new THREE.Vector3().crossVectors(normal, uAxis).normalize();
+    const origin = points[0];
+
+    // Project to 2D best-fit plane (u, v)
+    const pts2D = points.map(p => {
+      const diff = new THREE.Vector3().subVectors(p, origin);
+      return {
+        x: diff.dot(uAxis),
+        y: diff.dot(vAxis),
+        orig3D: p
+      };
+    });
+
+    const res3D = this.computePolygonAreaScheme1(pts2D);
+
+    // Convert sub-loops back to 3D for triangulation & mesh fill
+    const subLoops3D = res3D.subLoops.map(loop => {
+      return loop.map(p => {
+        return origin.clone().addScaledVector(uAxis, p.x).addScaledVector(vAxis, p.y);
+      });
+    });
+
+    const intersectionPoints3D = res3D.intersectionPoints.map(p => {
+      return origin.clone().addScaledVector(uAxis, p.x).addScaledVector(vAxis, p.y);
+    });
+
+    // 2. Horizontal Projected Area (project onto XZ plane where Y=0)
+    const ptsHoriz = points.map(p => ({
+      x: p.x,
+      y: p.z
+    }));
+    const resHoriz = this.computePolygonAreaScheme1(ptsHoriz);
+
+    return {
+      area3D: res3D.area,
+      areaProj: resHoriz.area,
+      isSelfIntersecting: res3D.isSelfIntersecting,
+      intersectingSegs: res3D.intersectingSegs,
+      intersectionPoints3D,
+      subLoops3D
+    };
+  }
+
+  updateMultiPointAreaMesh(subLoops3D) {
+    this.removeMultiPointAreaMesh();
+    if (!subLoops3D || subLoops3D.length === 0) return;
+
+    const vertices = [];
+    subLoops3D.forEach(loop => {
+      if (loop.length < 3) return;
+      // Project loop to its local 2D plane for ear-clipping triangulation
+      const v0 = loop[0];
+      const v1 = loop[1];
+      const v2 = loop[2];
+      const e1 = new THREE.Vector3().subVectors(v1, v0).normalize();
+      const e2 = new THREE.Vector3().subVectors(v2, v0);
+      const n = new THREE.Vector3().crossVectors(e1, e2).normalize();
+      if (n.lengthSq() < 1e-6) n.set(0, 1, 0);
+      const u = new THREE.Vector3().crossVectors(n, Math.abs(n.y) < 0.99 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0)).normalize();
+      const v = new THREE.Vector3().crossVectors(n, u).normalize();
+
+      const shapePts = loop.map(p => {
+        const diff = new THREE.Vector3().subVectors(p, v0);
+        return new THREE.Vector2(diff.dot(u), diff.dot(v));
+      });
+
+      const faces = THREE.ShapeUtils.triangulateShape(shapePts, []);
+      faces.forEach(face => {
+        face.forEach(vIdx => {
+          const pt3D = loop[vIdx];
+          if (pt3D) {
+            vertices.push(pt3D.x, pt3D.y, pt3D.z);
+          }
+        });
+      });
+    });
+
+    if (vertices.length === 0) return;
+
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    geom.computeVertexNormals();
+
+    this.multiPointAreaMesh = new THREE.Mesh(geom, new THREE.MeshBasicMaterial({
+      color: 0xf59e0b,
+      opacity: 0.20,
+      transparent: true,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    }));
+    this.multiPointAreaMesh.renderOrder = 1200;
+    this.scene.add(this.multiPointAreaMesh);
+  }
+
+  removeMultiPointAreaMesh() {
+    if (this.multiPointAreaMesh) {
+      this.scene.remove(this.multiPointAreaMesh);
+      if (this.multiPointAreaMesh.geometry) this.multiPointAreaMesh.geometry.dispose();
+      if (this.multiPointAreaMesh.material) this.multiPointAreaMesh.material.dispose();
+      this.multiPointAreaMesh = null;
+    }
+  }
+
+  focusAndFlashSelfIntersection() {
+    if (!this.multiPointSelfIntersectingSegs || this.multiPointSelfIntersectingSegs.length === 0) return;
+
+    // 1. Focus camera on the self-intersection region
+    const box = new THREE.Box3();
+    if (this.multiPointSelfIntersectPoints && this.multiPointSelfIntersectPoints.length > 0) {
+      this.multiPointSelfIntersectPoints.forEach(p => box.expandByPoint(p));
+    } else if (this.multiPointState && this.multiPointState.lines) {
+      this.multiPointSelfIntersectingSegs.forEach(segIdx => {
+        const line = this.multiPointState.lines[segIdx];
+        if (line) box.expandByObject(line);
+      });
+    }
+
+    if (!box.isEmpty()) {
+      box.expandByScalar(1.5);
+      this.zoomToBox(box);
+    }
+
+    // 2. Glow effect on self-intersecting lines: bright red glow (5px) fading out over 1.0s
+    if (this.multiPointGlowAnimId) {
+      cancelAnimationFrame(this.multiPointGlowAnimId);
+      this.multiPointGlowAnimId = null;
+    }
+
+    const selfIntersectLines = (this.multiPointState && this.multiPointState.lines)
+      ? this.multiPointSelfIntersectingSegs.map(idx => this.multiPointState.lines[idx]).filter(Boolean)
+      : [];
+
+    const startTime = performance.now();
+    const duration = 1000; // 1.0 second
+    const canvas = this.canvas;
+
+    const animateGlow = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1.0, elapsed / duration);
+
+      // Interpolate color from bright scarlet #ff0033 to normal self-intersect red #ff3b30
+      // Hex: 0xff0033 -> 0xff3b30
+      const r = 255;
+      const g = Math.round(0 + progress * 59);
+      const b = Math.round(51 - progress * 3);
+      const curColorHex = (r << 16) | (g << 8) | b;
+
+      selfIntersectLines.forEach(line => {
+        if (line && line.material) {
+          line.material.color.setHex(curColorHex);
+        }
+      });
+
+      // 5px glow fading out
+      if (canvas) {
+        const glowBlur = Math.round(5 * (1.0 - progress));
+        const glowAlpha = (1.0 - progress) * 0.85;
+        if (glowBlur > 0 && glowAlpha > 0.05) {
+          canvas.style.filter = `drop-shadow(0 0 ${glowBlur}px rgba(255, 0, 51, ${glowAlpha.toFixed(2)}))`;
+        } else {
+          canvas.style.filter = '';
+        }
+      }
+
+      this.requestRender(100);
+
+      if (progress < 1.0) {
+        this.multiPointGlowAnimId = requestAnimationFrame(animateGlow);
+      } else {
+        if (canvas) canvas.style.filter = '';
+        selfIntersectLines.forEach(line => {
+          if (line && line.material) {
+            line.material.color.setHex(0xff3b30);
+          }
+        });
+        this.multiPointGlowAnimId = null;
+        this.requestRender(100);
+      }
+    };
+
+    this.multiPointGlowAnimId = requestAnimationFrame(animateGlow);
+  }
+
   renderMultiPointResults() {
     const totalEl = document.getElementById('measure-res-multi-total');
     const countEl = document.getElementById('measure-multi-seg-count');
@@ -47025,6 +47469,66 @@ class BIMViewerApp {
         text += ' (' + (I18N.t('measureMultiClosed') || 'Closed') + ')';
       }
       countEl.textContent = text;
+    }
+
+    // Area Calculation and Self-Intersection Handling
+    const el3DLabel = document.getElementById('measure-multi-3d-area-label');
+    const el3DVal = document.getElementById('measure-res-multi-3d-area');
+    const elProjLabel = document.getElementById('measure-multi-proj-area-label');
+    const elProjVal = document.getElementById('measure-res-multi-proj-area');
+    const btnSelfIntersect = document.getElementById('measure-multi-self-intersect-btn');
+
+    const areaUnit = unit === 'mm' ? 'mm²' : 'm²';
+    const areaScale = unit === 'mm' ? 1e6 : 1;
+    const areaDecimals = unit === 'mm' ? 0 : 3;
+
+    if (!this.multiPointState.isClosed) {
+      if (el3DLabel) el3DLabel.textContent = I18N.t('measureMulti3DAreaClosed') || '3D Area (when closed)';
+      if (el3DVal) el3DVal.textContent = '-.--- ' + areaUnit;
+      if (elProjLabel) elProjLabel.textContent = I18N.t('measureMultiProjAreaClosed') || 'Proj Area (when closed)';
+      if (elProjVal) elProjVal.textContent = '-.--- ' + areaUnit;
+      if (btnSelfIntersect) btnSelfIntersect.style.display = 'none';
+
+      this.multiPointSelfIntersectingSegs = [];
+      this.multiPointSelfIntersectPoints = [];
+      this.removeMultiPointAreaMesh();
+
+      // Reset lines to amber
+      if (this.multiPointState.lines) {
+        this.multiPointState.lines.forEach(line => {
+          if (line && line.material) line.material.color.setHex(0xf59e0b);
+        });
+      }
+    } else {
+      if (el3DLabel) el3DLabel.textContent = I18N.t('measureMulti3DArea') || '3D Area';
+      if (elProjLabel) elProjLabel.textContent = I18N.t('measureMultiProjArea') || 'Proj Area';
+
+      const areaData = this.computeMultiPointClosedArea();
+      this.multiPointSelfIntersectingSegs = areaData.intersectingSegs || [];
+      this.multiPointSelfIntersectPoints = areaData.intersectionPoints3D || [];
+
+      if (el3DVal) el3DVal.textContent = (areaData.area3D * areaScale).toFixed(areaDecimals) + ' ' + areaUnit;
+      if (elProjVal) elProjVal.textContent = (areaData.areaProj * areaScale).toFixed(areaDecimals) + ' ' + areaUnit;
+
+      if (btnSelfIntersect) {
+        btnSelfIntersect.style.display = areaData.isSelfIntersecting ? 'inline-flex' : 'none';
+        btnSelfIntersect.title = I18N.t('measureSelfIntersectTitle') || 'Self-intersecting';
+      }
+
+      // Highlight self-intersecting segments in Scarlet Red (0xff3b30), others in Amber (0xf59e0b)
+      if (this.multiPointState.lines) {
+        this.multiPointState.lines.forEach((line, idx) => {
+          if (!line || !line.material) return;
+          if (areaData.intersectingSegs.includes(idx)) {
+            line.material.color.setHex(0xff3b30);
+          } else {
+            line.material.color.setHex(0xf59e0b);
+          }
+        });
+      }
+
+      // Update 3D translucent surface fill mesh
+      this.updateMultiPointAreaMesh(areaData.subLoops3D);
     }
 
     listEl.innerHTML = '';
@@ -48745,6 +49249,15 @@ class BIMViewerApp {
     if (btnDoneMeasure) {
       btnDoneMeasure.addEventListener('click', () => {
         this.finishMultiPointMeasurement();
+      });
+    }
+
+    // Measure Multi-Point Self-Intersection Jump & Glow Button
+    const btnSelfIntersect = document.getElementById('measure-multi-self-intersect-btn');
+    if (btnSelfIntersect) {
+      btnSelfIntersect.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.focusAndFlashSelfIntersection();
       });
     }
 
