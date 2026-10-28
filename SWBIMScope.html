@@ -35430,6 +35430,8 @@ class BIMViewerApp {
     this.contextMenuMultiPointSegIdx = -1;
     this.multiPointClosurePopoverEl = null;
     this.pendingClosureAction = null;
+    this.isSnappedToClosurePoint = false;
+    this.isDraggedSnapToOpposite = false;
     this.measureMarkers = [];
     this.measurePointCounter = 0;
     this.activeMeasurePointId = null;
@@ -41646,7 +41648,14 @@ class BIMViewerApp {
 
         // Check hover on 3D Measurement Point Markers (draggable across all measure modes)
         if (this.measureMarkers && this.measureMarkers.length > 0) {
-          const markerHits = this.intersectMeasureMarkers(this.raycaster);
+          const isDrawingMP = (this.isMeasureMode && this.measureMode === 'multipoint' && this.multiPointState && this.multiPointState.isDrawing && this.multiPointState.points.length >= 2);
+          const markerHits = this.intersectMeasureMarkers(this.raycaster).filter(h => {
+            if (isDrawingMP && h.marker && h.marker.mode === 'multipoint') {
+              if (this.multiPointDrawDir === 'prepend' && h.marker.multiPointIndex === this.multiPointState.points.length - 1) return false;
+              if (this.multiPointDrawDir !== 'prepend' && h.marker.multiPointIndex === 0) return false;
+            }
+            return true;
+          });
           if (markerHits.length > 0) {
             this.setHoveredMeasureMarker(markerHits[0].marker);
             this.clearHoverOverlay();
@@ -41668,6 +41677,49 @@ class BIMViewerApp {
           snapResult = this.snapEngine.resolveSnap(clientX, clientY, this.camera, valid.length > 0 ? valid[0] : null);
         }
 
+        // Multi-point measurement: magnetic snap to closure point (Pt #1 in append, or Pt #last in prepend)
+        let multiPointClosureSnap = null;
+        if (this.isMeasureMode && this.measureMode === 'multipoint' && this.multiPointState && this.multiPointState.isDrawing && this.multiPointState.points.length >= 2 && this.multiPointInsertSegIdx < 0) {
+          const targetPt = (this.multiPointDrawDir === 'prepend')
+            ? this.multiPointState.points[this.multiPointState.points.length - 1]
+            : this.multiPointState.points[0];
+          const targetMarker = (this.multiPointDrawDir === 'prepend')
+            ? this.multiPointState.markers[this.multiPointState.markers.length - 1]
+            : this.multiPointState.markers[0];
+
+          if (targetPt) {
+            const proj = targetPt.clone().project(this.camera);
+            if (proj.z <= 1.0 && proj.z >= -1.0) {
+              const cw = this.container.clientWidth || 1;
+              const ch = this.container.clientHeight || 1;
+              const sx = (proj.x * 0.5 + 0.5) * cw;
+              const sy = (-proj.y * 0.5 + 0.5) * ch;
+              const distPx = Math.hypot(clientX - sx, clientY - sy);
+              if (distPx <= 25) {
+                multiPointClosureSnap = {
+                  point: targetPt.clone(),
+                  normal: (targetMarker && targetMarker.normal) ? targetMarker.normal.clone() : new THREE.Vector3(0, 1, 0),
+                  targetMesh: targetMarker ? targetMarker.group : null,
+                  type: 'endpoint',
+                  hudIcon: '□',
+                  hudLabel: I18N.t('snapEndpoint') || 'Endpoint',
+                  screenX: sx,
+                  screenY: sy,
+                  isClosureSnap: true
+                };
+                snapResult = multiPointClosureSnap;
+                if (this.snapEngine) {
+                  this.snapEngine.showIndicator(snapResult, this.camera, this.container);
+                }
+                this.isSnappedToClosurePoint = true;
+              }
+            }
+          }
+        }
+        if (!multiPointClosureSnap) {
+          this.isSnappedToClosurePoint = false;
+        }
+
         if (this.isMeasureMode) {
           this.clearHoverOverlay();
           this.canvas.style.cursor = 'crosshair';
@@ -41675,7 +41727,8 @@ class BIMViewerApp {
             point: snapResult.point,
             normal: snapResult.normal,
             object: snapResult.targetMesh,
-            face: { normal: snapResult.normal }
+            face: { normal: snapResult.normal },
+            isClosureSnap: !!(snapResult && snapResult.isClosureSnap)
           } : (valid.length > 0 ? valid[0] : null);
 
           if (effectiveHit) {
@@ -41817,7 +41870,14 @@ class BIMViewerApp {
 
         // Check if clicking or dragging a 3D Measurement Point Marker
         if (this.measureMarkers && this.measureMarkers.length > 0) {
-          const markerHits = this.intersectMeasureMarkers(this.raycaster);
+          const isDrawingMP = (this.isMeasureMode && this.measureMode === 'multipoint' && this.multiPointState && this.multiPointState.isDrawing && this.multiPointState.points.length >= 2);
+          const markerHits = this.intersectMeasureMarkers(this.raycaster).filter(h => {
+            if (isDrawingMP && !e.shiftKey && h.marker && h.marker.mode === 'multipoint') {
+              if (this.multiPointDrawDir === 'prepend' && h.marker.multiPointIndex === this.multiPointState.points.length - 1) return false;
+              if (this.multiPointDrawDir !== 'prepend' && h.marker.multiPointIndex === 0) return false;
+            }
+            return true;
+          });
           if (markerHits.length > 0) {
             const hitMarker = markerHits[0].marker;
             if (e.shiftKey) {
@@ -41918,7 +41978,52 @@ class BIMViewerApp {
         const intersects = this.raycaster.intersectObjects(searchRoots, true);
         const valid = intersects.filter(hit => this.isPickableElement(hit.object));
         let effectiveHit = valid.length > 0 ? valid[0] : null;
-        if (this.snapEngine && this.snapEngine.enabled) {
+        let isDragOppositeSnap = false;
+        if (this.draggingMeasureMarker.mode === 'multipoint' && this.multiPointState && !this.multiPointState.isClosed && this.multiPointState.points.length >= 3) {
+          const mIdx = this.draggingMeasureMarker.multiPointIndex;
+          const totalPts = this.multiPointState.points.length;
+          if (mIdx === 0 || mIdx === totalPts - 1) {
+            const targetIdx = (mIdx === 0) ? (totalPts - 1) : 0;
+            const targetPt = this.multiPointState.points[targetIdx];
+            const targetMarker = this.multiPointState.markers[targetIdx];
+            if (targetPt) {
+              const proj = targetPt.clone().project(this.camera);
+              if (proj.z <= 1.0 && proj.z >= -1.0) {
+                const cw = this.container.clientWidth || 1;
+                const ch = this.container.clientHeight || 1;
+                const sx = (proj.x * 0.5 + 0.5) * cw;
+                const sy = (-proj.y * 0.5 + 0.5) * ch;
+                const distPx = Math.hypot(e.clientX - sx, e.clientY - sy);
+                if (distPx <= 25) {
+                  isDragOppositeSnap = true;
+                  effectiveHit = {
+                    point: targetPt.clone(),
+                    normal: (targetMarker && targetMarker.normal) ? targetMarker.normal.clone() : new THREE.Vector3(0, 1, 0),
+                    object: targetMarker ? targetMarker.group : null,
+                    face: { normal: (targetMarker && targetMarker.normal) ? targetMarker.normal.clone() : new THREE.Vector3(0, 1, 0) },
+                    isDragClosureSnap: true
+                  };
+                  if (this.snapEngine) {
+                    this.snapEngine.showIndicator({
+                      point: targetPt,
+                      type: 'endpoint',
+                      hudIcon: '□',
+                      hudLabel: I18N.t('snapEndpoint') || 'Endpoint',
+                      screenX: sx,
+                      screenY: sy
+                    }, this.camera, this.container);
+                  }
+                  this.isDraggedSnapToOpposite = true;
+                }
+              }
+            }
+          }
+        }
+        if (!isDragOppositeSnap) {
+          this.isDraggedSnapToOpposite = false;
+        }
+
+        if (!isDragOppositeSnap && this.snapEngine && this.snapEngine.enabled) {
           const snap = this.snapEngine.resolveSnap(e.clientX, e.clientY, this.camera, effectiveHit);
           if (snap) {
             effectiveHit = {
@@ -41989,19 +42094,22 @@ class BIMViewerApp {
           if (this.draggingMeasureMarker.mode === 'multipoint' && !this.multiPointState.isClosed && this.multiPointState.points.length >= 3) {
             const mIdx = this.draggingMeasureMarker.multiPointIndex;
             const totalPts = this.multiPointState.points.length;
-            if (mIdx === 0 || mIdx === totalPts - 1) {
+            if ((mIdx === 0 || mIdx === totalPts - 1) && this.isDraggedSnapToOpposite) {
               const targetIdx = (mIdx === 0) ? (totalPts - 1) : 0;
               const targetPt = this.multiPointState.points[targetIdx];
-              const curPt = this.draggingMeasureMarker.point;
-              if (curPt.distanceTo(targetPt) < 0.65) {
-                this.showMultiPointClosurePopover(targetPt, () => {
-                  this.closeMultiPointMeasurement();
-                }, () => {});
-              }
+              this.showMultiPointClosurePopover(targetPt, () => {
+                this.mergeAndCloseMultiPointOnDrag(mIdx, targetIdx);
+              }, () => {
+                if (this.snapEngine) this.snapEngine.hideIndicator();
+              });
             }
           }
           this.setMeasureMarkerDragging(this.draggingMeasureMarker, false);
         }
+        if (this.snapEngine && this.isDraggedSnapToOpposite) {
+          this.snapEngine.hideIndicator();
+        }
+        this.isDraggedSnapToOpposite = false;
         this.isDraggingMeasurePoint = false;
         this.draggingMeasureMarker = null;
         this.canvas.style.cursor = this.isMeasureMode ? 'crosshair' : 'default';
@@ -43101,6 +43209,32 @@ class BIMViewerApp {
           this.createOrUpdateRadiusMeasurement(radTarget, e);
         }
         return;
+      }
+      if (this.measureMode === 'multipoint' && this.multiPointState && this.multiPointState.isDrawing && this.multiPointState.points.length >= 2 && this.multiPointInsertSegIdx < 0) {
+        const targetPt = (this.multiPointDrawDir === 'prepend')
+          ? this.multiPointState.points[this.multiPointState.points.length - 1]
+          : this.multiPointState.points[0];
+        const targetMarker = (this.multiPointDrawDir === 'prepend')
+          ? this.multiPointState.markers[this.multiPointState.markers.length - 1]
+          : this.multiPointState.markers[0];
+        if (targetPt) {
+          const proj = targetPt.clone().project(this.camera);
+          if (proj.z <= 1.0 && proj.z >= -1.0) {
+            const cw = this.container.clientWidth || 1;
+            const ch = this.container.clientHeight || 1;
+            const sx = (proj.x * 0.5 + 0.5) * cw;
+            const sy = (-proj.y * 0.5 + 0.5) * ch;
+            if (Math.hypot(e.clientX - sx, e.clientY - sy) <= 25 || this.isSnappedToClosurePoint) {
+              hit = {
+                object: targetMarker ? targetMarker.group : null,
+                point: targetPt.clone(),
+                normal: (targetMarker && targetMarker.normal) ? targetMarker.normal.clone() : new THREE.Vector3(0, 1, 0),
+                face: { normal: (targetMarker && targetMarker.normal) ? targetMarker.normal.clone() : new THREE.Vector3(0, 1, 0) },
+                isClosureSnap: true
+              };
+            }
+          }
+        }
       }
       if (hit) {
         this.hideMeasurePointPreview();
@@ -46188,6 +46322,95 @@ class BIMViewerApp {
     this.requestRender(200);
   }
 
+  mergeAndCloseMultiPointOnDrag(dragIdx, targetIdx) {
+    if (!this.multiPointState || this.multiPointState.isClosed) return;
+    const totalPts = this.multiPointState.points.length;
+    if (totalPts < 3) return;
+
+    if (this.snapEngine) {
+      this.snapEngine.hideIndicator();
+    }
+
+    // Case 1: Tail point dragged to Head point (e.g. Pt #4 dragged to Pt #1)
+    if (dragIdx === totalPts - 1) {
+      const markerToDel = this.multiPointState.markers.pop();
+      if (markerToDel) {
+        this.deleteMeasurePoint(markerToDel.id);
+      }
+      this.multiPointState.points.pop();
+    }
+    // Case 2: Head point dragged to Tail point (e.g. Pt #1 dragged to Pt #4)
+    else if (dragIdx === 0) {
+      const markerToDel = this.multiPointState.markers.shift();
+      if (markerToDel) {
+        this.deleteMeasurePoint(markerToDel.id);
+      }
+      this.multiPointState.points.shift();
+      // Renumber remaining markers
+      this.multiPointState.markers.forEach((m, idx) => {
+        m.multiPointIndex = idx;
+        if (m.calloutEl) {
+          m.calloutEl.textContent = `Pt #${idx + 1}`;
+          m.calloutEl.title = `Pt #${idx + 1}: click to inspect, drag to adjust position`;
+        }
+      });
+    }
+
+    // Reconstruct all 3D lines and segments as a closed loop
+    if (this.multiPointState.lines) {
+      for (const line of this.multiPointState.lines) {
+        if (!line) continue;
+        this.scene.remove(line);
+        if (line.geometry) line.geometry.dispose();
+        if (line.material) line.material.dispose();
+      }
+    }
+
+    const N = this.multiPointState.points.length;
+    const newLines = [];
+    const newSegments = [];
+    let newTotal = 0;
+
+    for (let i = 0; i < N; i++) {
+      const pA = this.multiPointState.points[i];
+      const pB = this.multiPointState.points[(i + 1) % N];
+      const geom = new THREE.BufferGeometry().setFromPoints([pA, pB]);
+      const line = new THREE.Line(geom, new THREE.LineBasicMaterial({
+        color: 0xf59e0b,
+        linewidth: 3,
+        depthTest: false,
+        depthWrite: false
+      }));
+      line.renderOrder = 1205;
+      line.userData = { isMeasureLine: true, isMultiPointLine: true, segmentIndex: i };
+      this.scene.add(line);
+      newLines.push(line);
+
+      const len = pA.distanceTo(pB);
+      newSegments.push({ from: i, to: (i + 1) % N, length: len });
+      newTotal += len;
+    }
+
+    this.multiPointState.lines = newLines;
+    this.multiPointState.segments = newSegments;
+    this.multiPointState.totalLength = newTotal;
+    this.multiPointState.isClosed = true;
+    this.multiPointState.isDrawing = false;
+    this.multiPointDrawDir = 'append';
+    this.hideMultiPointPreview();
+    this.hideMultiPointInsertPreview();
+
+    const btnDone = document.getElementById('btn-measure-multi-done');
+    if (btnDone) btnDone.style.display = 'none';
+
+    const hintEl = document.getElementById('measure-mode-hint');
+    if (hintEl) hintEl.textContent = (I18N.t('measureMultiClosed') || 'Closed') + ' polyline';
+
+    this.renderMultiPointResults();
+    this.updateMeasureMarkersAndCallouts();
+    this.requestRender(200);
+  }
+
   breakMultiPointClosure(markerId) {
     if (!this.multiPointState || !this.multiPointState.isClosed) return;
     const mIdx = this.multiPointState.markers.findIndex(m => m.id === markerId);
@@ -47083,10 +47306,11 @@ class BIMViewerApp {
         const points = this.multiPointState.points;
         if (points.length >= 2) {
           const lastPt = points[points.length - 1];
-          if (pt.distanceTo(lastPt) < 0.45) {
+          if (pt.distanceTo(lastPt) < 0.45 || this.isSnappedToClosurePoint || (effectiveHit && effectiveHit.isClosureSnap)) {
             this.showMultiPointClosurePopover(lastPt, () => {
               this.closeMultiPointMeasurement();
             }, () => {});
+            if (this.snapEngine) this.snapEngine.hideIndicator();
             return;
           }
         }
@@ -47177,10 +47401,11 @@ class BIMViewerApp {
       // Check if clicking on first point Pt #1 to close polyline (allowed from 3rd point onwards)
       if (points.length >= 2) {
         const firstPt = points[0];
-        if (pt.distanceTo(firstPt) < 0.45) {
+        if (pt.distanceTo(firstPt) < 0.45 || this.isSnappedToClosurePoint || (effectiveHit && effectiveHit.isClosureSnap)) {
           this.showMultiPointClosurePopover(firstPt, () => {
             this.closeMultiPointMeasurement();
           }, () => {});
+          if (this.snapEngine) this.snapEngine.hideIndicator();
           return;
         }
       }
