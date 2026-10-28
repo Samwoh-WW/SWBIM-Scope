@@ -1140,7 +1140,7 @@ def generate_html(variant_cfg, sources):
                     <!-- Multi-Point 3D Spatial Area Row -->
                     <div class="measure-detail-row" id="measure-multi-3d-area-row" style="margin-top:5px;align-items:center;padding:2px 4px;cursor:pointer;" title="Click to activate 3D Area in viewport">
                       <div style="display:inline-flex;align-items:center;gap:4px;">
-                        <span class="measure-result-label" id="measure-multi-3d-area-label" data-i18n="measureMulti3DAreaClosed" style="font-size:11px;">3D Area (when closed)</span>
+                        <span class="measure-result-label" id="measure-multi-3d-area-label" data-i18n="measureMulti3DAreaClosed" style="font-size:11px;">3D Area (est.) (when closed)</span>
                         <button type="button" class="measure-self-intersect-btn" id="measure-multi-self-intersect-btn" style="display:none;" title="Self-intersecting" data-i18n-title="measureSelfIntersectTitle">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="rgba(255, 59, 48, 0.25)" stroke="#ff3b30" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M5 4h14l-7 8 7 8H5l7-8-7-8z"></path>

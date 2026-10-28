@@ -13703,7 +13703,7 @@ class BIMViewerApp {
     const elProjVal = document.getElementById('measure-res-multi-proj-area');
     const btnSelfIntersect = document.getElementById('measure-multi-self-intersect-btn');
 
-    if (el3DLabel) el3DLabel.textContent = I18N.t('measureMulti3DAreaClosed') || '3D Area (when closed)';
+    if (el3DLabel) el3DLabel.textContent = I18N.t('measureMulti3DAreaClosed') || '3D Area (est.) (when closed)';
     if (el3DVal) el3DVal.textContent = '-.--- ' + areaUnit;
     if (elProjLabel) elProjLabel.textContent = I18N.t('measureMultiProjAreaClosed') || 'Proj Area (when closed)';
     if (elProjVal) elProjVal.textContent = '-.--- ' + areaUnit;
@@ -14314,7 +14314,7 @@ class BIMViewerApp {
     const areaDecimals = unit === 'mm' ? 0 : 3;
 
     if (!this.multiPointState.isClosed) {
-      if (el3DLabel) el3DLabel.textContent = I18N.t('measureMulti3DAreaClosed') || '3D Area (when closed)';
+      if (el3DLabel) el3DLabel.textContent = I18N.t('measureMulti3DAreaClosed') || '3D Area (est.) (when closed)';
       if (el3DVal) el3DVal.textContent = '-.--- ' + areaUnit;
       if (elProjLabel) elProjLabel.textContent = I18N.t('measureMultiProjAreaClosed') || 'Proj Area (when closed)';
       if (elProjVal) elProjVal.textContent = '-.--- ' + areaUnit;
@@ -14331,7 +14331,7 @@ class BIMViewerApp {
         });
       }
     } else {
-      if (el3DLabel) el3DLabel.textContent = I18N.t('measureMulti3DArea') || '3D Area';
+      if (el3DLabel) el3DLabel.textContent = I18N.t('measureMulti3DArea') || '3D Area (est.)';
       if (elProjLabel) elProjLabel.textContent = I18N.t('measureMultiProjArea') || 'Proj Area';
 
       const areaData = this.computeMultiPointClosedArea();
