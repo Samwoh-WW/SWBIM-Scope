@@ -1222,6 +1222,18 @@ def generate_html(variant_cfg, sources):
             <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
             <span data-i18n="menuDeleteMeasurement">Delete Measurement</span>
           </div>
+          <div class="context-menu-item" id="menu-measure-insert-point" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><line x1="12" y1="5" x2="12" y2="2"></line><line x1="12" y1="22" x2="12" y2="19"></line><line x1="4" y1="12" x2="1" y2="12"></line><line x1="23" y1="12" x2="20" y2="12"></line></svg>
+            <span data-i18n="menuInsertMeasurePoint">Insert Measurement Point</span>
+          </div>
+          <div class="context-menu-item" id="menu-measure-prepend-point" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"></path><polyline points="12 19 5 12 12 5"></polyline></svg>
+            <span data-i18n="menuPrependMeasurePoint">Add Point Before</span>
+          </div>
+          <div class="context-menu-item" id="menu-measure-append-point" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><polyline points="12 5 19 12 12 19"></polyline></svg>
+            <span data-i18n="menuAppendMeasurePoint">Add Point After</span>
+          </div>
         </div>
 
         <!-- Animation Player Bar (for DAE, FBX & GLTF models with animations) -->
