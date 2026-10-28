@@ -1218,6 +1218,10 @@ def generate_html(variant_cfg, sources):
             <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
             <span data-i18n="menuDeleteMeasurePoint">Delete Measurement Point</span>
           </div>
+          <div class="context-menu-item" id="menu-measure-delete-measurement" style="display:none">
+            <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+            <span data-i18n="menuDeleteMeasurement">Delete Measurement</span>
+          </div>
         </div>
 
         <!-- Animation Player Bar (for DAE, FBX & GLTF models with animations) -->

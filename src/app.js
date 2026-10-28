@@ -8536,6 +8536,8 @@ class BIMViewerApp {
                 this.deleteDistanceMeasurement(hitMarker.distanceMeasurementId);
               } else if (hitMarker.mode === 'angle') {
                 this.deleteAngleMeasurement(hitMarker.angleMeasurementId);
+              } else if (hitMarker.mode === 'multipoint') {
+                this.deleteMultiPointPoint(hitMarker.id);
               } else {
                 this.deleteMeasurePoint(hitMarker.id);
               }
@@ -8947,18 +8949,25 @@ class BIMViewerApp {
     // Measurement Context Menu Items (Point Measure Mode / Marker Right-Click)
     const itemMeasureDivider = document.getElementById('menu-measure-divider');
     const itemMeasureCreate = document.getElementById('menu-measure-create-point');
-    const itemMeasureDelete = document.getElementById('menu-measure-delete-point');
+    const itemMeasureDeletePt = document.getElementById('menu-measure-delete-point');
+    const itemMeasureDeleteMeas = document.getElementById('menu-measure-delete-measurement');
+
     const canCreateMeasurePt = !!(this.isMeasureMode && this.measureMode === 'point' && !this.contextMenuMeasureMarker && this.contextMenuMeasureSurfaceHit);
-    const canDeleteMeasurePt = !!this.contextMenuMeasureMarker;
+    const marker = this.contextMenuMeasureMarker;
+    const canDeleteMeasurePt = !!(marker && (marker.mode === 'point' || marker.mode === 'multipoint'));
+    const canDeleteMeasurement = !!(marker && (marker.mode === 'distance' || marker.mode === 'angle'));
 
     if (itemMeasureCreate) {
       itemMeasureCreate.style.display = canCreateMeasurePt ? 'flex' : 'none';
     }
-    if (itemMeasureDelete) {
-      itemMeasureDelete.style.display = canDeleteMeasurePt ? 'flex' : 'none';
+    if (itemMeasureDeletePt) {
+      itemMeasureDeletePt.style.display = canDeleteMeasurePt ? 'flex' : 'none';
+    }
+    if (itemMeasureDeleteMeas) {
+      itemMeasureDeleteMeas.style.display = canDeleteMeasurement ? 'flex' : 'none';
     }
     if (itemMeasureDivider) {
-      itemMeasureDivider.style.display = (canCreateMeasurePt || canDeleteMeasurePt) ? 'block' : 'none';
+      itemMeasureDivider.style.display = (canCreateMeasurePt || canDeleteMeasurePt || canDeleteMeasurement) ? 'block' : 'none';
     }
 
     // Position menu within viewport bounds
@@ -9303,7 +9312,26 @@ class BIMViewerApp {
         const marker = this.contextMenuMeasureMarker;
         this.hideContextMenu();
         if (marker) {
-          this.deleteMeasurePoint(marker.id);
+          if (marker.mode === 'multipoint') {
+            this.deleteMultiPointPoint(marker.id);
+          } else {
+            this.deleteMeasurePoint(marker.id);
+          }
+        }
+      };
+    }
+
+    const btnMeasureDeleteMeas = document.getElementById('menu-measure-delete-measurement');
+    if (btnMeasureDeleteMeas) {
+      btnMeasureDeleteMeas.onclick = () => {
+        const marker = this.contextMenuMeasureMarker;
+        this.hideContextMenu();
+        if (marker) {
+          if (marker.mode === 'distance') {
+            this.deleteDistanceMeasurement(marker.distanceMeasurementId);
+          } else if (marker.mode === 'angle') {
+            this.deleteAngleMeasurement(marker.angleMeasurementId);
+          }
         }
       };
     }
@@ -12654,11 +12682,24 @@ class BIMViewerApp {
     };
 
     badgeEl.addEventListener('pointerdown', (e) => {
+      if (e.button === 0 && e.shiftKey) {
+        e.stopPropagation();
+        this.deleteMultiPointPoint(marker.id);
+        return;
+      }
       e.stopPropagation();
       this.isDraggingMeasurePoint = true;
       this.draggingMeasureMarker = marker;
       this.setMeasureMarkerDragging(marker, true);
       this.canvas.style.cursor = 'grabbing';
+    });
+
+    badgeEl.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.contextMenuMeasureMarker = marker;
+      this.contextMenuMeasureSurfaceHit = null;
+      this.showContextMenu(e.clientX, e.clientY);
     });
 
     this.measureMarkersGroup.add(marker.group);
@@ -12729,6 +12770,131 @@ class BIMViewerApp {
     if (hintEl && this.measureMode === 'multipoint') {
       hintEl.textContent = I18N.t('measureMultiPromptPickFirst') || 'Click surface to place Point #1 (Start)';
     }
+  }
+
+  deleteMultiPointPoint(id) {
+    if (!this.multiPointState || !this.multiPointState.markers) return;
+    const mIdx = this.multiPointState.markers.findIndex(m => m.id === id);
+    if (mIdx < 0) return;
+
+    const totalPts = this.multiPointState.points.length;
+    // If only 1 or 2 points exist, deleting one leaves <= 1 point -> completely clean up and reset
+    if (totalPts <= 2) {
+      this.clearMultiPointMeasurement();
+      return;
+    }
+
+    const marker = this.multiPointState.markers[mIdx];
+    const k = mIdx; // 0-based point index being deleted
+
+    // 1. Remove 3D marker group and 2D badge
+    if (marker.group) {
+      marker.group.traverse(obj => {
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+          if (Array.isArray(obj.material)) obj.material.forEach(m => m && m.dispose());
+          else obj.material.dispose();
+        }
+      });
+      if (this.measureMarkersGroup) {
+        this.measureMarkersGroup.remove(marker.group);
+      }
+    }
+    if (marker.calloutEl && marker.calloutEl.parentNode) {
+      marker.calloutEl.parentNode.removeChild(marker.calloutEl);
+      marker.calloutEl = null;
+    }
+
+    // Remove from global measureMarkers
+    const mmIdx = this.measureMarkers.findIndex(m => m.id === id);
+    if (mmIdx >= 0) this.measureMarkers.splice(mmIdx, 1);
+
+    // Remove from multiPointState
+    this.multiPointState.markers.splice(k, 1);
+    this.multiPointState.points.splice(k, 1);
+
+    // 2. Heal lines and segments
+    if (k === 0) {
+      // Deleted start point: remove line 0, shift segments
+      const line0 = this.multiPointState.lines.shift();
+      if (line0) {
+        this.scene.remove(line0);
+        if (line0.geometry) line0.geometry.dispose();
+        if (line0.material) line0.material.dispose();
+      }
+      this.multiPointState.segments.shift();
+      this.multiPointState.segments.forEach((seg, i) => {
+        seg.from = i;
+        seg.to = i + 1;
+        if (this.multiPointState.lines[i]) {
+          this.multiPointState.lines[i].userData.segmentIndex = i;
+        }
+      });
+    } else if (k === totalPts - 1) {
+      // Deleted end point: remove last line
+      const lastLine = this.multiPointState.lines.pop();
+      if (lastLine) {
+        this.scene.remove(lastLine);
+        if (lastLine.geometry) lastLine.geometry.dispose();
+        if (lastLine.material) lastLine.material.dispose();
+      }
+      this.multiPointState.segments.pop();
+    } else {
+      // Deleted intermediate point: heal segment between point k-1 and point k (old k+1)
+      const pPrev = this.multiPointState.points[k - 1];
+      const pNext = this.multiPointState.points[k];
+
+      const linePrev = this.multiPointState.lines[k - 1];
+      if (linePrev) {
+        linePrev.geometry.dispose();
+        linePrev.geometry = new THREE.BufferGeometry().setFromPoints([pPrev, pNext]);
+      }
+
+      const lineNext = this.multiPointState.lines.splice(k, 1)[0];
+      if (lineNext) {
+        this.scene.remove(lineNext);
+        if (lineNext.geometry) lineNext.geometry.dispose();
+        if (lineNext.material) lineNext.material.dispose();
+      }
+
+      this.multiPointState.segments[k - 1].to = k;
+      this.multiPointState.segments[k - 1].length = pPrev.distanceTo(pNext);
+      this.multiPointState.segments.splice(k, 1);
+
+      this.multiPointState.segments.forEach((seg, i) => {
+        seg.from = i;
+        seg.to = i + 1;
+        if (this.multiPointState.lines[i]) {
+          this.multiPointState.lines[i].userData.segmentIndex = i;
+        }
+      });
+    }
+
+    // 3. Renumber all remaining markers and badges sequentially
+    this.multiPointState.markers.forEach((m, idx) => {
+      m.multiPointIndex = idx;
+      if (m.calloutEl) {
+        m.calloutEl.textContent = `Pt #${idx + 1}`;
+        m.calloutEl.title = `Pt #${idx + 1}: click to inspect, drag to adjust position`;
+      }
+    });
+
+    // 4. Recalculate total length
+    let newTotal = 0;
+    this.multiPointState.segments.forEach(seg => {
+      newTotal += seg.length;
+    });
+    this.multiPointState.totalLength = newTotal;
+
+    // Reset hovered segment if index is now invalid
+    if (this.multiPointState.hoveredSegmentIndex >= this.multiPointState.segments.length) {
+      this.setMultiPointHoveredSegment(-1);
+    }
+
+    // 5. Update UI and request render
+    this.renderMultiPointResults();
+    this.updateMeasureMarkersAndCallouts();
+    this.requestRender(200);
   }
 
   clearMultiPointMeasurement() {
