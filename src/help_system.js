@@ -267,32 +267,7 @@ class BIMHelpSystem {
             title: "7. Keyboard Shortcuts & Fast Navigation",
             icon: "⌨️",
             content: `
-              <p>BIM Scope features a dual-scheme keyboard shortcut engine designed for maximum productivity in desktop architectural workflows:</p>
-              <h4>Dual-Preset Scheme Architecture:</h4>
-              <ul>
-                <li><b>Single Key Mode (Scheme A)</b>: Universal single-keypress hotkeys for web CAD navigation, responding instantly.</li>
-                <li><b>Two Key Mode (Scheme B - Autodesk Revit)</b>: Standard Revit-style two-letter mnemonic combinations (e.g., <code>BX</code> for Section Box, <code>HH</code> to Hide, <code>HI</code> to Isolate, <code>HR</code> to Unhide All, <code>ZE</code> to Zoom to Fit, <code>VP</code> for View Projection, <code>TL</code> for Thin Lines). Features a 1200ms input buffer and a 650ms automatic commit timeout for <code>T</code> / <code>F</code> view keys.</li>
-                <li><b>One-Click Scheme Switcher</b>: Located in the right Inspector panel header as <code>[ Single Key | Two Key ]</code> dual buttons, with localStorage persistence.</li>
-              </ul>
-              <h4>Core Hotkeys Quick Reference:</h4>
-              <ul>
-                <li><b>Page Down</b>: Focus / Zoom to Selection (smooth 400ms cubic ease-out camera flight).</li>
-                <li><b>Page Up</b>: Zoom to Fit / Model Extents (smooth camera flight framing the entire model along current line of sight).</li>
-                <li><b>[ / ]</b>: Toggle Left Model Tree (<code>[</code>) and Right Inspector (<code>]</code>) sidebars.</li>
-                <li><b>U</b>: Toggle Camera Projection between Perspective and Orthographic engineering views.</li>
-                <li><b>P</b>: Toggle Single Section Plane on / off.</li>
-                <li><b>B / BX</b>: Toggle 3-Axis Section Box on / off.</li>
-                <li><b>1 ~ 5</b>: Directly activate 5 measurement modes (1: Point, 2: Distance, 3: Angle, 4: Radius, 5: Polyline Distance & Area).</li>
-                <li><b>H / HH</b>: Hide selected component(s).</li>
-                <li><b>Alt+H / HR</b>: Reset visibility (Unhide all hidden components).</li>
-                <li><b>I / HI</b>: Isolate selected component(s) exclusively.</li>
-                <li><b>Ctrl+A / SA</b>: Select all components in model.</li>
-                <li><b>Ctrl+Z / Ctrl+Y</b>: View history undo and redo (50-step camera view history).</li>
-                <li><b>?</b>: Open the full-screen Keyboard Shortcuts Cheatsheet modal (HUD).</li>
-                <li><b>Esc</b>: Clear selection, cancel active measurement, or close modal dialogs.</li>
-              </ul>
-              <h4>Interactive Viewport Capsule Feedback:</h4>
-              <p>Whenever a shortcut is triggered, a frosted glass capsule dynamically pops up at the bottom center of the viewport (e.g. <code>PageUp  Zoom to Fit</code>), providing immediate tactile feedback and fading out after 1.8 seconds.</p>
+              <p>Whenever a shortcut is triggered, a frosted glass capsule dynamically pops up at the bottom center of the viewport (e.g. <code>PageUp  Zoom to Fit</code>), providing immediate tactile feedback. For two-key combinations, pressing the initial letter displays matching candidate shortcuts directly above the capsule for keyboard or mouse execution.</p>
               <div class="help-links-group">
                 <span class="help-target-link" data-target="shortcuts-toggle">Shortcuts Scheme Toggle</span>
                 <span class="help-target-link" data-target="shortcuts-hud">Shortcuts Cheatsheet (?)</span>
@@ -542,32 +517,7 @@ class BIMHelpSystem {
           title: "7. 键盘快捷键系统与极速导航",
           icon: "⌨️",
           content: `
-            <p>BIM Scope 内置双预设专业快捷键引擎，赋能桌面级极速工程审模与视图漫游：</p>
-            <h4>双方案键盘体系：</h4>
-            <ul>
-              <li><b>方案 A：标准单键模式 (Single Key)</b>：适合网页浏览与直觉式三维漫游，按键单发即刻响应。</li>
-              <li><b>方案 B：Autodesk Revit 双键模式 (Two Key)</b>：严格遵循 Revit 行业标准两字母按键习惯（如 <code>BX</code> 剖切盒、<code>HH</code> 隐藏、<code>HI</code> 孤立、<code>HR</code> 恢复全部、<code>ZE</code> 缩放至全景、<code>VP</code> 投影切换、<code>TL</code> 细线等），具备 1200ms 输入缓冲与 <code>T</code> / <code>F</code> 视点 650ms 自动提交。</li>
-              <li><b>一键互切切换钮</b>：位于右侧检查器偏好设置卡片顶端 <code>[ Single Key | Two Key ]</code>，支持 localStorage 持久化记忆。</li>
-            </ul>
-            <h4>核心常用快捷键速查表：</h4>
-            <ul>
-              <li><b>Page Down</b>：聚焦缩放至选中构件 (Zoom to Selection) - 平滑 400ms 立方缓出镜头飞行，保持当前视线角度。</li>
-              <li><b>Page Up</b>：缩放至全景 / 全局适应 (Zoom to Fit) - 保持当前视线角度平滑回退，完整框选整个建筑模型。</li>
-              <li><b>[ / ]</b>：一键折叠 / 展开左侧模型树 (<code>[</code>) 与右侧检查器 (<code>]</code>) 侧边栏。</li>
-              <li><b>U</b>：一键在透视投影 (Perspective) 与正交工程投影 (Orthographic) 间无缝切换。</li>
-              <li><b>P</b>：一键开启 / 关闭单剖切面 (Section Plane)。</li>
-              <li><b>B / BX</b>：一键开启 / 关闭三轴剖切盒 (Section Box)。</li>
-              <li><b>1 ~ 5</b>：直接激活五大测量模式（1: 单点坐标、2: 2点测距、3: 3点角度、4: 半径直径、5: 多点折线与面积）。</li>
-              <li><b>H / HH</b>：隐藏当前选中的构件。</li>
-              <li><b>Alt+H / HR</b>：取消全部隐藏，恢复全模型构件可见。</li>
-              <li><b>I / HI</b>：独占孤立所选构件 (Isolate)。</li>
-              <li><b>Ctrl+A / SA</b>：全选模型构件。</li>
-              <li><b>Ctrl+Z / Ctrl+Y</b>：视角历史撤销与重做 (50 步相机视角历史记录)。</li>
-              <li><b>?</b>：随时呼出全屏磨砂玻璃快捷键速查手册 (HUD)。</li>
-              <li><b>Esc</b>：清除选择、取消当前测量或关闭浮层弹窗。</li>
-            </ul>
-            <h4>视口悬浮反馈胶囊：</h4>
-            <p>按下任意快捷键时，3D 视口底部中央即时浮现半透明发光反馈胶囊（如 <code>PageUp  Zoom to Fit</code>），提供零延迟触觉回馈并在 1.8 秒后平滑淡出。</p>
+            <p>按下任意快捷键时，3D 视口底部中央即时浮现半透明发光反馈胶囊（如 <code>PageUp  Zoom to Fit</code>），提供零延迟触觉回馈。对于需要组合按键的热键，按下首个按键后会在胶囊上方动态列出所有匹配候选项，支持键盘连击或鼠标点击快捷执行。</p>
             <div class="help-links-group">
               <span class="help-target-link" data-target="shortcuts-toggle">快捷键模式切换</span>
               <span class="help-target-link" data-target="shortcuts-hud">快捷键全屏速查 (?)</span>

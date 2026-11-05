@@ -9549,7 +9549,20 @@ class BIMViewerApp {
   initShortcutsSystem() {
     this.shortcutsCapsuleEl = document.getElementById('shortcuts-key-capsule');
     this.shortcutsCapsuleKeysEl = document.getElementById('shortcuts-capsule-keys');
+    this.shortcutsCandidatePanelEl = document.getElementById('shortcuts-candidate-panel');
+    this.shortcutsCandidateTimer = null;
     this.shortcutsHudModalEl = document.getElementById('shortcuts-hud-modal');
+
+    // Dismiss candidate panel when clicking outside
+    document.addEventListener('pointerdown', (e) => {
+      if (this.shortcutsCandidatePanelEl && this.shortcutsCandidatePanelEl.classList.contains('visible')) {
+        if (!this.shortcutsCandidatePanelEl.contains(e.target) && (!this.shortcutsCapsuleEl || !this.shortcutsCapsuleEl.contains(e.target))) {
+          this.hideShortcutsCandidates();
+          this.hideShortcutsCapsule();
+          this.resetShortcutsBuffer();
+        }
+      }
+    });
 
     // 1. Inspector Preference Dual-Button Toggle (Single Key vs Two Key)
     const btnSingle = document.getElementById('pref-shortcuts-btn-single');
@@ -9654,7 +9667,60 @@ class BIMViewerApp {
     }
   }
 
-  showShortcutsCapsule(text, isMatched = false) {
+  showShortcutsCandidates(candidates, onSelect, timeoutMs = 5000) {
+    if (!this.shortcutsCandidatePanelEl) {
+      this.shortcutsCandidatePanelEl = document.getElementById('shortcuts-candidate-panel');
+    }
+    if (!this.shortcutsCandidatePanelEl) return;
+    this.shortcutsCandidatePanelEl.innerHTML = '';
+
+    candidates.forEach(cand => {
+      const row = document.createElement('div');
+      row.className = 'shortcuts-candidate-item';
+      row.innerHTML = `
+        <span class="shortcuts-cand-key">${cand.key}</span>
+        <span class="shortcuts-cand-name">${cand.name}</span>
+      `;
+      row.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.hideShortcutsCandidates();
+        onSelect(cand);
+      });
+      this.shortcutsCandidatePanelEl.appendChild(row);
+    });
+
+    this.shortcutsCandidatePanelEl.style.display = 'flex';
+    requestAnimationFrame(() => {
+      if (this.shortcutsCandidatePanelEl) {
+        this.shortcutsCandidatePanelEl.classList.add('visible');
+      }
+    });
+
+    if (this.shortcutsCandidateTimer) {
+      clearTimeout(this.shortcutsCandidateTimer);
+      this.shortcutsCandidateTimer = null;
+    }
+    this.shortcutsCandidateTimer = setTimeout(() => {
+      this.hideShortcutsCandidates();
+    }, timeoutMs);
+  }
+
+  hideShortcutsCandidates() {
+    if (this.shortcutsCandidateTimer) {
+      clearTimeout(this.shortcutsCandidateTimer);
+      this.shortcutsCandidateTimer = null;
+    }
+    if (this.shortcutsCandidatePanelEl) {
+      this.shortcutsCandidatePanelEl.classList.remove('visible');
+      setTimeout(() => {
+        if (this.shortcutsCandidatePanelEl && !this.shortcutsCandidatePanelEl.classList.contains('visible')) {
+          this.shortcutsCandidatePanelEl.style.display = 'none';
+        }
+      }, 150);
+    }
+  }
+
+  showShortcutsCapsule(text, isMatched = false, durationMs = null) {
     if (!this.shortcutsCapsuleEl) {
       this.shortcutsCapsuleEl = document.getElementById('shortcuts-key-capsule');
       this.shortcutsCapsuleKeysEl = document.getElementById('shortcuts-capsule-keys');
@@ -9673,15 +9739,17 @@ class BIMViewerApp {
       clearTimeout(this.shortcutsFadeTimer);
       this.shortcutsFadeTimer = null;
     }
+    const defaultDuration = isMatched ? 850 : 1200;
     this.shortcutsFadeTimer = setTimeout(() => {
       if (this.shortcutsCapsuleEl) {
         this.shortcutsCapsuleEl.classList.remove('visible');
         this.shortcutsCapsuleEl.classList.remove('matched');
       }
-    }, isMatched ? 850 : 1200);
+    }, durationMs !== null ? durationMs : defaultDuration);
   }
 
   hideShortcutsCapsule() {
+    this.hideShortcutsCandidates();
     if (this.shortcutsCapsuleEl) {
       this.shortcutsCapsuleEl.classList.remove('visible');
       this.shortcutsCapsuleEl.classList.remove('matched');
@@ -9694,6 +9762,7 @@ class BIMViewerApp {
 
   resetShortcutsBuffer() {
     this.shortcutsBuffer = '';
+    this.hideShortcutsCandidates();
     if (this.shortcutsBufferTimer) {
       clearTimeout(this.shortcutsBufferTimer);
       this.shortcutsBufferTimer = null;
@@ -10021,30 +10090,46 @@ class BIMViewerApp {
         case 'd':
           e.preventDefault();
           this.toggleMeasurePanel();
-          this.showShortcutsCapsule('D  ' + (I18N.t('shortcutsDescMeasureToggle') || 'Measure Panel'), true);
+          const measureCandidates = [
+            { key: '1', submode: 'point', name: I18N.t('shortcutsDescMeasurePoint') || 'Point Coordinates' },
+            { key: '2', submode: 'distance', name: I18N.t('shortcutsDescMeasureDist') || 'Two-Point Distance' },
+            { key: '3', submode: 'multipoint', name: I18N.t('shortcutsDescMeasureMulti') || 'Multi-Point / Area' },
+            { key: '4', submode: 'angle', name: I18N.t('shortcutsDescMeasureAngle') || 'Angular Dimension' },
+            { key: '5', submode: 'radius', name: I18N.t('shortcutsDescMeasureRadius') || 'Radial Dimension' },
+          ];
+          this.showShortcutsCapsule('D _', false, 5000);
+          this.showShortcutsCandidates(measureCandidates, (item) => {
+            this.setMeasureSubmode(item.submode);
+            this.showShortcutsCapsule(item.key + '  ' + item.name, true);
+          }, 5000);
           break;
         case '1':
           e.preventDefault();
+          this.hideShortcutsCandidates();
           this.setMeasureSubmode('point');
           this.showShortcutsCapsule('1  ' + (I18N.t('shortcutsDescMeasurePoint') || 'Point Coordinates'), true);
           break;
         case '2':
           e.preventDefault();
+          this.hideShortcutsCandidates();
           this.setMeasureSubmode('distance');
           this.showShortcutsCapsule('2  ' + (I18N.t('shortcutsDescMeasureDist') || 'Two-Point Distance'), true);
           break;
         case '3':
           e.preventDefault();
+          this.hideShortcutsCandidates();
           this.setMeasureSubmode('multipoint');
           this.showShortcutsCapsule('3  ' + (I18N.t('shortcutsDescMeasureMulti') || 'Multi-Point / Area'), true);
           break;
         case '4':
           e.preventDefault();
+          this.hideShortcutsCandidates();
           this.setMeasureSubmode('angle');
           this.showShortcutsCapsule('4  ' + (I18N.t('shortcutsDescMeasureAngle') || 'Angular Dimension'), true);
           break;
         case '5':
           e.preventDefault();
+          this.hideShortcutsCandidates();
           this.setMeasureSubmode('radius');
           this.showShortcutsCapsule('5  ' + (I18N.t('shortcutsDescMeasureRadius') || 'Radial Dimension'), true);
           break;
@@ -10150,6 +10235,7 @@ class BIMViewerApp {
 
     // If buffer has 1 key already: combine and execute
     if (this.shortcutsBuffer.length === 1) {
+      this.hideShortcutsCandidates();
       const combo = this.shortcutsBuffer + uKey;
       if (this.shortcutsBufferTimer) {
         clearTimeout(this.shortcutsBufferTimer);
@@ -10170,20 +10256,43 @@ class BIMViewerApp {
 
     // Buffer is empty: start a new combo
     this.shortcutsBuffer = uKey;
-    this.showShortcutsCapsule(uKey + ' _', false);
 
-    // Timeout: if no second key is typed within 1200ms, commit single key or clear
+    const matching = Object.keys(revitCommands)
+      .filter(k => k.startsWith(uKey))
+      .map(k => ({
+        key: k,
+        name: I18N.t(revitCommands[k].descKey) || revitCommands[k].name,
+        cmd: revitCommands[k]
+      }));
+
+    // Timeout: per user choice, T/F keep 650ms, other keys give 5000ms
+    const timeoutMs = (uKey === 'T' || uKey === 'F') ? 650 : 5000;
+    this.showShortcutsCapsule(uKey + ' _', false, timeoutMs);
+
+    if (matching.length > 0) {
+      this.showShortcutsCandidates(matching, (item) => {
+        if (this.shortcutsBufferTimer) {
+          clearTimeout(this.shortcutsBufferTimer);
+          this.shortcutsBufferTimer = null;
+        }
+        this.shortcutsBuffer = '';
+        item.cmd.action();
+        this.showShortcutsCapsule(item.key + '  ' + item.name, true);
+      }, timeoutMs);
+    } else {
+      this.hideShortcutsCandidates();
+    }
+
     if (this.shortcutsBufferTimer) {
       clearTimeout(this.shortcutsBufferTimer);
     }
-    // For 'T' or 'F', give 650ms before executing single-key Top / Front view
-    const timeoutMs = (uKey === 'T' || uKey === 'F') ? 650 : 1200;
     this.shortcutsBufferTimer = setTimeout(() => {
       this.commitRevitBuffer();
     }, timeoutMs);
   }
 
   commitRevitBuffer() {
+    this.hideShortcutsCandidates();
     if (!this.shortcutsBuffer) return;
     const key = this.shortcutsBuffer;
     this.shortcutsBuffer = '';

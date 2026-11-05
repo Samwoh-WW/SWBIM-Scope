@@ -6225,6 +6225,99 @@ mark.help-match-highlight {
    ========================================================================= */
 
 /* 1. Revit 2-Letter Floating Input Capsule in Viewport */
+/* 1a. Shortcuts Candidate Menu Popover (Stacked Above Capsule) */
+.shortcuts-candidate-panel {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(6px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.75), 0 0 16px rgba(56, 189, 248, 0.25);
+  z-index: 155;
+  min-width: 200px;
+  max-width: 320px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.shortcuts-candidate-panel.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+
+.shortcuts-candidate-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s ease, transform 0.12s ease;
+}
+
+.shortcuts-candidate-item:hover {
+  background: rgba(56, 189, 248, 0.2);
+  transform: translateX(2px);
+}
+
+.shortcuts-cand-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 20px;
+  padding: 0 5px;
+  background: rgba(56, 189, 248, 0.18);
+  border: 1px solid rgba(56, 189, 248, 0.6);
+  border-radius: 4px;
+  color: #38bdf8;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.shortcuts-cand-name {
+  color: #f1f5f9;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-theme="light"] .shortcuts-candidate-panel {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(2, 132, 199, 0.5);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16), 0 0 16px rgba(2, 132, 199, 0.15);
+}
+
+[data-theme="light"] .shortcuts-candidate-item:hover {
+  background: rgba(2, 132, 199, 0.12);
+}
+
+[data-theme="light"] .shortcuts-cand-key {
+  background: rgba(2, 132, 199, 0.1);
+  border-color: rgba(2, 132, 199, 0.5);
+  color: #0284c7;
+}
+
+[data-theme="light"] .shortcuts-cand-name {
+  color: #0f172a;
+}
+
+/* 1b. Revit 2-Letter Floating Input Capsule in Viewport (Reduced 1 size: 12px) */
 .shortcuts-key-capsule {
   position: absolute;
   bottom: 48px;
@@ -6233,7 +6326,7 @@ mark.help-match-highlight {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 14px;
+  padding: 5px 12px;
   background: rgba(15, 23, 42, 0.92);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -6242,9 +6335,9 @@ mark.help-match-highlight {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 12px rgba(56, 189, 248, 0.35);
   color: #38bdf8;
   font-family: var(--font-mono, monospace);
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 2px;
+  letter-spacing: 1.5px;
   z-index: 150;
   pointer-events: none;
   opacity: 0;
@@ -7905,7 +7998,8 @@ mark.help-match-highlight {
     </div>
   </div>
 
-  <!-- KEYBOARD SHORTCUTS FLOATING CAPSULE (REVIT 2-LETTER BUFFER) -->
+  <!-- KEYBOARD SHORTCUTS FLOATING CANDIDATE PANEL & INPUT CAPSULE -->
+  <div class="shortcuts-candidate-panel" id="shortcuts-candidate-panel" style="display:none;"></div>
   <div class="shortcuts-key-capsule" id="shortcuts-key-capsule">
     <span id="shortcuts-capsule-keys">--</span>
   </div>
@@ -32810,32 +32904,7 @@ class BIMHelpSystem {
             title: "7. Keyboard Shortcuts & Fast Navigation",
             icon: "⌨️",
             content: `
-              <p>BIM Scope features a dual-scheme keyboard shortcut engine designed for maximum productivity in desktop architectural workflows:</p>
-              <h4>Dual-Preset Scheme Architecture:</h4>
-              <ul>
-                <li><b>Single Key Mode (Scheme A)</b>: Universal single-keypress hotkeys for web CAD navigation, responding instantly.</li>
-                <li><b>Two Key Mode (Scheme B - Autodesk Revit)</b>: Standard Revit-style two-letter mnemonic combinations (e.g., <code>BX</code> for Section Box, <code>HH</code> to Hide, <code>HI</code> to Isolate, <code>HR</code> to Unhide All, <code>ZE</code> to Zoom to Fit, <code>VP</code> for View Projection, <code>TL</code> for Thin Lines). Features a 1200ms input buffer and a 650ms automatic commit timeout for <code>T</code> / <code>F</code> view keys.</li>
-                <li><b>One-Click Scheme Switcher</b>: Located in the right Inspector panel header as <code>[ Single Key | Two Key ]</code> dual buttons, with localStorage persistence.</li>
-              </ul>
-              <h4>Core Hotkeys Quick Reference:</h4>
-              <ul>
-                <li><b>Page Down</b>: Focus / Zoom to Selection (smooth 400ms cubic ease-out camera flight).</li>
-                <li><b>Page Up</b>: Zoom to Fit / Model Extents (smooth camera flight framing the entire model along current line of sight).</li>
-                <li><b>[ / ]</b>: Toggle Left Model Tree (<code>[</code>) and Right Inspector (<code>]</code>) sidebars.</li>
-                <li><b>U</b>: Toggle Camera Projection between Perspective and Orthographic engineering views.</li>
-                <li><b>P</b>: Toggle Single Section Plane on / off.</li>
-                <li><b>B / BX</b>: Toggle 3-Axis Section Box on / off.</li>
-                <li><b>1 ~ 5</b>: Directly activate 5 measurement modes (1: Point, 2: Distance, 3: Angle, 4: Radius, 5: Polyline Distance & Area).</li>
-                <li><b>H / HH</b>: Hide selected component(s).</li>
-                <li><b>Alt+H / HR</b>: Reset visibility (Unhide all hidden components).</li>
-                <li><b>I / HI</b>: Isolate selected component(s) exclusively.</li>
-                <li><b>Ctrl+A / SA</b>: Select all components in model.</li>
-                <li><b>Ctrl+Z / Ctrl+Y</b>: View history undo and redo (50-step camera view history).</li>
-                <li><b>?</b>: Open the full-screen Keyboard Shortcuts Cheatsheet modal (HUD).</li>
-                <li><b>Esc</b>: Clear selection, cancel active measurement, or close modal dialogs.</li>
-              </ul>
-              <h4>Interactive Viewport Capsule Feedback:</h4>
-              <p>Whenever a shortcut is triggered, a frosted glass capsule dynamically pops up at the bottom center of the viewport (e.g. <code>PageUp  Zoom to Fit</code>), providing immediate tactile feedback and fading out after 1.8 seconds.</p>
+              <p>Whenever a shortcut is triggered, a frosted glass capsule dynamically pops up at the bottom center of the viewport (e.g. <code>PageUp  Zoom to Fit</code>), providing immediate tactile feedback. For two-key combinations, pressing the initial letter displays matching candidate shortcuts directly above the capsule for keyboard or mouse execution.</p>
               <div class="help-links-group">
                 <span class="help-target-link" data-target="shortcuts-toggle">Shortcuts Scheme Toggle</span>
                 <span class="help-target-link" data-target="shortcuts-hud">Shortcuts Cheatsheet (?)</span>
@@ -33085,32 +33154,7 @@ class BIMHelpSystem {
           title: "7. 键盘快捷键系统与极速导航",
           icon: "⌨️",
           content: `
-            <p>BIM Scope 内置双预设专业快捷键引擎，赋能桌面级极速工程审模与视图漫游：</p>
-            <h4>双方案键盘体系：</h4>
-            <ul>
-              <li><b>方案 A：标准单键模式 (Single Key)</b>：适合网页浏览与直觉式三维漫游，按键单发即刻响应。</li>
-              <li><b>方案 B：Autodesk Revit 双键模式 (Two Key)</b>：严格遵循 Revit 行业标准两字母按键习惯（如 <code>BX</code> 剖切盒、<code>HH</code> 隐藏、<code>HI</code> 孤立、<code>HR</code> 恢复全部、<code>ZE</code> 缩放至全景、<code>VP</code> 投影切换、<code>TL</code> 细线等），具备 1200ms 输入缓冲与 <code>T</code> / <code>F</code> 视点 650ms 自动提交。</li>
-              <li><b>一键互切切换钮</b>：位于右侧检查器偏好设置卡片顶端 <code>[ Single Key | Two Key ]</code>，支持 localStorage 持久化记忆。</li>
-            </ul>
-            <h4>核心常用快捷键速查表：</h4>
-            <ul>
-              <li><b>Page Down</b>：聚焦缩放至选中构件 (Zoom to Selection) - 平滑 400ms 立方缓出镜头飞行，保持当前视线角度。</li>
-              <li><b>Page Up</b>：缩放至全景 / 全局适应 (Zoom to Fit) - 保持当前视线角度平滑回退，完整框选整个建筑模型。</li>
-              <li><b>[ / ]</b>：一键折叠 / 展开左侧模型树 (<code>[</code>) 与右侧检查器 (<code>]</code>) 侧边栏。</li>
-              <li><b>U</b>：一键在透视投影 (Perspective) 与正交工程投影 (Orthographic) 间无缝切换。</li>
-              <li><b>P</b>：一键开启 / 关闭单剖切面 (Section Plane)。</li>
-              <li><b>B / BX</b>：一键开启 / 关闭三轴剖切盒 (Section Box)。</li>
-              <li><b>1 ~ 5</b>：直接激活五大测量模式（1: 单点坐标、2: 2点测距、3: 3点角度、4: 半径直径、5: 多点折线与面积）。</li>
-              <li><b>H / HH</b>：隐藏当前选中的构件。</li>
-              <li><b>Alt+H / HR</b>：取消全部隐藏，恢复全模型构件可见。</li>
-              <li><b>I / HI</b>：独占孤立所选构件 (Isolate)。</li>
-              <li><b>Ctrl+A / SA</b>：全选模型构件。</li>
-              <li><b>Ctrl+Z / Ctrl+Y</b>：视角历史撤销与重做 (50 步相机视角历史记录)。</li>
-              <li><b>?</b>：随时呼出全屏磨砂玻璃快捷键速查手册 (HUD)。</li>
-              <li><b>Esc</b>：清除选择、取消当前测量或关闭浮层弹窗。</li>
-            </ul>
-            <h4>视口悬浮反馈胶囊：</h4>
-            <p>按下任意快捷键时，3D 视口底部中央即时浮现半透明发光反馈胶囊（如 <code>PageUp  Zoom to Fit</code>），提供零延迟触觉回馈并在 1.8 秒后平滑淡出。</p>
+            <p>按下任意快捷键时，3D 视口底部中央即时浮现半透明发光反馈胶囊（如 <code>PageUp  Zoom to Fit</code>），提供零延迟触觉回馈。对于需要组合按键的热键，按下首个按键后会在胶囊上方动态列出所有匹配候选项，支持键盘连击或鼠标点击快捷执行。</p>
             <div class="help-links-group">
               <span class="help-target-link" data-target="shortcuts-toggle">快捷键模式切换</span>
               <span class="help-target-link" data-target="shortcuts-hud">快捷键全屏速查 (?)</span>
@@ -43843,7 +43887,20 @@ class BIMViewerApp {
   initShortcutsSystem() {
     this.shortcutsCapsuleEl = document.getElementById('shortcuts-key-capsule');
     this.shortcutsCapsuleKeysEl = document.getElementById('shortcuts-capsule-keys');
+    this.shortcutsCandidatePanelEl = document.getElementById('shortcuts-candidate-panel');
+    this.shortcutsCandidateTimer = null;
     this.shortcutsHudModalEl = document.getElementById('shortcuts-hud-modal');
+
+    // Dismiss candidate panel when clicking outside
+    document.addEventListener('pointerdown', (e) => {
+      if (this.shortcutsCandidatePanelEl && this.shortcutsCandidatePanelEl.classList.contains('visible')) {
+        if (!this.shortcutsCandidatePanelEl.contains(e.target) && (!this.shortcutsCapsuleEl || !this.shortcutsCapsuleEl.contains(e.target))) {
+          this.hideShortcutsCandidates();
+          this.hideShortcutsCapsule();
+          this.resetShortcutsBuffer();
+        }
+      }
+    });
 
     // 1. Inspector Preference Dual-Button Toggle (Single Key vs Two Key)
     const btnSingle = document.getElementById('pref-shortcuts-btn-single');
@@ -43948,7 +44005,60 @@ class BIMViewerApp {
     }
   }
 
-  showShortcutsCapsule(text, isMatched = false) {
+  showShortcutsCandidates(candidates, onSelect, timeoutMs = 5000) {
+    if (!this.shortcutsCandidatePanelEl) {
+      this.shortcutsCandidatePanelEl = document.getElementById('shortcuts-candidate-panel');
+    }
+    if (!this.shortcutsCandidatePanelEl) return;
+    this.shortcutsCandidatePanelEl.innerHTML = '';
+
+    candidates.forEach(cand => {
+      const row = document.createElement('div');
+      row.className = 'shortcuts-candidate-item';
+      row.innerHTML = `
+        <span class="shortcuts-cand-key">${cand.key}</span>
+        <span class="shortcuts-cand-name">${cand.name}</span>
+      `;
+      row.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.hideShortcutsCandidates();
+        onSelect(cand);
+      });
+      this.shortcutsCandidatePanelEl.appendChild(row);
+    });
+
+    this.shortcutsCandidatePanelEl.style.display = 'flex';
+    requestAnimationFrame(() => {
+      if (this.shortcutsCandidatePanelEl) {
+        this.shortcutsCandidatePanelEl.classList.add('visible');
+      }
+    });
+
+    if (this.shortcutsCandidateTimer) {
+      clearTimeout(this.shortcutsCandidateTimer);
+      this.shortcutsCandidateTimer = null;
+    }
+    this.shortcutsCandidateTimer = setTimeout(() => {
+      this.hideShortcutsCandidates();
+    }, timeoutMs);
+  }
+
+  hideShortcutsCandidates() {
+    if (this.shortcutsCandidateTimer) {
+      clearTimeout(this.shortcutsCandidateTimer);
+      this.shortcutsCandidateTimer = null;
+    }
+    if (this.shortcutsCandidatePanelEl) {
+      this.shortcutsCandidatePanelEl.classList.remove('visible');
+      setTimeout(() => {
+        if (this.shortcutsCandidatePanelEl && !this.shortcutsCandidatePanelEl.classList.contains('visible')) {
+          this.shortcutsCandidatePanelEl.style.display = 'none';
+        }
+      }, 150);
+    }
+  }
+
+  showShortcutsCapsule(text, isMatched = false, durationMs = null) {
     if (!this.shortcutsCapsuleEl) {
       this.shortcutsCapsuleEl = document.getElementById('shortcuts-key-capsule');
       this.shortcutsCapsuleKeysEl = document.getElementById('shortcuts-capsule-keys');
@@ -43967,15 +44077,17 @@ class BIMViewerApp {
       clearTimeout(this.shortcutsFadeTimer);
       this.shortcutsFadeTimer = null;
     }
+    const defaultDuration = isMatched ? 850 : 1200;
     this.shortcutsFadeTimer = setTimeout(() => {
       if (this.shortcutsCapsuleEl) {
         this.shortcutsCapsuleEl.classList.remove('visible');
         this.shortcutsCapsuleEl.classList.remove('matched');
       }
-    }, isMatched ? 850 : 1200);
+    }, durationMs !== null ? durationMs : defaultDuration);
   }
 
   hideShortcutsCapsule() {
+    this.hideShortcutsCandidates();
     if (this.shortcutsCapsuleEl) {
       this.shortcutsCapsuleEl.classList.remove('visible');
       this.shortcutsCapsuleEl.classList.remove('matched');
@@ -43988,6 +44100,7 @@ class BIMViewerApp {
 
   resetShortcutsBuffer() {
     this.shortcutsBuffer = '';
+    this.hideShortcutsCandidates();
     if (this.shortcutsBufferTimer) {
       clearTimeout(this.shortcutsBufferTimer);
       this.shortcutsBufferTimer = null;
@@ -44315,30 +44428,46 @@ class BIMViewerApp {
         case 'd':
           e.preventDefault();
           this.toggleMeasurePanel();
-          this.showShortcutsCapsule('D  ' + (I18N.t('shortcutsDescMeasureToggle') || 'Measure Panel'), true);
+          const measureCandidates = [
+            { key: '1', submode: 'point', name: I18N.t('shortcutsDescMeasurePoint') || 'Point Coordinates' },
+            { key: '2', submode: 'distance', name: I18N.t('shortcutsDescMeasureDist') || 'Two-Point Distance' },
+            { key: '3', submode: 'multipoint', name: I18N.t('shortcutsDescMeasureMulti') || 'Multi-Point / Area' },
+            { key: '4', submode: 'angle', name: I18N.t('shortcutsDescMeasureAngle') || 'Angular Dimension' },
+            { key: '5', submode: 'radius', name: I18N.t('shortcutsDescMeasureRadius') || 'Radial Dimension' },
+          ];
+          this.showShortcutsCapsule('D _', false, 5000);
+          this.showShortcutsCandidates(measureCandidates, (item) => {
+            this.setMeasureSubmode(item.submode);
+            this.showShortcutsCapsule(item.key + '  ' + item.name, true);
+          }, 5000);
           break;
         case '1':
           e.preventDefault();
+          this.hideShortcutsCandidates();
           this.setMeasureSubmode('point');
           this.showShortcutsCapsule('1  ' + (I18N.t('shortcutsDescMeasurePoint') || 'Point Coordinates'), true);
           break;
         case '2':
           e.preventDefault();
+          this.hideShortcutsCandidates();
           this.setMeasureSubmode('distance');
           this.showShortcutsCapsule('2  ' + (I18N.t('shortcutsDescMeasureDist') || 'Two-Point Distance'), true);
           break;
         case '3':
           e.preventDefault();
+          this.hideShortcutsCandidates();
           this.setMeasureSubmode('multipoint');
           this.showShortcutsCapsule('3  ' + (I18N.t('shortcutsDescMeasureMulti') || 'Multi-Point / Area'), true);
           break;
         case '4':
           e.preventDefault();
+          this.hideShortcutsCandidates();
           this.setMeasureSubmode('angle');
           this.showShortcutsCapsule('4  ' + (I18N.t('shortcutsDescMeasureAngle') || 'Angular Dimension'), true);
           break;
         case '5':
           e.preventDefault();
+          this.hideShortcutsCandidates();
           this.setMeasureSubmode('radius');
           this.showShortcutsCapsule('5  ' + (I18N.t('shortcutsDescMeasureRadius') || 'Radial Dimension'), true);
           break;
@@ -44444,6 +44573,7 @@ class BIMViewerApp {
 
     // If buffer has 1 key already: combine and execute
     if (this.shortcutsBuffer.length === 1) {
+      this.hideShortcutsCandidates();
       const combo = this.shortcutsBuffer + uKey;
       if (this.shortcutsBufferTimer) {
         clearTimeout(this.shortcutsBufferTimer);
@@ -44464,20 +44594,43 @@ class BIMViewerApp {
 
     // Buffer is empty: start a new combo
     this.shortcutsBuffer = uKey;
-    this.showShortcutsCapsule(uKey + ' _', false);
 
-    // Timeout: if no second key is typed within 1200ms, commit single key or clear
+    const matching = Object.keys(revitCommands)
+      .filter(k => k.startsWith(uKey))
+      .map(k => ({
+        key: k,
+        name: I18N.t(revitCommands[k].descKey) || revitCommands[k].name,
+        cmd: revitCommands[k]
+      }));
+
+    // Timeout: per user choice, T/F keep 650ms, other keys give 5000ms
+    const timeoutMs = (uKey === 'T' || uKey === 'F') ? 650 : 5000;
+    this.showShortcutsCapsule(uKey + ' _', false, timeoutMs);
+
+    if (matching.length > 0) {
+      this.showShortcutsCandidates(matching, (item) => {
+        if (this.shortcutsBufferTimer) {
+          clearTimeout(this.shortcutsBufferTimer);
+          this.shortcutsBufferTimer = null;
+        }
+        this.shortcutsBuffer = '';
+        item.cmd.action();
+        this.showShortcutsCapsule(item.key + '  ' + item.name, true);
+      }, timeoutMs);
+    } else {
+      this.hideShortcutsCandidates();
+    }
+
     if (this.shortcutsBufferTimer) {
       clearTimeout(this.shortcutsBufferTimer);
     }
-    // For 'T' or 'F', give 650ms before executing single-key Top / Front view
-    const timeoutMs = (uKey === 'T' || uKey === 'F') ? 650 : 1200;
     this.shortcutsBufferTimer = setTimeout(() => {
       this.commitRevitBuffer();
     }, timeoutMs);
   }
 
   commitRevitBuffer() {
+    this.hideShortcutsCandidates();
     if (!this.shortcutsBuffer) return;
     const key = this.shortcutsBuffer;
     this.shortcutsBuffer = '';

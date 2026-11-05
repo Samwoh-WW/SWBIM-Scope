@@ -1577,7 +1577,8 @@ def generate_html(variant_cfg, sources):
     </div>
   </div>
 
-  <!-- KEYBOARD SHORTCUTS FLOATING CAPSULE (REVIT 2-LETTER BUFFER) -->
+  <!-- KEYBOARD SHORTCUTS FLOATING CANDIDATE PANEL & INPUT CAPSULE -->
+  <div class="shortcuts-candidate-panel" id="shortcuts-candidate-panel" style="display:none;"></div>
   <div class="shortcuts-key-capsule" id="shortcuts-key-capsule">
     <span id="shortcuts-capsule-keys">--</span>
   </div>
