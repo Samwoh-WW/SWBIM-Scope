@@ -1321,19 +1321,7 @@ def generate_html(variant_cfg, sources):
 
         <!-- Unified Preferences Card (Theme, Selection Highlight & Edge Lines) -->
         <div class="inspector-pref-card">
-          <!-- UI Theme Appearance -->
-          <div class="pref-subgroup">
-            <div class="pref-inline-row" style="margin-bottom:6px">
-              <span class="pref-inline-label" data-i18n="uiAppearance">Theme Appearance</span>
-              <div class="segmented-control" id="pref-theme-segmented" style="max-width:130px;margin-left:auto;">
-                <button type="button" class="segment-btn active" id="pref-theme-dark-btn" data-theme-val="dark" data-i18n="themeDark">Dark</button>
-                <button type="button" class="segment-btn" id="pref-theme-light-btn" data-theme-val="light" data-i18n="themeLight">Light</button>
-              </div>
-            </div>
-          </div>
 
-          <!-- Subtle Divider -->
-          <div class="pref-divider"></div>
 
           <!-- Selection Highlight Settings (Color & Opacity) -->
           <div class="pref-subgroup">
@@ -1374,30 +1362,14 @@ def generate_html(variant_cfg, sources):
           <!-- Subtle Divider -->
           <div class="pref-divider"></div>
 
-          <!-- Keyboard Shortcuts Scheme -->
+          <!-- Keyboard Shortcuts -->
           <div class="pref-subgroup">
-            <div class="pref-inline-row" style="margin-bottom:6px">
-              <span class="pref-inline-label" style="font-weight:600;color:var(--text-bright);width:auto" data-i18n="shortcutsScheme">Shortcuts Scheme</span>
-              <button type="button" class="btn-icon" id="btn-show-shortcuts-hud" title="View Shortcuts (?)" data-i18n-title="shortcutsViewHudBtn" style="margin-left:auto;width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:var(--text-bright);cursor:pointer;">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
-                  <line x1="6" y1="8" x2="6" y2="8"></line>
-                  <line x1="10" y1="8" x2="10" y2="8"></line>
-                  <line x1="14" y1="8" x2="14" y2="8"></line>
-                  <line x1="18" y1="8" x2="18" y2="8"></line>
-                  <line x1="6" y1="12" x2="6" y2="12"></line>
-                  <line x1="10" y1="12" x2="10" y2="12"></line>
-                  <line x1="14" y1="12" x2="14" y2="12"></line>
-                  <line x1="18" y1="12" x2="18" y2="12"></line>
-                  <line x1="7" y1="16" x2="17" y2="16"></line>
-                </svg>
-              </button>
-            </div>
             <div class="pref-inline-row">
-              <select id="pref-shortcuts-select" class="control-select" style="width:100%;height:26px;font-size:11px;background:var(--bg-panel,#0f172a);color:var(--text-bright,#f8fafc);border:1px solid rgba(255,255,255,0.12);border-radius:4px;padding:0 6px;">
-                <option value="standard" data-i18n="shortcutsStandard">Standard (Single-Key)</option>
-                <option value="revit" data-i18n="shortcutsRevit">Autodesk Revit (2-Letter)</option>
-              </select>
+              <span class="pref-inline-label" style="font-weight:600;color:var(--text-bright);width:auto" data-i18n="shortcutsTitle">Shortcuts</span>
+              <div class="segmented-control" id="pref-shortcuts-segmented" style="max-width:145px;margin-left:auto;padding:2px;gap:2px;">
+                <button type="button" class="segment-btn active" id="pref-shortcuts-btn-single" style="padding:2px 8px;font-size:10.5px;">Single Key</button>
+                <button type="button" class="segment-btn" id="pref-shortcuts-btn-two" style="padding:2px 8px;font-size:10.5px;">Two Key</button>
+              </div>
             </div>
           </div>
         </div>
@@ -1663,14 +1635,14 @@ def generate_html(variant_cfg, sources):
             </div>
           </div>
           <div class="shortcuts-item-row">
-            <span class="shortcuts-item-desc" data-i18n="shortcutsDescMeasurePoint">Point Coordinates (Pt 1)</span>
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescMeasurePoint">Point Coordinates</span>
             <div class="shortcuts-item-keys">
               <span class="keys-standard"><span class="shortcuts-hud-kbd">1</span></span>
               <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">D</span><span class="shortcuts-hud-kbd">P</span></span>
             </div>
           </div>
           <div class="shortcuts-item-row">
-            <span class="shortcuts-item-desc" data-i18n="shortcutsDescMeasureDist">Two-Point Distance (Pt 2)</span>
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescMeasureDist">Two-Point Distance</span>
             <div class="shortcuts-item-keys">
               <span class="keys-standard"><span class="shortcuts-hud-kbd">2</span></span>
               <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">D</span><span class="shortcuts-hud-kbd">I</span></span>
@@ -1787,8 +1759,15 @@ def generate_html(variant_cfg, sources):
           <div class="shortcuts-item-row">
             <span class="shortcuts-item-desc" data-i18n="shortcutsDescFocus">Focus / Zoom to Selection</span>
             <div class="shortcuts-item-keys">
-              <span class="keys-standard"><span class="shortcuts-hud-kbd">Z</span></span>
-              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">Z</span><span class="shortcuts-hud-kbd">E</span> / <span class="shortcuts-hud-kbd">Z</span></span>
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">Page Down</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">Z</span><span class="shortcuts-hud-kbd">E</span> / <span class="shortcuts-hud-kbd">Page Down</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescZoomFit">Zoom to Fit / Model Extents</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">Page Up</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">Page Up</span></span>
             </div>
           </div>
           <div class="shortcuts-item-row">
@@ -1808,7 +1787,7 @@ def generate_html(variant_cfg, sources):
           <div class="shortcuts-item-row">
             <span class="shortcuts-item-desc" data-i18n="shortcutsDescOrthoPersp">Toggle Ortho / Perspective</span>
             <div class="shortcuts-item-keys">
-              <span class="keys-standard"><span class="shortcuts-hud-kbd">V</span></span>
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">U</span></span>
               <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">V</span><span class="shortcuts-hud-kbd">P</span></span>
             </div>
           </div>
@@ -1841,13 +1820,7 @@ def generate_html(variant_cfg, sources):
               <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">C</span><span class="shortcuts-hud-kbd">M</span></span>
             </div>
           </div>
-          <div class="shortcuts-item-row">
-            <span class="shortcuts-item-desc" data-i18n="shortcutsDescSolar">Sunlight & Daylight Simulation</span>
-            <div class="shortcuts-item-keys">
-              <span class="keys-standard"><span class="shortcuts-hud-kbd">S</span></span>
-              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">S</span><span class="shortcuts-hud-kbd">O</span></span>
-            </div>
-          </div>
+
           <div class="shortcuts-item-row">
             <span class="shortcuts-item-desc" data-i18n="shortcutsDescEdgeLines">Toggle Edge Crease Lines</span>
             <div class="shortcuts-item-keys">

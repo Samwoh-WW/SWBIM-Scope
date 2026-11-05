@@ -9582,23 +9582,21 @@ class BIMViewerApp {
     this.shortcutsCapsuleKeysEl = document.getElementById('shortcuts-capsule-keys');
     this.shortcutsHudModalEl = document.getElementById('shortcuts-hud-modal');
 
-    // 1. Inspector Preference Dropdown
-    const prefSelect = document.getElementById('pref-shortcuts-select');
-    if (prefSelect) {
-      prefSelect.value = this.shortcutsMode;
-      prefSelect.addEventListener('change', () => {
-        this.setShortcutsMode(prefSelect.value);
-      });
+    // 1. Inspector Preference Dual-Button Toggle (Single Key vs Two Key)
+    const btnSingle = document.getElementById('pref-shortcuts-btn-single');
+    const btnTwo = document.getElementById('pref-shortcuts-btn-two');
+    if (btnSingle) {
+      btnSingle.addEventListener('click', () => this.toggleShortcutsMode());
     }
+    if (btnTwo) {
+      btnTwo.addEventListener('click', () => this.toggleShortcutsMode());
+    }
+    this.updateShortcutsToggleUI();
 
-    // 2. HUD Open Buttons (Navbar & Inspector)
+    // 2. HUD Open Button (Navbar)
     const btnTopHud = document.getElementById('btn-top-shortcuts-hud');
     if (btnTopHud) {
       btnTopHud.addEventListener('click', () => this.toggleShortcutsHud(true));
-    }
-    const btnPrefHud = document.getElementById('btn-show-shortcuts-hud');
-    if (btnPrefHud) {
-      btnPrefHud.addEventListener('click', () => this.toggleShortcutsHud(true));
     }
 
     // 3. HUD Close Button & Backdrop Click
@@ -9632,16 +9630,24 @@ class BIMViewerApp {
     window.addEventListener('keydown', (e) => this.handleGlobalKeyDown(e));
   }
 
+  toggleShortcutsMode() {
+    this.setShortcutsMode(this.shortcutsMode === 'standard' ? 'revit' : 'standard');
+  }
+
+  updateShortcutsToggleUI() {
+    const btnSingle = document.getElementById('pref-shortcuts-btn-single');
+    const btnTwo = document.getElementById('pref-shortcuts-btn-two');
+    if (btnSingle) btnSingle.classList.toggle('active', this.shortcutsMode === 'standard');
+    if (btnTwo) btnTwo.classList.toggle('active', this.shortcutsMode === 'revit');
+  }
+
   setShortcutsMode(mode) {
     if (mode !== 'standard' && mode !== 'revit') mode = 'standard';
     this.shortcutsMode = mode;
     try {
       localStorage.setItem('bimscope_shortcuts_mode', mode);
     } catch (_) {}
-    const prefSelect = document.getElementById('pref-shortcuts-select');
-    if (prefSelect && prefSelect.value !== mode) {
-      prefSelect.value = mode;
-    }
+    this.updateShortcutsToggleUI();
     this.syncShortcutsHudTab(mode);
     this.resetShortcutsBuffer();
     this.hideShortcutsCapsule();
@@ -10011,6 +10017,20 @@ class BIMViewerApp {
       return;
     }
 
+    // 8b. Page Down: Focus / Zoom to Selection & Page Up: Zoom to Fit (active in both modes)
+    if (e.key === 'PageDown') {
+      e.preventDefault();
+      this.zoomToSelected();
+      this.showShortcutsCapsule('PageDown  ' + (I18N.t('shortcutsDescFocus') || 'Zoom to Selection'), true);
+      return;
+    }
+    if (e.key === 'PageUp') {
+      e.preventDefault();
+      this.fitView();
+      this.showShortcutsCapsule('PageUp  ' + (I18N.t('shortcutsDescZoomFit') || 'Zoom to Fit'), true);
+      return;
+    }
+
     // 9. Sidebars Toggle ('[' and ']')
     if (e.key === '[') {
       e.preventDefault();
@@ -10074,10 +10094,10 @@ class BIMViewerApp {
           this.zoomToSelected();
           this.showShortcutsCapsule('Z  ' + (I18N.t('shortcutsDescFocus') || 'Zoom Extents'), true);
           break;
-        case 'v':
+        case 'u':
           e.preventDefault();
           this.toggleCameraProjection();
-          this.showShortcutsCapsule('V  ' + (I18N.t('shortcutsDescOrthoPersp') || 'Projection'), true);
+          this.showShortcutsCapsule('U  ' + (I18N.t('shortcutsDescOrthoPersp') || 'Projection'), true);
           break;
         case 'p':
           e.preventDefault();
@@ -10099,11 +10119,7 @@ class BIMViewerApp {
           this.isolateSelected();
           this.showShortcutsCapsule('I  ' + (I18N.t('shortcutsDescIsolate') || 'Isolate Selected'), true);
           break;
-        case 's':
-          e.preventDefault();
-          this.toggleSolarPanel();
-          this.showShortcutsCapsule('S  ' + (I18N.t('shortcutsDescSolar') || 'Solar Analysis'), true);
-          break;
+
         case 'c':
           e.preventDefault();
           this.toggleCompareModal();
@@ -10155,7 +10171,7 @@ class BIMViewerApp {
       'HR': { name: 'Reset Visibility', descKey: 'shortcutsDescUnhide', action: () => this.unhideAll() },
       'ZE': { name: 'Zoom Extents', descKey: 'shortcutsDescFocus', action: () => this.zoomToSelected() },
       'VP': { name: 'View Projection', descKey: 'shortcutsDescOrthoPersp', action: () => this.toggleCameraProjection() },
-      'SO': { name: 'Solar Study', descKey: 'shortcutsDescSolar', action: () => this.toggleSolarPanel() },
+
       'CM': { name: 'Compare Model', descKey: 'shortcutsDescCompare', action: () => this.toggleCompareModal() },
       'TL': { name: 'Thin Lines', descKey: 'shortcutsDescEdgeLines', action: () => this.setEdgeLinesVisible(!this.showEdges) },
       'SA': { name: 'Select All', descKey: 'shortcutsDescSelectAll', action: () => this.selectAllElements() },
@@ -16542,16 +16558,19 @@ class BIMViewerApp {
     const toggleInspectorCollapse = (forceOpen = null) => {
       if (!rsb) return;
       const willCollapse = forceOpen !== null ? !forceOpen : !rsb.classList.contains('collapsed');
+      const vc = document.getElementById('viewport-container');
       if (willCollapse) {
         rsb.classList.add('collapsed');
         rsb.style.width = '0px';
         if (btnInspect) btnInspect.classList.remove('active');
+        if (vc) vc.classList.add('sidebar-collapsed');
         updateCollapseBtnUI(true);
       } else {
         rsb.classList.remove('collapsed');
         rsb.classList.remove('hidden');
         rsb.style.width = `${this.customInspectorWidth || 330}px`;
         if (btnInspect) btnInspect.classList.add('active');
+        if (vc) vc.classList.remove('sidebar-collapsed');
         updateCollapseBtnUI(false);
         if (this.selectedMesh || (this.selectedMeshes && this.selectedMeshes.length > 0)) {
           setTimeout(() => this.setupInspectorTabsScroll(), 250);
