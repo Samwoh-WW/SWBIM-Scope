@@ -6213,6 +6213,305 @@ mark.help-match-highlight {
   border-color: rgba(2, 132, 199, 0.4) !important;
 }
 
+
+/* =========================================================================
+   KEYBOARD SHORTCUTS SYSTEM (CAPSULE INDICATOR & FULLSCREEN HUD)
+   ========================================================================= */
+
+/* 1. Revit 2-Letter Floating Input Capsule in Viewport */
+.shortcuts-key-capsule {
+  position: absolute;
+  bottom: 48px;
+  left: 50%;
+  transform: translateX(-50%) translateY(10px) scale(0.95);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(56, 189, 248, 0.65);
+  border-radius: 20px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 12px rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+  font-family: var(--font-mono, monospace);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  z-index: 150;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.shortcuts-key-capsule.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0) scale(1);
+}
+
+.shortcuts-key-capsule.matched {
+  background: rgba(2, 132, 199, 0.95);
+  border-color: #38bdf8;
+  color: #ffffff;
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.8);
+  transform: translateX(-50%) translateY(0) scale(1.06);
+}
+
+[data-theme="light"] .shortcuts-key-capsule {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(2, 132, 199, 0.7);
+  color: #0284c7;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18), 0 0 12px rgba(2, 132, 199, 0.25);
+}
+
+[data-theme="light"] .shortcuts-key-capsule.matched {
+  background: #0284c7;
+  color: #ffffff;
+}
+
+/* 2. Fullscreen Frosted Cheatsheet HUD Modal */
+.shortcuts-hud-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 2500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.shortcuts-hud-modal.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.shortcuts-hud-card {
+  background: var(--bg-card, #1e293b);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.75), 0 0 1px rgba(255, 255, 255, 0.15);
+  width: 100%;
+  max-width: 980px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform: scale(0.96);
+  transition: transform 0.2s ease;
+}
+
+.shortcuts-hud-modal.open .shortcuts-hud-card {
+  transform: scale(1);
+}
+
+.shortcuts-hud-header {
+  padding: 14px 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.shortcuts-hud-title-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.shortcuts-hud-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-bright, #f8fafc);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shortcuts-hud-subtitle {
+  font-size: 11px;
+  color: var(--text-muted, #94a3b8);
+}
+
+.shortcuts-hud-segmented {
+  margin-left: auto;
+  display: inline-flex;
+  background: rgba(0, 0, 0, 0.28);
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.shortcuts-hud-tab-btn {
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  color: var(--text-muted, #94a3b8);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.shortcuts-hud-tab-btn.active {
+  background: #0284c7;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.4);
+}
+
+.shortcuts-hud-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #94a3b8);
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.shortcuts-hud-close-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.shortcuts-hud-body {
+  padding: 16px 20px;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.shortcuts-group-card {
+  background: rgba(15, 23, 42, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shortcuts-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #38bdf8;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.shortcuts-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.shortcuts-item-row:last-child {
+  border-bottom: none;
+}
+
+.shortcuts-item-desc {
+  font-size: 11.5px;
+  color: var(--text-normal, #cbd5e1);
+}
+
+.shortcuts-item-keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.shortcuts-hud-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  background: rgba(30, 41, 59, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
+  color: #f8fafc;
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  font-weight: 700;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  user-select: none;
+}
+
+
+.shortcuts-hud-modal.hud-mode-standard .keys-standard {
+  display: inline-flex !important;
+}
+.shortcuts-hud-modal.hud-mode-standard .keys-revit {
+  display: none !important;
+}
+.shortcuts-hud-modal.hud-mode-revit .keys-standard {
+  display: none !important;
+}
+.shortcuts-hud-modal.hud-mode-revit .keys-revit {
+  display: inline-flex !important;
+}
+.shortcuts-hud-footer {
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.02);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 11px;
+  color: var(--text-muted, #94a3b8);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+[data-theme="light"] .shortcuts-hud-modal {
+  background: rgba(15, 23, 42, 0.45);
+}
+
+[data-theme="light"] .shortcuts-hud-card {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.16);
+}
+
+[data-theme="light"] .shortcuts-hud-header {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .shortcuts-group-card {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .shortcuts-hud-kbd {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  border-bottom-color: #94a3b8;
+  color: #0f172a;
+}
+
   </style>
   <style id="variant-brand-tokens">
     :root,
@@ -6393,6 +6692,20 @@ mark.help-match-highlight {
         <button class="btn-primary" id="btn-open-file" title="Open Model" data-i18n-title="openFile">
           <svg style="width:14px;height:14px;fill:currentColor" viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>
           <span data-i18n="openFile">Open Model</span>
+        </button>
+        <button class="tool-btn icon-circle-btn" id="btn-top-shortcuts-hud" title="Keyboard Shortcuts (?)" data-i18n-title="shortcutsViewHudBtn" aria-label="Shortcuts">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+            <line x1="6" y1="8" x2="6" y2="8"></line>
+            <line x1="10" y1="8" x2="10" y2="8"></line>
+            <line x1="14" y1="8" x2="14" y2="8"></line>
+            <line x1="18" y1="8" x2="18" y2="8"></line>
+            <line x1="6" y1="12" x2="6" y2="12"></line>
+            <line x1="10" y1="12" x2="10" y2="12"></line>
+            <line x1="14" y1="12" x2="14" y2="12"></line>
+            <line x1="18" y1="12" x2="18" y2="12"></line>
+            <line x1="7" y1="16" x2="17" y2="16"></line>
+          </svg>
         </button>
         <button class="tool-btn icon-circle-btn" id="btn-help-guide" title="Help & Guide" data-i18n-title="helpGuideTitle" aria-label="Help">
           <svg class="help-btn-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -7344,6 +7657,36 @@ mark.help-match-highlight {
               <span class="pref-inline-val" id="edge-opacity-val">65%</span>
             </div>
           </div>
+
+          <!-- Subtle Divider -->
+          <div class="pref-divider"></div>
+
+          <!-- Keyboard Shortcuts Scheme -->
+          <div class="pref-subgroup">
+            <div class="pref-inline-row" style="margin-bottom:6px">
+              <span class="pref-inline-label" style="font-weight:600;color:var(--text-bright);width:auto" data-i18n="shortcutsScheme">Shortcuts Scheme</span>
+              <button type="button" class="btn-icon" id="btn-show-shortcuts-hud" title="View Shortcuts (?)" data-i18n-title="shortcutsViewHudBtn" style="margin-left:auto;width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:var(--text-bright);cursor:pointer;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+                  <line x1="6" y1="8" x2="6" y2="8"></line>
+                  <line x1="10" y1="8" x2="10" y2="8"></line>
+                  <line x1="14" y1="8" x2="14" y2="8"></line>
+                  <line x1="18" y1="8" x2="18" y2="8"></line>
+                  <line x1="6" y1="12" x2="6" y2="12"></line>
+                  <line x1="10" y1="12" x2="10" y2="12"></line>
+                  <line x1="14" y1="12" x2="14" y2="12"></line>
+                  <line x1="18" y1="12" x2="18" y2="12"></line>
+                  <line x1="7" y1="16" x2="17" y2="16"></line>
+                </svg>
+              </button>
+            </div>
+            <div class="pref-inline-row">
+              <select id="pref-shortcuts-select" class="control-select" style="width:100%;height:26px;font-size:11px;background:var(--bg-panel,#0f172a);color:var(--text-bright,#f8fafc);border:1px solid rgba(255,255,255,0.12);border-radius:4px;padding:0 6px;">
+                <option value="standard" data-i18n="shortcutsStandard">Standard (Single-Key)</option>
+                <option value="revit" data-i18n="shortcutsRevit">Autodesk Revit (2-Letter)</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <div class="inspector-content" id="inspector-content">
@@ -7545,6 +7888,294 @@ mark.help-match-highlight {
           </svg>
           <span data-i18n="compareStartBtn">Start Comparison</span>
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- KEYBOARD SHORTCUTS FLOATING CAPSULE (REVIT 2-LETTER BUFFER) -->
+  <div class="shortcuts-key-capsule" id="shortcuts-key-capsule">
+    <span id="shortcuts-capsule-keys">--</span>
+  </div>
+
+  <!-- FULLSCREEN KEYBOARD SHORTCUTS HUD MODAL -->
+  <div class="shortcuts-hud-modal hud-mode-standard" id="shortcuts-hud-modal">
+    <div class="shortcuts-hud-card">
+      <div class="shortcuts-hud-header">
+        <div class="shortcuts-hud-title-box">
+          <div class="shortcuts-hud-title">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+              <line x1="6" y1="8" x2="6" y2="8"></line>
+              <line x1="10" y1="8" x2="10" y2="8"></line>
+              <line x1="14" y1="8" x2="14" y2="8"></line>
+              <line x1="18" y1="8" x2="18" y2="8"></line>
+              <line x1="6" y1="12" x2="6" y2="12"></line>
+              <line x1="10" y1="12" x2="10" y2="12"></line>
+              <line x1="14" y1="12" x2="14" y2="12"></line>
+              <line x1="18" y1="12" x2="18" y2="12"></line>
+              <line x1="7" y1="16" x2="17" y2="16"></line>
+            </svg>
+            <span data-i18n="shortcutsHudTitle">Keyboard Shortcuts Quick Reference</span>
+          </div>
+          <div class="shortcuts-hud-subtitle" data-i18n="shortcutsHudSubtitle">
+            Boost your workflow with keyboard shortcuts. Press '?' anytime to toggle.
+          </div>
+        </div>
+
+        <div class="shortcuts-hud-segmented">
+          <button type="button" class="shortcuts-hud-tab-btn active" id="btn-hud-tab-standard" data-scheme="standard" data-i18n="shortcutsStandard">Standard (Single-Key)</button>
+          <button type="button" class="shortcuts-hud-tab-btn" id="btn-hud-tab-revit" data-scheme="revit" data-i18n="shortcutsRevit">Autodesk Revit (2-Letter)</button>
+        </div>
+
+        <button type="button" class="shortcuts-hud-close-btn" id="btn-shortcuts-hud-close" title="Close (?)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="shortcuts-hud-body">
+        <!-- Group 1: Measurement Tools -->
+        <div class="shortcuts-group-card">
+          <div class="shortcuts-group-title">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3L3 21"></path><path d="M14 4l6 6"></path><path d="M4 14l6 6"></path></svg>
+            <span data-i18n="shortcutsCatMeasure">Measurement Tools</span>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescMeasureToggle">Toggle Measurement Panel</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">D</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">D</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescMeasurePoint">Point Coordinates (Pt 1)</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">1</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">D</span><span class="shortcuts-hud-kbd">P</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescMeasureDist">Two-Point Distance (Pt 2)</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">2</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">D</span><span class="shortcuts-hud-kbd">I</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescMeasureMulti">Multi-point Polyline (Pt 3)</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">3</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">D</span><span class="shortcuts-hud-kbd">L</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescMeasureAngle">Three-point Angle (Pt 4)</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">4</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">D</span><span class="shortcuts-hud-kbd">A</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescMeasureRadius">Radius / Sphere (Pt 5)</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">5</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">D</span><span class="shortcuts-hud-kbd">R</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescMeasureClear">Clear Current Measurements</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">Delete</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">Delete</span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Group 2: Sectioning & Clipping -->
+        <div class="shortcuts-group-card">
+          <div class="shortcuts-group-title">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"></path><path d="M4 20L20 4"></path></svg>
+            <span data-i18n="shortcutsCatSection">Sectioning & Clipping</span>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescSectionPlane">Toggle Section Plane</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">P</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">S</span><span class="shortcuts-hud-kbd">P</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescSectionBox">Toggle Section Box</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">B</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">B</span><span class="shortcuts-hud-kbd">X</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescSectionFlip">Flip Cut Direction</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">X</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">F</span><span class="shortcuts-hud-kbd">L</span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Group 3: Selection & Visibility -->
+        <div class="shortcuts-group-card">
+          <div class="shortcuts-group-title">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            <span data-i18n="shortcutsCatSelect">Selection & Visibility</span>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescHide">Hide Selected Elements</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">Ctrl</span>+<span class="shortcuts-hud-kbd">H</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">H</span><span class="shortcuts-hud-kbd">H</span> / <span class="shortcuts-hud-kbd">Ctrl</span>+<span class="shortcuts-hud-kbd">H</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescIsolate">Isolate Selected Elements</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">I</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">H</span><span class="shortcuts-hud-kbd">I</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescUnhide">Reset Isolation / Unhide All</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">Alt</span>+<span class="shortcuts-hud-kbd">H</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">H</span><span class="shortcuts-hud-kbd">R</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescSelectAll">Select All Visible Elements</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">Ctrl</span>+<span class="shortcuts-hud-kbd">A</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">Ctrl</span>+<span class="shortcuts-hud-kbd">A</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescDeselect">Deselect / Cancel / Exit Mode</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">Esc</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">Esc</span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Group 4: Camera & Navigation -->
+        <div class="shortcuts-group-card">
+          <div class="shortcuts-group-title">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+            <span data-i18n="shortcutsCatCamera">Camera & Navigation</span>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescFocus">Focus / Zoom to Selection</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">Z</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">Z</span><span class="shortcuts-hud-kbd">E</span> / <span class="shortcuts-hud-kbd">Z</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescTopView">Top / Plan View</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">T</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">T</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescFrontView">Front / South Elevation</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">F</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">F</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescOrthoPersp">Toggle Ortho / Perspective</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">V</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">V</span><span class="shortcuts-hud-kbd">P</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescViewUndo">Undo Viewpoint Navigation</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">Alt</span>+<span class="shortcuts-hud-kbd">←</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">Alt</span>+<span class="shortcuts-hud-kbd">←</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescViewRedo">Redo Viewpoint Navigation</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">Alt</span>+<span class="shortcuts-hud-kbd">→</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">Alt</span>+<span class="shortcuts-hud-kbd">→</span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Group 5: Tools & Interface -->
+        <div class="shortcuts-group-card">
+          <div class="shortcuts-group-title">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            <span data-i18n="shortcutsCatTools">Tools & Interface</span>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescCompare">Model Comparison Modal</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">C</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">C</span><span class="shortcuts-hud-kbd">M</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescSolar">Sunlight & Daylight Simulation</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">S</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">S</span><span class="shortcuts-hud-kbd">O</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescEdgeLines">Toggle Edge Crease Lines</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">E</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">T</span><span class="shortcuts-hud-kbd">L</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescLeftSidebar">Toggle Left Model Tree</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">[</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">[</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescRightSidebar">Toggle Right Inspector</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">]</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">]</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescOpenFile">Open Local Model File</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">Ctrl</span>+<span class="shortcuts-hud-kbd">O</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">Ctrl</span>+<span class="shortcuts-hud-kbd">O</span></span>
+            </div>
+          </div>
+          <div class="shortcuts-item-row">
+            <span class="shortcuts-item-desc" data-i18n="shortcutsDescShowHud">Toggle Shortcuts Quick Reference</span>
+            <div class="shortcuts-item-keys">
+              <span class="keys-standard"><span class="shortcuts-hud-kbd">?</span></span>
+              <span class="keys-revit" style="display:none;"><span class="shortcuts-hud-kbd">?</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="shortcuts-hud-footer">
+        <span>Tip: Configure default shortcuts in Inspector &gt; Preferences. Press '?' or Esc to dismiss.</span>
+        <span>BIM Scope / SWBIM Scope</span>
       </div>
     </div>
   </div>
@@ -21987,6 +22618,47 @@ const I18N = {
       measureCopyProjArea: "Copy Projected Area",
       measureMulti3DAreaToggleTip: "3D True Area (Click to switch to Horizontal Projected Area)",
       measureMultiProjAreaToggleTip: "Horizontal Projected Area (Click to switch to 3D True Area)",
+      // Keyboard Shortcuts
+      shortcutsTitle: "Keyboard Shortcuts",
+      shortcutsScheme: "Shortcuts Scheme",
+      shortcutsStandard: "Standard (Single-Key)",
+      shortcutsRevit: "Autodesk Revit (2-Letter)",
+      shortcutsHudTitle: "Keyboard Shortcuts Quick Reference",
+      shortcutsHudSubtitle: "Boost your workflow with keyboard shortcuts. Press '?' anytime to toggle.",
+      shortcutsViewHudBtn: "View Shortcuts (?)",
+      shortcutsCatMeasure: "Measurement Tools",
+      shortcutsCatSection: "Sectioning & Clipping",
+      shortcutsCatSelect: "Selection & Visibility",
+      shortcutsCatCamera: "Camera & Navigation",
+      shortcutsCatTools: "Tools & Interface",
+      shortcutsDescMeasureToggle: "Toggle Measurement Panel",
+      shortcutsDescMeasurePoint: "Point Coordinates (Pt 1)",
+      shortcutsDescMeasureDist: "Two-Point Distance (Pt 2)",
+      shortcutsDescMeasureMulti: "Multi-point Polyline (Pt 3)",
+      shortcutsDescMeasureAngle: "Three-point Angle (Pt 4)",
+      shortcutsDescMeasureRadius: "Radius / Sphere (Pt 5)",
+      shortcutsDescMeasureClear: "Clear Current Measurements",
+      shortcutsDescSectionPlane: "Toggle Section Plane",
+      shortcutsDescSectionBox: "Toggle Section Box",
+      shortcutsDescSectionFlip: "Flip Cut Direction",
+      shortcutsDescHide: "Hide Selected Elements",
+      shortcutsDescIsolate: "Isolate Selected Elements",
+      shortcutsDescUnhide: "Reset Isolation / Unhide All",
+      shortcutsDescSelectAll: "Select All Visible Elements",
+      shortcutsDescDeselect: "Deselect / Cancel / Exit Mode",
+      shortcutsDescFocus: "Focus / Zoom to Selection",
+      shortcutsDescTopView: "Top / Plan View",
+      shortcutsDescFrontView: "Front / South Elevation",
+      shortcutsDescOrthoPersp: "Toggle Ortho / Perspective",
+      shortcutsDescViewUndo: "Undo Viewpoint Navigation",
+      shortcutsDescViewRedo: "Redo Viewpoint Navigation",
+      shortcutsDescCompare: "Model Comparison Modal",
+      shortcutsDescSolar: "Sunlight & Daylight Simulation",
+      shortcutsDescEdgeLines: "Toggle Edge Crease Lines",
+      shortcutsDescLeftSidebar: "Toggle Left Model Tree",
+      shortcutsDescRightSidebar: "Toggle Right Inspector",
+      shortcutsDescOpenFile: "Open Local Model File",
+      shortcutsDescShowHud: "Toggle Shortcuts Quick Reference",
       menuInsertMeasurePoint: "Insert Measurement Point",
       menuPrependMeasurePoint: "Add Point Before",
       menuAppendMeasurePoint: "Add Point After",
@@ -22509,6 +23181,47 @@ const I18N = {
       measureCopyProjArea: "复制投影面积",
       measureMulti3DAreaToggleTip: "3D 真实面积 (点击切换为水平投影面积)",
       measureMultiProjAreaToggleTip: "水平投影面积 (点击切换为 3D 真实面积)",
+      // Keyboard Shortcuts
+      shortcutsTitle: "快捷键",
+      shortcutsScheme: "快捷键方案",
+      shortcutsStandard: "行业通用 (单键)",
+      shortcutsRevit: "Autodesk Revit (双字母)",
+      shortcutsHudTitle: "键盘快捷键速查看板",
+      shortcutsHudSubtitle: "使用键盘快捷键大幅提升工程查模效率，任意时刻按 '?' 即可唤出/关闭此看板。",
+      shortcutsViewHudBtn: "查看快捷键 (?)",
+      shortcutsCatMeasure: "空间测量工具",
+      shortcutsCatSection: "三维剖切工具",
+      shortcutsCatSelect: "构件显隐与选择",
+      shortcutsCatCamera: "视口相机与视角",
+      shortcutsCatTools: "主要工具与界面",
+      shortcutsDescMeasureToggle: "打开/收起测量工具面板",
+      shortcutsDescMeasurePoint: "单点三维坐标测量 (第1项)",
+      shortcutsDescMeasureDist: "两点距离测量 (第2项)",
+      shortcutsDescMeasureMulti: "多点折线测量 (第3项)",
+      shortcutsDescMeasureAngle: "三点角度测量 (第4项)",
+      shortcutsDescMeasureRadius: "圆弧/曲率半径测量 (第5项)",
+      shortcutsDescMeasureClear: "清空当前测量标注",
+      shortcutsDescSectionPlane: "开启/关闭单剖切面",
+      shortcutsDescSectionBox: "开启/关闭六向剖切盒",
+      shortcutsDescSectionFlip: "翻转剖切切除方向",
+      shortcutsDescHide: "隐藏当前选中的构件",
+      shortcutsDescIsolate: "隔离当前选中的构件",
+      shortcutsDescUnhide: "恢复全部显示 / 重置隔离",
+      shortcutsDescSelectAll: "全选当前可见构件",
+      shortcutsDescDeselect: "取消选择 / 退出绘制 / 关闭弹窗",
+      shortcutsDescFocus: "聚焦缩放至选中构件",
+      shortcutsDescTopView: "顶视平面图",
+      shortcutsDescFrontView: "正前立面图 (南立面)",
+      shortcutsDescOrthoPersp: "正交 / 透视投影平滑切换",
+      shortcutsDescViewUndo: "后退相机观察视角",
+      shortcutsDescViewRedo: "前进相机观察视角",
+      shortcutsDescCompare: "多版本模型对比弹窗",
+      shortcutsDescSolar: "24 小时动态日照光影滑块",
+      shortcutsDescEdgeLines: "开启/关闭构件轮廓边缘线",
+      shortcutsDescLeftSidebar: "折叠/展开左侧模型树",
+      shortcutsDescRightSidebar: "折叠/展开右侧检查器",
+      shortcutsDescOpenFile: "打开本地模型文件",
+      shortcutsDescShowHud: "呼出/关闭快捷键速查看板",
       menuInsertMeasurePoint: "在中间插入测量点",
       menuPrependMeasurePoint: "向前增加测量点",
       menuAppendMeasurePoint: "向后增加测量点",
@@ -35634,6 +36347,16 @@ class BIMViewerApp {
     
     // UI Theme System ('dark' | 'light')
     this.currentTheme = 'dark';
+
+    // Keyboard Shortcuts System (Scheme A Standard / Scheme B Autodesk Revit)
+    this.shortcutsMode = localStorage.getItem('bimscope_shortcuts_mode') || 'standard';
+    this.shortcutsBuffer = '';
+    this.shortcutsBufferTimer = null;
+    this.shortcutsFadeTimer = null;
+    this.shortcutsCapsuleEl = null;
+    this.shortcutsCapsuleKeysEl = null;
+    this.shortcutsHudModalEl = null;
+    this.shortcutsHudCurrentTab = this.shortcutsMode;
     
     // Architectural Edge Lines System
     this.showEdges = true;
@@ -35671,6 +36394,7 @@ class BIMViewerApp {
     this.initContextMenu();
     this.initEventListeners();
     this.initUI();
+    this.initShortcutsSystem();
     this.handleWindowAdaptiveLayout();
     
     // Load default CR301 West Depot model
@@ -42762,63 +43486,7 @@ class BIMViewerApp {
       }
     });
 
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        if (this.pendingClosureAction) {
-          this.hideMultiPointClosurePopover();
-          return;
-        }
-        this.hideContextMenu();
-        if (this.pendingDistanceStart) {
-          this.cancelPendingDistanceStart();
-        }
-        if (this.pendingAngleState) {
-          this.cancelPendingAngleStart();
-        }
-        if (this.multiPointInsertSegIdx >= 0) {
-          this.multiPointInsertSegIdx = -1;
-          this.hideMultiPointInsertPreview();
-          const hintEl = document.getElementById('measure-mode-hint');
-          if (hintEl) hintEl.textContent = I18N.t('measureMultiHint') || 'Multi-point measurement ready';
-          this.requestRender(100);
-          return;
-        }
-        if (this.multiPointState && this.multiPointState.isDrawing) {
-          if (this.multiPointDrawDir === 'prepend') {
-            this.finishMultiPointMeasurement();
-          } else {
-            this.cancelPendingMultiPoint();
-          }
-        }
-        if (this.compareEngine && this.compareEngine.isModalOpen()) {
-          this.compareEngine.closeSetupModal();
-          return;
-        }
-      } else if (e.key === 'Enter') {
-        if (this.pendingClosureAction) {
-          const action = this.pendingClosureAction;
-          this.hideMultiPointClosurePopover();
-          if (action && action.onConfirm) action.onConfirm();
-          return;
-        }
-        if (this.measureMode === 'multipoint' && this.multiPointState && this.multiPointState.isDrawing) {
-          this.finishMultiPointMeasurement();
-        }
-      }
-
-      // If compare modal is active, mask background shortcuts
-      if (this.compareEngine && this.compareEngine.isModalOpen()) {
-        return;
-      }
-
-      if (e.altKey && e.key === 'ArrowLeft') {
-        e.preventDefault();
-        this.undoView();
-      } else if (e.altKey && e.key === 'ArrowRight') {
-        e.preventDefault();
-        this.redoView();
-      }
-    });
+    // Global keyboard handling (Escape, Enter, Alt+Arrows, CAD shortcuts) centralized in handleGlobalKeyDown()
 
     this.canvas.addEventListener('wheel', () => this.hideContextMenu(), { passive: true });
 
@@ -43053,6 +43721,653 @@ class BIMViewerApp {
           this.breakMultiPointClosure(marker.id);
         }
       };
+    }
+  }
+
+  // ==========================================
+  // KEYBOARD SHORTCUTS SYSTEM (STANDARD / REVIT)
+  // ==========================================
+  initShortcutsSystem() {
+    this.shortcutsCapsuleEl = document.getElementById('shortcuts-key-capsule');
+    this.shortcutsCapsuleKeysEl = document.getElementById('shortcuts-capsule-keys');
+    this.shortcutsHudModalEl = document.getElementById('shortcuts-hud-modal');
+
+    // 1. Inspector Preference Dropdown
+    const prefSelect = document.getElementById('pref-shortcuts-select');
+    if (prefSelect) {
+      prefSelect.value = this.shortcutsMode;
+      prefSelect.addEventListener('change', () => {
+        this.setShortcutsMode(prefSelect.value);
+      });
+    }
+
+    // 2. HUD Open Buttons (Navbar & Inspector)
+    const btnTopHud = document.getElementById('btn-top-shortcuts-hud');
+    if (btnTopHud) {
+      btnTopHud.addEventListener('click', () => this.toggleShortcutsHud(true));
+    }
+    const btnPrefHud = document.getElementById('btn-show-shortcuts-hud');
+    if (btnPrefHud) {
+      btnPrefHud.addEventListener('click', () => this.toggleShortcutsHud(true));
+    }
+
+    // 3. HUD Close Button & Backdrop Click
+    const btnHudClose = document.getElementById('btn-shortcuts-hud-close');
+    if (btnHudClose) {
+      btnHudClose.addEventListener('click', () => this.toggleShortcutsHud(false));
+    }
+    if (this.shortcutsHudModalEl) {
+      this.shortcutsHudModalEl.addEventListener('click', (e) => {
+        if (e.target === this.shortcutsHudModalEl) {
+          this.toggleShortcutsHud(false);
+        }
+      });
+    }
+
+    // 4. HUD Tab Switching (Standard vs Revit)
+    const btnTabStd = document.getElementById('btn-hud-tab-standard');
+    if (btnTabStd) {
+      btnTabStd.addEventListener('click', () => {
+        this.syncShortcutsHudTab('standard');
+      });
+    }
+    const btnTabRvt = document.getElementById('btn-hud-tab-revit');
+    if (btnTabRvt) {
+      btnTabRvt.addEventListener('click', () => {
+        this.syncShortcutsHudTab('revit');
+      });
+    }
+
+    // 5. Global Keyboard Listener
+    window.addEventListener('keydown', (e) => this.handleGlobalKeyDown(e));
+  }
+
+  setShortcutsMode(mode) {
+    if (mode !== 'standard' && mode !== 'revit') mode = 'standard';
+    this.shortcutsMode = mode;
+    try {
+      localStorage.setItem('bimscope_shortcuts_mode', mode);
+    } catch (_) {}
+    const prefSelect = document.getElementById('pref-shortcuts-select');
+    if (prefSelect && prefSelect.value !== mode) {
+      prefSelect.value = mode;
+    }
+    this.syncShortcutsHudTab(mode);
+    this.resetShortcutsBuffer();
+    this.hideShortcutsCapsule();
+    const label = mode === 'revit' ? (I18N.t('shortcutsRevit') || 'Autodesk Revit (2-Letter)') : (I18N.t('shortcutsStandard') || 'Standard (Single-Key)');
+    showToast((I18N.t('shortcutsScheme') || 'Shortcuts') + ': ' + label, 'info');
+  }
+
+  syncShortcutsHudTab(scheme) {
+    this.shortcutsHudCurrentTab = scheme;
+    if (!this.shortcutsHudModalEl) {
+      this.shortcutsHudModalEl = document.getElementById('shortcuts-hud-modal');
+    }
+    if (this.shortcutsHudModalEl) {
+      this.shortcutsHudModalEl.classList.toggle('hud-mode-standard', scheme === 'standard');
+      this.shortcutsHudModalEl.classList.toggle('hud-mode-revit', scheme === 'revit');
+    }
+    const tabStd = document.getElementById('btn-hud-tab-standard');
+    const tabRvt = document.getElementById('btn-hud-tab-revit');
+    if (tabStd) tabStd.classList.toggle('active', scheme === 'standard');
+    if (tabRvt) tabRvt.classList.toggle('active', scheme === 'revit');
+  }
+
+  toggleShortcutsHud(forceState = null) {
+    if (!this.shortcutsHudModalEl) {
+      this.shortcutsHudModalEl = document.getElementById('shortcuts-hud-modal');
+    }
+    if (!this.shortcutsHudModalEl) return;
+    const isOpen = this.shortcutsHudModalEl.classList.contains('open');
+    const target = forceState !== null ? forceState : !isOpen;
+    if (target) {
+      this.shortcutsHudModalEl.classList.add('open');
+      this.syncShortcutsHudTab(this.shortcutsMode);
+    } else {
+      this.shortcutsHudModalEl.classList.remove('open');
+    }
+  }
+
+  showShortcutsCapsule(text, isMatched = false) {
+    if (!this.shortcutsCapsuleEl) {
+      this.shortcutsCapsuleEl = document.getElementById('shortcuts-key-capsule');
+      this.shortcutsCapsuleKeysEl = document.getElementById('shortcuts-capsule-keys');
+    }
+    if (!this.shortcutsCapsuleEl) return;
+    if (this.shortcutsCapsuleKeysEl) {
+      this.shortcutsCapsuleKeysEl.textContent = text;
+    }
+    this.shortcutsCapsuleEl.classList.remove('matched');
+    if (isMatched) {
+      this.shortcutsCapsuleEl.classList.add('matched');
+    }
+    this.shortcutsCapsuleEl.classList.add('visible');
+
+    if (this.shortcutsFadeTimer) {
+      clearTimeout(this.shortcutsFadeTimer);
+      this.shortcutsFadeTimer = null;
+    }
+    this.shortcutsFadeTimer = setTimeout(() => {
+      if (this.shortcutsCapsuleEl) {
+        this.shortcutsCapsuleEl.classList.remove('visible');
+        this.shortcutsCapsuleEl.classList.remove('matched');
+      }
+    }, isMatched ? 850 : 1200);
+  }
+
+  hideShortcutsCapsule() {
+    if (this.shortcutsCapsuleEl) {
+      this.shortcutsCapsuleEl.classList.remove('visible');
+      this.shortcutsCapsuleEl.classList.remove('matched');
+    }
+    if (this.shortcutsFadeTimer) {
+      clearTimeout(this.shortcutsFadeTimer);
+      this.shortcutsFadeTimer = null;
+    }
+  }
+
+  resetShortcutsBuffer() {
+    this.shortcutsBuffer = '';
+    if (this.shortcutsBufferTimer) {
+      clearTimeout(this.shortcutsBufferTimer);
+      this.shortcutsBufferTimer = null;
+    }
+  }
+
+  zoomToSelected() {
+    if (this.selectedMeshes && this.selectedMeshes.length > 1) {
+      this.zoomToGroup(this.selectedMeshes);
+    } else if (this.selectedMesh) {
+      this.zoomToElement(this.selectedMesh);
+    } else if (this.selectedMeshes && this.selectedMeshes.length === 1) {
+      this.zoomToElement(this.selectedMeshes[0]);
+    } else {
+      this.fitView();
+    }
+  }
+
+  hideSelected() {
+    if (this.selectedMeshes && this.selectedMeshes.length > 1) {
+      this.hideGroup(this.selectedMeshes);
+      this.clearSelection();
+    } else if (this.selectedMesh) {
+      this.selectedMesh.visible = false;
+      this.clearSelection();
+    } else if (this.selectedMeshes && this.selectedMeshes.length === 1) {
+      this.selectedMeshes[0].visible = false;
+      this.clearSelection();
+    }
+  }
+
+  isolateSelected() {
+    if (this.selectedMeshes && this.selectedMeshes.length > 1) {
+      this.isolateGroup(this.selectedMeshes);
+    } else if (this.selectedMesh) {
+      this.isolateElement(this.selectedMesh);
+    } else if (this.selectedMeshes && this.selectedMeshes.length === 1) {
+      this.isolateElement(this.selectedMeshes[0]);
+    }
+  }
+
+  unhideAll() {
+    const b = document.getElementById('btn-show-all');
+    if (b) {
+      b.click();
+    } else {
+      if (this.activeModel) {
+        this.activeModel.traverse(m => { if (m.isMesh) m.visible = true; });
+      }
+      this.categoryStates.forEach(st => {
+        st.visible = true;
+        if (st.chipEl) {
+          st.chipEl.classList.remove('cat-hidden');
+          st.chipEl.classList.remove('cat-isolated');
+        }
+        if (st.checkboxEl) st.checkboxEl.checked = true;
+      });
+      if (this.virtualStructTree) this.virtualStructTree.showAll();
+    }
+    this.requestRender(100);
+  }
+
+  selectAllElements() {
+    if (!this.activeModel) return;
+    const pickable = [];
+    this.activeModel.traverse(m => {
+      if (m.isMesh && m.visible && this.isPickableElement(m)) {
+        pickable.push(m);
+      }
+    });
+    if (pickable.length > 0) {
+      this.selectElements(pickable);
+    }
+  }
+
+  toggleMeasurePanel() {
+    if (this.isFloatingToolsOpen && this.activeToolTab === 'tab-measure-content') {
+      this.closeFloatingTools();
+    } else {
+      this.openFloatingTools('tab-measure-content');
+    }
+  }
+
+  setMeasureSubmode(mode) {
+    if (!this.isFloatingToolsOpen || this.activeToolTab !== 'tab-measure-content') {
+      this.openFloatingTools('tab-measure-content');
+    }
+    this.setMeasureMode(mode);
+  }
+
+  toggleSectionPlane() {
+    if (!this.clippingEngine) return;
+    this.openFloatingTools('tab-section-content');
+    const secActive = document.getElementById('sec-active-chk');
+    if (!this.clippingEngine.enabled) {
+      this.clippingEngine.enabled = true;
+      if (secActive) secActive.checked = true;
+    }
+    this.clippingEngine.mode = 'plane';
+    this.clippingEngine.update();
+    this.syncSectionUI();
+    this.requestRender(100);
+  }
+
+  toggleSectionBox() {
+    if (!this.clippingEngine) return;
+    this.openFloatingTools('tab-section-content');
+    const secActive = document.getElementById('sec-active-chk');
+    if (!this.clippingEngine.enabled) {
+      this.clippingEngine.enabled = true;
+      if (secActive) secActive.checked = true;
+    }
+    this.clippingEngine.mode = 'box';
+    this.clippingEngine.update();
+    this.syncSectionUI();
+    this.requestRender(100);
+  }
+
+  flipSectionPlane() {
+    if (!this.clippingEngine) return;
+    if (!this.clippingEngine.enabled) {
+      this.clippingEngine.enabled = true;
+      const secActive = document.getElementById('sec-active-chk');
+      if (secActive) secActive.checked = true;
+    }
+    this.clippingEngine.planeInvert = !this.clippingEngine.planeInvert;
+    this.clippingEngine.updatePlaneFromState();
+    this.syncSectionUI();
+    this.requestRender(100);
+  }
+
+  toggleSolarPanel() {
+    const btnSolar = document.getElementById('btn-tool-solar');
+    if (btnSolar) {
+      btnSolar.click();
+    } else {
+      this.openFloatingTools('tab-light-content');
+    }
+  }
+
+  toggleCompareModal() {
+    if (this.compareEngine) {
+      if (this.compareEngine.isModalOpen()) {
+        this.compareEngine.closeSetupModal();
+      } else {
+        this.compareEngine.openSetupModal();
+      }
+    } else {
+      const btnCompare = document.getElementById('btn-tool-compare');
+      if (btnCompare) btnCompare.click();
+    }
+  }
+
+  handleGlobalKeyDown(e) {
+    // 1. Guard against typing inside input, textarea, select or contentEditable
+    const activeEl = document.activeElement;
+    const tag = activeEl ? activeEl.tagName : '';
+    const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (activeEl && activeEl.isContentEditable);
+    if (isTyping) {
+      if (e.key === 'Escape') {
+        activeEl.blur();
+      }
+      return;
+    }
+
+    // 2. Shortcuts HUD Modal open handling
+    if (this.shortcutsHudModalEl && this.shortcutsHudModalEl.classList.contains('open')) {
+      if (e.key === 'Escape' || e.key === '?' || (e.key === '/' && e.shiftKey)) {
+        e.preventDefault();
+        this.toggleShortcutsHud(false);
+      }
+      return;
+    }
+
+    // 3. Compare Modal / Guided Tour open handling
+    if (this.compareEngine && this.compareEngine.isModalOpen()) {
+      if (e.key === 'Escape') {
+        this.compareEngine.closeSetupModal();
+      }
+      return;
+    }
+    if (this.helpSystem && this.helpSystem.isTourActive) {
+      if (e.key === 'Escape') {
+        this.helpSystem.exitTour();
+      }
+      return;
+    }
+
+    // 4. Escape Key: dismiss current mode, popover, context menu, clear selection
+    if (e.key === 'Escape') {
+      this.resetShortcutsBuffer();
+      this.hideShortcutsCapsule();
+      if (this.pendingClosureAction) {
+        this.hideMultiPointClosurePopover();
+        return;
+      }
+      this.hideContextMenu();
+      if (this.pendingDistanceStart) {
+        this.cancelPendingDistanceStart();
+      }
+      if (this.pendingAngleState) {
+        this.cancelPendingAngleStart();
+      }
+      if (this.multiPointInsertSegIdx >= 0) {
+        this.multiPointInsertSegIdx = -1;
+        this.hideMultiPointInsertPreview();
+        const hintEl = document.getElementById('measure-mode-hint');
+        if (hintEl) hintEl.textContent = I18N.t('measureMultiHint') || 'Multi-point measurement ready';
+        this.requestRender(100);
+        return;
+      }
+      if (this.multiPointState && this.multiPointState.isDrawing) {
+        if (this.multiPointDrawDir === 'prepend') {
+          this.finishMultiPointMeasurement();
+        } else {
+          this.cancelPendingMultiPoint();
+        }
+      }
+      if (this.snapEngine && this.snapEngine.flyoutOpen) {
+        this.snapEngine.setFlyoutOpen(false);
+      }
+      if ((this.selectedMeshes && this.selectedMeshes.length > 0) || this.selectedMesh) {
+        this.clearSelection();
+      }
+      return;
+    }
+
+    // 5. Enter Key: confirm closure or finish multipoint
+    if (e.key === 'Enter') {
+      if (this.pendingClosureAction) {
+        const action = this.pendingClosureAction;
+        this.hideMultiPointClosurePopover();
+        if (action && action.onConfirm) action.onConfirm();
+        return;
+      }
+      if (this.measureMode === 'multipoint' && this.multiPointState && this.multiPointState.isDrawing) {
+        this.finishMultiPointMeasurement();
+        return;
+      }
+    }
+
+    // 6. HUD Cheatsheet Toggle ('?' or Shift+'/')
+    if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
+      e.preventDefault();
+      this.toggleShortcutsHud();
+      return;
+    }
+
+    // 7. Viewport Navigation History (Alt+Left / Alt+Right)
+    if (e.altKey && !e.ctrlKey && e.key === 'ArrowLeft') {
+      e.preventDefault();
+      this.undoView();
+      return;
+    }
+    if (e.altKey && !e.ctrlKey && e.key === 'ArrowRight') {
+      e.preventDefault();
+      this.redoView();
+      return;
+    }
+
+    // 8. Modifier Shortcuts (Ctrl+O, Ctrl+A, Ctrl+H, Alt+H)
+    if (e.ctrlKey && !e.altKey && !e.metaKey && (e.key === 'o' || e.key === 'O')) {
+      e.preventDefault();
+      const fileInput = document.getElementById('file-input');
+      if (fileInput) fileInput.click();
+      this.showShortcutsCapsule('Ctrl+O  ' + (I18N.t('shortcutsDescOpenFile') || 'Open Local File'), true);
+      return;
+    }
+    if (e.ctrlKey && !e.altKey && !e.metaKey && (e.key === 'a' || e.key === 'A')) {
+      e.preventDefault();
+      this.selectAllElements();
+      this.showShortcutsCapsule('Ctrl+A  ' + (I18N.t('shortcutsDescSelectAll') || 'Select All'), true);
+      return;
+    }
+    if (e.ctrlKey && !e.altKey && !e.metaKey && (e.key === 'h' || e.key === 'H')) {
+      e.preventDefault();
+      this.hideSelected();
+      this.showShortcutsCapsule('Ctrl+H  ' + (I18N.t('shortcutsDescHide') || 'Hide Selected'), true);
+      return;
+    }
+    if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'h' || e.key === 'H')) {
+      e.preventDefault();
+      this.unhideAll();
+      this.showShortcutsCapsule('Alt+H  ' + (I18N.t('shortcutsDescUnhide') || 'Unhide All'), true);
+      return;
+    }
+
+    // If any modifier key is held (Ctrl, Alt, Meta), do not intercept other keys
+    if (e.ctrlKey || e.altKey || e.metaKey) {
+      return;
+    }
+
+    // 9. Sidebars Toggle ('[' and ']')
+    if (e.key === '[') {
+      e.preventDefault();
+      if (this.toggleTreeCollapse) this.toggleTreeCollapse();
+      this.showShortcutsCapsule('[  ' + (I18N.t('shortcutsDescLeftSidebar') || 'Model Tree'), true);
+      return;
+    }
+    if (e.key === ']') {
+      e.preventDefault();
+      if (this.toggleInspectorCollapse) this.toggleInspectorCollapse();
+      this.showShortcutsCapsule(']  ' + (I18N.t('shortcutsDescRightSidebar') || 'Inspector Panel'), true);
+      return;
+    }
+
+    // 10. Scheme A: Standard Single-Key Mode
+    if (this.shortcutsMode === 'standard') {
+      const k = e.key.toLowerCase();
+      switch (k) {
+        case 'd':
+          e.preventDefault();
+          this.toggleMeasurePanel();
+          this.showShortcutsCapsule('D  ' + (I18N.t('shortcutsDescMeasureToggle') || 'Measure Panel'), true);
+          break;
+        case '1':
+          e.preventDefault();
+          this.setMeasureSubmode('point');
+          this.showShortcutsCapsule('1  ' + (I18N.t('shortcutsDescMeasurePoint') || 'Point Coordinates'), true);
+          break;
+        case '2':
+          e.preventDefault();
+          this.setMeasureSubmode('distance');
+          this.showShortcutsCapsule('2  ' + (I18N.t('shortcutsDescMeasureDist') || 'Two-Point Distance'), true);
+          break;
+        case '3':
+          e.preventDefault();
+          this.setMeasureSubmode('multipoint');
+          this.showShortcutsCapsule('3  ' + (I18N.t('shortcutsDescMeasureMulti') || 'Multi-Point / Area'), true);
+          break;
+        case '4':
+          e.preventDefault();
+          this.setMeasureSubmode('angle');
+          this.showShortcutsCapsule('4  ' + (I18N.t('shortcutsDescMeasureAngle') || 'Angular Dimension'), true);
+          break;
+        case '5':
+          e.preventDefault();
+          this.setMeasureSubmode('radius');
+          this.showShortcutsCapsule('5  ' + (I18N.t('shortcutsDescMeasureRadius') || 'Radial Dimension'), true);
+          break;
+        case 't':
+          e.preventDefault();
+          this.setView('plan');
+          this.showShortcutsCapsule('T  ' + (I18N.t('shortcutsDescTopView') || 'Top View (Plan)'), true);
+          break;
+        case 'f':
+          e.preventDefault();
+          this.setView('south');
+          this.showShortcutsCapsule('F  ' + (I18N.t('shortcutsDescFrontView') || 'Front View (South)'), true);
+          break;
+        case 'z':
+          e.preventDefault();
+          this.zoomToSelected();
+          this.showShortcutsCapsule('Z  ' + (I18N.t('shortcutsDescFocus') || 'Zoom Extents'), true);
+          break;
+        case 'v':
+          e.preventDefault();
+          this.toggleCameraProjection();
+          this.showShortcutsCapsule('V  ' + (I18N.t('shortcutsDescOrthoPersp') || 'Projection'), true);
+          break;
+        case 'p':
+          e.preventDefault();
+          this.toggleSectionPlane();
+          this.showShortcutsCapsule('P  ' + (I18N.t('shortcutsDescSecPlane') || 'Section Plane'), true);
+          break;
+        case 'b':
+          e.preventDefault();
+          this.toggleSectionBox();
+          this.showShortcutsCapsule('B  ' + (I18N.t('shortcutsDescSecBox') || 'Section Box'), true);
+          break;
+        case 'x':
+          e.preventDefault();
+          this.flipSectionPlane();
+          this.showShortcutsCapsule('X  ' + (I18N.t('shortcutsDescSecFlip') || 'Flip Section Cut'), true);
+          break;
+        case 'i':
+          e.preventDefault();
+          this.isolateSelected();
+          this.showShortcutsCapsule('I  ' + (I18N.t('shortcutsDescIsolate') || 'Isolate Selected'), true);
+          break;
+        case 's':
+          e.preventDefault();
+          this.toggleSolarPanel();
+          this.showShortcutsCapsule('S  ' + (I18N.t('shortcutsDescSolar') || 'Solar Analysis'), true);
+          break;
+        case 'c':
+          e.preventDefault();
+          this.toggleCompareModal();
+          this.showShortcutsCapsule('C  ' + (I18N.t('shortcutsDescCompare') || 'Model Compare'), true);
+          break;
+        case 'e':
+          e.preventDefault();
+          this.setEdgeLinesVisible(!this.showEdges);
+          this.showShortcutsCapsule('E  ' + (I18N.t('shortcutsDescEdgeLines') || 'Crease Edges'), true);
+          break;
+      }
+      return;
+    }
+
+    // 11. Scheme B: Autodesk Revit 2-Letter Combo Mode
+    if (this.shortcutsMode === 'revit') {
+      this.handleRevitModeKeyDown(e);
+    }
+  }
+
+  handleRevitModeKeyDown(e) {
+    const rawKey = e.key;
+    const uKey = rawKey.toUpperCase();
+
+    // Only handle letters A-Z, Space, Enter
+    if (!/^[A-Z]$/.test(uKey)) {
+      if (rawKey === ' ' || rawKey === 'Enter') {
+        if (this.shortcutsBuffer) {
+          e.preventDefault();
+          this.commitRevitBuffer();
+        }
+      }
+      return;
+    }
+
+    e.preventDefault();
+
+    const revitCommands = {
+      'DP': { name: 'Point Coordinates', descKey: 'shortcutsDescMeasurePoint', action: () => this.setMeasureSubmode('point') },
+      'DI': { name: 'Distance', descKey: 'shortcutsDescMeasureDist', action: () => this.setMeasureSubmode('distance') },
+      'DL': { name: 'Multi-Point / Area', descKey: 'shortcutsDescMeasureMulti', action: () => this.setMeasureSubmode('multipoint') },
+      'DA': { name: 'Angular Dimension', descKey: 'shortcutsDescMeasureAngle', action: () => this.setMeasureSubmode('angle') },
+      'DR': { name: 'Radial Dimension', descKey: 'shortcutsDescMeasureRadius', action: () => this.setMeasureSubmode('radius') },
+      'SP': { name: 'Section Plane', descKey: 'shortcutsDescSecPlane', action: () => this.toggleSectionPlane() },
+      'BX': { name: 'Section Box', descKey: 'shortcutsDescSecBox', action: () => this.toggleSectionBox() },
+      'FL': { name: 'Flip Section', descKey: 'shortcutsDescSecFlip', action: () => this.flipSectionPlane() },
+      'HH': { name: 'Hide Selected', descKey: 'shortcutsDescHide', action: () => this.hideSelected() },
+      'HI': { name: 'Isolate Selected', descKey: 'shortcutsDescIsolate', action: () => this.isolateSelected() },
+      'HR': { name: 'Reset Visibility', descKey: 'shortcutsDescUnhide', action: () => this.unhideAll() },
+      'ZE': { name: 'Zoom Extents', descKey: 'shortcutsDescFocus', action: () => this.zoomToSelected() },
+      'VP': { name: 'View Projection', descKey: 'shortcutsDescOrthoPersp', action: () => this.toggleCameraProjection() },
+      'SO': { name: 'Solar Study', descKey: 'shortcutsDescSolar', action: () => this.toggleSolarPanel() },
+      'CM': { name: 'Compare Model', descKey: 'shortcutsDescCompare', action: () => this.toggleCompareModal() },
+      'TL': { name: 'Thin Lines', descKey: 'shortcutsDescEdgeLines', action: () => this.setEdgeLinesVisible(!this.showEdges) },
+      'SA': { name: 'Select All', descKey: 'shortcutsDescSelectAll', action: () => this.selectAllElements() },
+      'TV': { name: 'Top View', descKey: 'shortcutsDescTopView', action: () => this.setView('plan') },
+      'FV': { name: 'Front View', descKey: 'shortcutsDescFrontView', action: () => this.setView('south') },
+    };
+
+    // If buffer has 1 key already: combine and execute
+    if (this.shortcutsBuffer.length === 1) {
+      const combo = this.shortcutsBuffer + uKey;
+      if (this.shortcutsBufferTimer) {
+        clearTimeout(this.shortcutsBufferTimer);
+        this.shortcutsBufferTimer = null;
+      }
+      this.shortcutsBuffer = '';
+
+      if (revitCommands[combo]) {
+        const cmd = revitCommands[combo];
+        cmd.action();
+        const desc = I18N.t(cmd.descKey) || cmd.name;
+        this.showShortcutsCapsule(combo + '  ' + desc, true);
+      } else {
+        this.showShortcutsCapsule(combo + '  --', false);
+      }
+      return;
+    }
+
+    // Buffer is empty: start a new combo
+    this.shortcutsBuffer = uKey;
+    this.showShortcutsCapsule(uKey + ' _', false);
+
+    // Timeout: if no second key is typed within 1200ms, commit single key or clear
+    if (this.shortcutsBufferTimer) {
+      clearTimeout(this.shortcutsBufferTimer);
+    }
+    // For 'T' or 'F', give 650ms before executing single-key Top / Front view
+    const timeoutMs = (uKey === 'T' || uKey === 'F') ? 650 : 1200;
+    this.shortcutsBufferTimer = setTimeout(() => {
+      this.commitRevitBuffer();
+    }, timeoutMs);
+  }
+
+  commitRevitBuffer() {
+    if (!this.shortcutsBuffer) return;
+    const key = this.shortcutsBuffer;
+    this.shortcutsBuffer = '';
+    if (this.shortcutsBufferTimer) {
+      clearTimeout(this.shortcutsBufferTimer);
+      this.shortcutsBufferTimer = null;
+    }
+
+    if (key === 'T') {
+      this.setView('plan');
+      this.showShortcutsCapsule('T  ' + (I18N.t('shortcutsDescTopView') || 'Top View (Plan)'), true);
+    } else if (key === 'F') {
+      this.setView('south');
+      this.showShortcutsCapsule('F  ' + (I18N.t('shortcutsDescFrontView') || 'Front View (South)'), true);
+    } else if (key === 'Z') {
+      this.zoomToSelected();
+      this.showShortcutsCapsule('ZE  ' + (I18N.t('shortcutsDescFocus') || 'Zoom Extents'), true);
+    } else {
+      this.hideShortcutsCapsule();
     }
   }
 
