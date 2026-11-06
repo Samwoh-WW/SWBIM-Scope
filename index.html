@@ -37666,12 +37666,12 @@ class BIMViewerApp {
     }
 
     const edgePositions = [];
+    const singleEdges = [];
 
     for (const entry of edgeMap.values()) {
       const norms = entry.normals;
       if (norms.length === 1) {
-        // True outer boundary silhouette edge of an open surface
-        edgePositions.push(entry.p0[0], entry.p0[1], entry.p0[2], entry.p1[0], entry.p1[1], entry.p1[2]);
+        singleEdges.push(entry);
       } else {
         // Multi-triangle shared edge:
         // Only keep if there is a real crease (any pair of face normals with angle >= thresholdAngle)
@@ -37691,6 +37691,57 @@ class BIMViewerApp {
 
         if (hasCrease) {
           edgePositions.push(entry.p0[0], entry.p0[1], entry.p0[2], entry.p1[0], entry.p1[1], entry.p1[2]);
+        }
+      }
+    }
+
+    // Filter single-face edges: eliminate internal coplanar T-junction seams created by CSG void subtraction
+    if (singleEdges.length > 0) {
+      const dir1 = new THREE.Vector3();
+      const v0 = new THREE.Vector3();
+      const v1 = new THREE.Vector3();
+      const sLen = singleEdges.length;
+
+      for (let i = 0; i < sLen; i++) {
+        const e1 = singleEdges[i];
+        const n1 = e1.normals[0];
+        dir1.set(e1.p1[0] - e1.p0[0], e1.p1[1] - e1.p0[1], e1.p1[2] - e1.p0[2]);
+        const len1 = dir1.length();
+        if (len1 < 1e-4) continue;
+        dir1.multiplyScalar(1 / len1);
+
+        let isInternalCoplanarSeam = false;
+        for (let j = 0; j < sLen; j++) {
+          if (i === j) continue;
+          const e2 = singleEdges[j];
+          const n2 = e2.normals[0];
+          // Must be coplanar (same normal within 0.5 degrees)
+          if (n1.dot(n2) < 0.999) continue;
+
+          // Check if e2 lies on the same 3D line as e1
+          v0.set(e2.p0[0] - e1.p0[0], e2.p0[1] - e1.p0[1], e2.p0[2] - e1.p0[2]);
+          const proj0 = v0.dot(dir1);
+          const perp0Sq = (v0.x - proj0 * dir1.x) ** 2 + (v0.y - proj0 * dir1.y) ** 2 + (v0.z - proj0 * dir1.z) ** 2;
+          if (perp0Sq > 2.5e-5) continue; // > 5mm tolerance
+
+          v1.set(e2.p1[0] - e1.p0[0], e2.p1[1] - e1.p0[1], e2.p1[2] - e1.p0[2]);
+          const proj1 = v1.dot(dir1);
+          const perp1Sq = (v1.x - proj1 * dir1.x) ** 2 + (v1.y - proj1 * dir1.y) ** 2 + (v1.z - proj1 * dir1.z) ** 2;
+          if (perp1Sq > 2.5e-5) continue;
+
+          // Check overlap along the 1D interval [0, len1]
+          const minProj = Math.min(proj0, proj1);
+          const maxProj = Math.max(proj0, proj1);
+          const overlap = Math.max(0, Math.min(len1, maxProj) - Math.max(0, minProj));
+
+          if (overlap > 0.005) {
+            isInternalCoplanarSeam = true;
+            break;
+          }
+        }
+
+        if (!isInternalCoplanarSeam) {
+          edgePositions.push(e1.p0[0], e1.p0[1], e1.p0[2], e1.p1[0], e1.p1[1], e1.p1[2]);
         }
       }
     }
