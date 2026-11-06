@@ -10,9 +10,9 @@ This document records all formal version iterations and major changes of SWBIM S
 
 ## Development Time Metrics
 
-> ⏱️ **Total Active Development Time**: **74 Hours 44 Minutes (74.75 Hours)**  
-> 📅 **Total Calendar Span**: **38 Days 4 Hours 52 Minutes** (2026-09-29 22:17 to 2026-11-07 03:09)  
-> 🔢 **Total Engineering Steps**: **30,196 Steps** (across 37 active development sprints)  
+> ⏱️ **Total Active Development Time**: **74 Hours 53 Minutes (74.90 Hours)**  
+> 📅 **Total Calendar Span**: **38 Days 5 Hours 01 Minutes** (2026-09-29 22:17 to 2026-11-07 03:18)  
+> 🔢 **Total Engineering Steps**: **30,220 Steps** (across 37 active development sprints)  
 > 🔄 **Update Policy**: Recalculated automatically from active development telemetry logs upon every distribution build.
 
 ### Daily Breakdown
@@ -38,10 +38,26 @@ This document records all formal version iterations and major changes of SWBIM S
 | **2026-10-27** | 19:50~20:35, 21:25~00:21 | 3h 40m (3.67h) | 3D distance & angle measurement, XYZ offsets, pitch/yaw/bearing |
 | **2026-10-28** | 21:15~01:33 | 4h 18m (4.31h) | Multipoint polyline & 3D polygon area measurement, self-intersection scarlet alert, 3-way multi-repo publishing pipeline |
 | **2026-11-05** | 20:40~23:30 | 2h 50m (2.83h) | Dual-scheme hotkeys, candidate popup, smooth zoom navigation & help manual refactor |
-| **2026-11-06** | 19:47~20:39, 22:52~03:09 | 5h 09m (5.16h) | Changelog comprehensive update & metrics engine overhaul |
+| **2026-11-06** | 19:47~20:39, 22:52~03:18 | 5h 18m (5.31h) | Changelog comprehensive update & metrics engine overhaul |
 
 ---
 
+## [v1.2611070315] - 2026-11-07 03:15
+
+### In-Place Look Around, Wheel Zoom Interior Pass-Through, Double-Click Penetration & Geometry Topology Filtering
+- **In-Place Look Around (Shift + Right Drag or Left + Right Drag)**
+  1. **Absolute Camera Position Invariance & Natural Head Turn**: Added look-around navigation triggered via Shift + Right Drag or chorded Left + Right Drag. Camera 3D world position remains strictly stationary while yaw and pitch orientation smoothly rotates with polar angle safety clamp and zero horizon roll.
+  2. **Immediate Event Lifecycle Reset**: Overhauled pointer state lifecycle so chorded button releases instantly restore standard interaction flags, eliminating dead clicks.
+
+- **Wheel Zoom Pass-Through & Double-Click Component Penetration**
+  1. **Wheel Zoom Interior Pass-Through**: When zooming into a surface reaches the threshold distance (< 0.5m), subsequent forward wheel rolls step the camera 1.2m forward along the cursor ray directly into building interiors.
+  2. **Double-Click Approach & Secondary Penetration**: Double-clicking any visible component smoothly animates the camera to 1.0m from the clicked surface while strictly preserving element selection; double-clicking again at close range (< 1.35m) casts double-sided penetration rays to find the exit surface and flies the camera to 1.0m behind it.
+
+- **IFC Geometry Topology Cleanup & Section Plane Robustness**
+  1. **CSG Void Coplanar T-Junction Line Suppression**: Implemented topology pairing and overlap filtering for coplanar CSG void subtraction seams, eliminating non-physical edge lines.
+  2. **Section Fill & Context Menu Timing**: Enhanced section plane capping for non-watertight geometry and decoupled orbit drag release from context menu invocation to prevent spurious menu triggers.
+
+---
 ## [v1.2611052330] - 2026-11-05 23:30
 
 ### Dual-Scheme Hotkey System, Candidate HUD Popup, Smooth Framing Transitions & Overhauled Help Manual
