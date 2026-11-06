@@ -2067,6 +2067,15 @@ class BIMViewerApp {
     this.rightDownPos = { x: 0, y: 0 };
     this.panMoved = false;
 
+    // Look Around in Place (Shift + Right Drag or Left + Right Drag)
+    this.isLookAround = false;
+    this.lookAroundStartX = 0;
+    this.lookAroundStartY = 0;
+    this.wasLookAround = false;
+    this.suppressLeftClick = false;
+    this._selectionBeforeClick = null;
+    this._lastClickTime = 0;
+
     // View History Engine (50 steps undo / redo)
     this.viewHistory = [];
     this.historyIndex = -1;
@@ -2501,6 +2510,60 @@ class BIMViewerApp {
 
     if (this.compass3d) {
       this.compass3d.update();
+    }
+  }
+
+  // Look Around in Place (Shift + Right Drag or Left + Right Drag):
+  // Camera position remains strictly stationary; camera yaw/pitch rotates naturally like first-person head turn.
+  lookAround(dx, dy) {
+    if (!this.camera) return;
+    const speed = 0.0035;
+    const camFwd = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion).normalize();
+    const worldUp = new THREE.Vector3(0, 1, 0);
+    let camRight = new THREE.Vector3().crossVectors(camFwd, worldUp).normalize();
+    if (camRight.lengthSq() < 0.001) camRight.set(1, 0, 0);
+
+    // Natural head turn: dx > 0 (drag right) => turn right (negative theta around world Up)
+    const theta = -dx * speed;
+    const qYaw = new THREE.Quaternion().setFromAxisAngle(worldUp, theta);
+
+    // dy < 0 (drag up) => look up (positive phi around camRight)
+    const phi = -dy * speed;
+    const qPitch = new THREE.Quaternion().setFromAxisAngle(camRight, phi);
+
+    const testFwd = camFwd.clone().applyQuaternion(qPitch).applyQuaternion(qYaw);
+    const angleToUp = testFwd.angleTo(worldUp);
+
+    const qDelta = new THREE.Quaternion();
+    if (angleToUp >= 0.02 && angleToUp <= Math.PI - 0.02) {
+      qDelta.multiplyQuaternions(qPitch, qYaw);
+    } else {
+      qDelta.copy(qYaw);
+    }
+
+    // Camera position remains strictly stationary!
+    // Rotate camera orientation and re-level horizon (zero roll)
+    const newFwd = camFwd.applyQuaternion(qDelta).normalize();
+    let newRight = new THREE.Vector3().crossVectors(newFwd, worldUp).normalize();
+    if (newRight.lengthSq() < 0.001) newRight.set(1, 0, 0);
+    const newUp = new THREE.Vector3().crossVectors(newRight, newFwd).normalize();
+
+    const rotMatrix = new THREE.Matrix4().makeBasis(newRight, newUp, newFwd.clone().negate());
+    this.camera.quaternion.setFromRotationMatrix(rotMatrix);
+
+    // Keep controls.target aligned along new forward line of sight
+    const dist = (this.controls && this.controls.target) ? Math.max(1.0, this.camera.position.distanceTo(this.controls.target)) : 10.0;
+    this.controls.target.copy(this.camera.position).addScaledVector(newFwd, dist);
+    if (this.pivotPoint) {
+      this.pivotPoint.copy(this.controls.target);
+    }
+
+    if (this.compass3d) {
+      this.compass3d.update();
+    }
+    this.camera.updateMatrixWorld();
+    if ((this.measureMarkers && this.measureMarkers.length > 0) || (this.radiusMeasurements && this.radiusMeasurements.length > 0) || (this.angleMeasurements && this.angleMeasurements.length > 0) || (this.distanceMeasurements && this.distanceMeasurements.length > 0)) {
+      this.updateMeasureMarkersAndCallouts();
     }
   }
 
@@ -8684,6 +8747,18 @@ class BIMViewerApp {
           }
         }
 
+        // If right button is currently active/held, pressing left button switches to Look Around!
+        if (this.isOrbiting || (e.buttons & 2)) {
+          this.isOrbiting = false;
+          this.isLookAround = true;
+          this.wasLookAround = true;
+          this.lookAroundStartX = e.clientX;
+          this.lookAroundStartY = e.clientY;
+          this.suppressLeftClick = true;
+          if (this.pivotHelper) this.pivotHelper.visible = false;
+          return;
+        }
+
         this.isLeftInteracting = true;
         this.leftDownPos = { x: e.clientX, y: e.clientY };
         this.leftMoved = false;
@@ -8695,7 +8770,24 @@ class BIMViewerApp {
         this.panStartX = e.clientX;
         this.panStartY = e.clientY;
         e.preventDefault();
-      } else if (e.button === 2) { // Right click: Orbit around pointed surface point
+      } else if (e.button === 2) { // Right click: Orbit or Look Around
+        // Look Around trigger: Shift held OR Left button interacting / held
+        const isLookAroundTrigger = e.shiftKey || this.isLeftInteracting || ((e.buttons & 1) !== 0);
+        if (isLookAroundTrigger) {
+          this.isLookAround = true;
+          this.wasLookAround = true;
+          this.lookAroundStartX = e.clientX;
+          this.lookAroundStartY = e.clientY;
+          this.isOrbiting = false;
+          if (this.isLeftInteracting) {
+            this.isLeftInteracting = false;
+            this.suppressLeftClick = true;
+            this.hideMarqueeBox();
+          }
+          if (this.pivotHelper) this.pivotHelper.visible = false;
+          return;
+        }
+
         const rect = this.canvas.getBoundingClientRect();
         this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
         this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -8817,6 +8909,16 @@ class BIMViewerApp {
         }
         return;
       }
+      if (this.isLookAround) {
+        const dx = e.clientX - this.lookAroundStartX;
+        const dy = e.clientY - this.lookAroundStartY;
+        if (Math.hypot(dx, dy) > 1) {
+          this.lookAroundStartX = e.clientX;
+          this.lookAroundStartY = e.clientY;
+          this.lookAround(dx, dy);
+        }
+        return;
+      }
       if (this.isLeftInteracting) {
         const dx = e.clientX - this.leftDownPos.x;
         const dy = e.clientY - this.leftDownPos.y;
@@ -8900,18 +9002,26 @@ class BIMViewerApp {
         this.canvas.style.cursor = this.isMeasureMode ? 'crosshair' : 'default';
         return;
       }
-      if (e.button === 0 && this.isLeftInteracting) {
-        this.isLeftInteracting = false;
-        this.hideMarqueeBox();
-        if (this.isBoxSelecting && this.leftMoved) {
-          this.isBoxSelecting = false;
-          this.finishBoxSelection(e, this.boxSelectStartPos.x, this.boxSelectStartPos.y, e.clientX, e.clientY);
-        } else {
-          this.isBoxSelecting = false;
-          const rect = this.canvas.getBoundingClientRect();
-          if (e.clientX >= rect.left && e.clientX <= rect.right &&
-              e.clientY >= rect.top && e.clientY <= rect.bottom) {
-            this.handleCanvasClick(e);
+      if (e.button === 0) {
+        if (this.suppressLeftClick) {
+          this.suppressLeftClick = false;
+          this.isLeftInteracting = false;
+          this.hideMarqueeBox();
+          return;
+        }
+        if (this.isLeftInteracting) {
+          this.isLeftInteracting = false;
+          this.hideMarqueeBox();
+          if (this.isBoxSelecting && this.leftMoved) {
+            this.isBoxSelecting = false;
+            this.finishBoxSelection(e, this.boxSelectStartPos.x, this.boxSelectStartPos.y, e.clientX, e.clientY);
+          } else {
+            this.isBoxSelecting = false;
+            const rect = this.canvas.getBoundingClientRect();
+            if (e.clientX >= rect.left && e.clientX <= rect.right &&
+                e.clientY >= rect.top && e.clientY <= rect.bottom) {
+              this.handleCanvasClick(e);
+            }
           }
         }
       }
@@ -8923,7 +9033,11 @@ class BIMViewerApp {
           this.pushViewSnapshot();
         }
       }
-      if (e.button === 2 && this.isOrbiting) {
+      if (e.button === 2) {
+        if (this.isLookAround) {
+          this.isLookAround = false;
+          this.pushViewSnapshot();
+        }
         const wasOrbitMoved = this.orbitMoved || this.isRightDragging;
         this.isOrbiting = false;
         this.orbitMoved = false;
@@ -8939,16 +9053,36 @@ class BIMViewerApp {
       }
     });
 
-    // Double-click to finish Multi-Point measurement
+    // Double-click handler: finish Multi-Point measurement OR approach/pass-through component
     this.canvas.addEventListener('dblclick', (e) => {
       if (this.measureMode === 'multipoint' && this.multiPointState && this.multiPointState.isDrawing) {
         this.finishMultiPointMeasurement();
+        return;
       }
+      if (this.isMeasureMode) return;
+
+      // Restore selection state so double-click does NOT alter component selection
+      if (this._selectionBeforeClick) {
+        if (this._selectionBeforeClick.selectedMeshes && this._selectionBeforeClick.selectedMeshes.length > 1) {
+          this.selectElements(this._selectionBeforeClick.selectedMeshes);
+        } else if (this._selectionBeforeClick.selectedMesh) {
+          this.selectElement(this._selectionBeforeClick.selectedMesh);
+        } else {
+          this.clearSelection();
+        }
+        this._selectionBeforeClick = null;
+      }
+
+      this.handleDoubleClickedComponent(e);
     });
 
     // Custom 3D context menu on right click (prevent browser context menu)
     this.canvas.addEventListener('contextmenu', (e) => {
       e.preventDefault();
+      if (this.wasLookAround) {
+        this.wasLookAround = false;
+        return;
+      }
       if (!this.isRightDragging) {
         this.handleContextMenu(e);
       }
@@ -10754,6 +10888,15 @@ class BIMViewerApp {
       return;
     }
     
+    const now = performance.now();
+    if (!this._selectionBeforeClick || (now - this._lastClickTime > 350)) {
+      this._selectionBeforeClick = {
+        selectedMesh: this.selectedMesh,
+        selectedMeshes: this.selectedMeshes ? [...this.selectedMeshes] : []
+      };
+    }
+    this._lastClickTime = now;
+
     const isCtrl = e.ctrlKey || e.metaKey;
     const isShift = e.shiftKey;
 
@@ -10888,7 +11031,28 @@ class BIMViewerApp {
     const dist = offset.length();
 
     // Prevent zooming through pivot or beyond visible distance
-    if (factor < 1 && dist * factor < 0.5) return;
+    if (factor < 1 && dist * factor < 0.5) {
+      // Pass-through limit reached: step camera forward along cursor ray by 1.2m into the interior
+      const stepDist = 1.2;
+      const rayDir = new THREE.Vector3().subVectors(hitPoint, camPos).normalize();
+      if (rayDir.lengthSq() < 0.001) {
+        this.camera.getWorldDirection(rayDir);
+      }
+      const stepVec = rayDir.clone().multiplyScalar(stepDist);
+      this.camera.position.add(stepVec);
+      this.controls.target.add(stepVec);
+      if (this.pivotPoint) {
+        this.pivotPoint.add(stepVec);
+      }
+      if (this.compass3d) {
+        this.compass3d.update();
+      }
+      this.camera.updateMatrixWorld();
+      if ((this.measureMarkers && this.measureMarkers.length > 0) || (this.radiusMeasurements && this.radiusMeasurements.length > 0) || (this.angleMeasurements && this.angleMeasurements.length > 0) || (this.distanceMeasurements && this.distanceMeasurements.length > 0)) {
+        this.updateMeasureMarkersAndCallouts();
+      }
+      return;
+    }
     const maxZoomDist = Math.max(30000, this.camera.far * 0.88);
     if (factor > 1 && dist * factor > maxZoomDist) return;
 
@@ -10905,6 +11069,81 @@ class BIMViewerApp {
     this.camera.updateMatrixWorld();
     if ((this.measureMarkers && this.measureMarkers.length > 0) || (this.radiusMeasurements && this.radiusMeasurements.length > 0) || (this.angleMeasurements && this.angleMeasurements.length > 0) || (this.distanceMeasurements && this.distanceMeasurements.length > 0)) {
       this.updateMeasureMarkersAndCallouts();
+    }
+  }
+
+  // Viewport double-click on component: Approach to 1.0m on first dblclick; pass through component on second dblclick
+  handleDoubleClickedComponent(e) {
+    if (!this.canvas || !this.camera) return;
+    const rect = this.canvas.getBoundingClientRect();
+    this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+
+    const searchRoots = this.activeModel ? [this.activeModel] : this.scene.children;
+    const intersects = this.raycaster.intersectObjects(searchRoots, true);
+    const valid = intersects.filter(hit => this.isPickableElement(hit.object));
+    if (valid.length === 0) return;
+
+    const hit = valid[0];
+    const hitMesh = hit.object;
+    const hitPoint = hit.point;
+    const currentDist = this.camera.position.distanceTo(hitPoint);
+
+    // If camera is already close to the clicked point (<= 1.35m), this is the second double-click: pass through!
+    if (currentDist <= 1.35) {
+      const rayDir = new THREE.Vector3().subVectors(hitPoint, this.camera.position).normalize();
+      if (rayDir.lengthSq() < 0.001) {
+        this.camera.getWorldDirection(rayDir);
+      }
+
+      // Temporarily enable DoubleSide so raycaster detects back/exit faces
+      const origSide = hitMesh.material ? (Array.isArray(hitMesh.material) ? hitMesh.material.map(m => m.side) : hitMesh.material.side) : null;
+      if (Array.isArray(hitMesh.material)) {
+        hitMesh.material.forEach(m => m.side = THREE.DoubleSide);
+      } else if (hitMesh.material) {
+        hitMesh.material.side = THREE.DoubleSide;
+      }
+
+      const forwardRay = new THREE.Raycaster(this.camera.position, rayDir, 0.001, 1000);
+      const meshHits = forwardRay.intersectObject(hitMesh, true);
+
+      // Restore original material sides
+      if (Array.isArray(hitMesh.material)) {
+        hitMesh.material.forEach((m, i) => m.side = origSide[i]);
+      } else if (hitMesh.material) {
+        hitMesh.material.side = origSide;
+      }
+
+      let exitPoint = null;
+      if (meshHits.length > 0) {
+        exitPoint = meshHits[meshHits.length - 1].point;
+      }
+
+      if (!exitPoint || exitPoint.distanceTo(hitPoint) < 0.05) {
+        // Fallback: estimate thickness from bounding box
+        const box = new THREE.Box3().setFromObject(hitMesh);
+        const boxSize = new THREE.Vector3();
+        box.getSize(boxSize);
+        const estThickness = Math.min(Math.max(boxSize.x, boxSize.y, boxSize.z), 1.0);
+        exitPoint = hitPoint.clone().addScaledVector(rayDir, Math.max(0.4, estThickness));
+      }
+
+      // Place camera 1.0m behind the exit face, looking forward
+      const targetCam = exitPoint.clone().addScaledVector(rayDir, 1.0);
+      const targetLookAt = targetCam.clone().addScaledVector(rayDir, 5.0);
+      this.showPivotIndicator(exitPoint);
+      this.tweenCamera(targetCam, targetLookAt, 400);
+    } else {
+      // First double-click: Approach to 1.0m from hitPoint along line of sight
+      const viewDir = new THREE.Vector3().subVectors(this.camera.position, hitPoint).normalize();
+      if (viewDir.lengthSq() < 0.001) {
+        this.camera.getWorldDirection(viewDir).negate();
+      }
+      const targetCam = hitPoint.clone().addScaledVector(viewDir, 1.0);
+      const targetLookAt = hitPoint.clone();
+      this.showPivotIndicator(targetLookAt);
+      this.tweenCamera(targetCam, targetLookAt, 400);
     }
   }
   
