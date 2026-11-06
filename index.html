@@ -27502,6 +27502,10 @@ class IFCParser {
   isProductType(type) {
     if (!type || !type.startsWith('IFC')) return false;
     if (this.isSpatialType(type)) return false;
+    if (type.endsWith('TYPE')) return false;
+    if (type.startsWith('IFCREL') || type === 'IFCELEMENTQUANTITY' || type === 'IFCDERIVEDUNITELEMENT') {
+      return false;
+    }
     if (type === 'IFCANNOTATION' || type === 'IFCGEOMETRICREPRESENTATIONCONTEXT' ||
         type === 'IFCUNITASSIGNMENT' || type === 'IFCOWNERHISTORY' ||
         type === 'IFCPERSON' || type === 'IFCORGANIZATION') {
@@ -28321,22 +28325,27 @@ class IFCParser {
       return (isSteel && !isConcrete) ? D.STEEL_FRAMING : D.CONCRETE_COLUMN;
     }
 
-    // 8. Floors / Slabs
+    // 8. Roofs (prioritized before floors/slabs so roof slabs like IfcSlab.ROOF or Basic Roof get roof styling)
+    if (type === 'IFCROOF' || raw.includes('roof') || raw.includes('canopy')) {
+      return D.ROOF;
+    }
+
+    // 9. Floors / Slabs
     if (type === 'IFCSLAB' || raw.includes('floor') || raw.includes('slab') || raw.includes('deck')) {
       return D.FLOOR;
     }
 
-    // 9. Walls
+    // 10. Walls
     if (type === 'IFCWALL' || type === 'IFCWALLSTANDARDCASE' || raw.includes('wall')) {
       return D.WALL;
     }
 
-    // 10. Stairs
+    // 11. Stairs
     if (type === 'IFCSTAIR' || type === 'IFCSTAIRFLIGHT' || raw.includes('stair')) {
       return D.STAIR;
     }
 
-    // 11. Railings & Guardrails
+    // 12. Railings & Guardrails
     if (type === 'IFCRAILING' || raw.includes('railing') || raw.includes('guardrail') || raw.includes('handrail') || raw.includes('balustrade')) {
       if (raw.includes('stainless') || raw.includes('chrome') || raw.includes('nickel') || raw.includes('polished')) {
         return { category: 'Railing', color: 0xd4d4d8, opacity: 1.0, transparent: false, roughness: 0.22, metalness: 0.88 };
@@ -28348,11 +28357,6 @@ class IFCParser {
         return { category: 'Railing', color: 0xcbd5e1, opacity: 1.0, transparent: false, roughness: 0.38, metalness: 0.75 };
       }
       return D.RAILING;
-    }
-
-    // 12. Roofs
-    if (type === 'IFCROOF' || raw.includes('roof') || raw.includes('canopy')) {
-      return D.ROOF;
     }
 
     // 13. Ceilings / Coverings
@@ -29747,6 +29751,81 @@ class IFCParser {
             const r = (parseFloat(cArgs[1]) || 500) * this.unitScale;
             path.absarc(cx, cy, r, 0, Math.PI * 2, false);
             first = false;
+          }
+        }
+      }
+      path.closePath();
+      return path;
+    } else if (curveEnt.type === 'IFCINDEXEDPOLYCURVE') {
+      const args = this.parseArgs(curveEnt.rawArgs);
+      const ptListEnt = this.getEntity(args[0]);
+      if (!ptListEnt) return null;
+
+      // Extract 2D / 3D points
+      const pts = [];
+      const ptMatches = ptListEnt.rawArgs.matchAll(/\(\s*([-\d.eE+]+)\s*,\s*([-\d.eE+]+)(?:\s*,\s*([-\d.eE+]+))?\s*\)/g);
+      for (const m of ptMatches) {
+        pts.push({
+          x: parseFloat(m[1]) * this.unitScale,
+          y: parseFloat(m[2]) * this.unitScale
+        });
+      }
+      if (pts.length < 2) return null;
+
+      const segmentsStr = args[1];
+      if (!segmentsStr || segmentsStr === '$') {
+        // Continuous polyline through all points
+        let count = pts.length;
+        if (count > 2 && Math.hypot(pts[count - 1].x - pts[0].x, pts[count - 1].y - pts[0].y) < 1e-4) {
+          count--;
+        }
+        path.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < count; i++) {
+          path.lineTo(pts[i].x, pts[i].y);
+        }
+      } else {
+        // Explicit line/arc segments (IFCLINEINDEX / IFCARCINDEX)
+        const segMatches = segmentsStr.matchAll(/(IFCLINEINDEX|IFCARCINDEX)?\s*\(\s*([^)]+)\s*\)/gi);
+        let first = true;
+        for (const sm of segMatches) {
+          const segType = (sm[1] || 'IFCLINEINDEX').toUpperCase();
+          const indices = sm[2].split(',').map(s => parseInt(s.trim(), 10) - 1);
+          if (segType === 'IFCLINEINDEX') {
+            for (let i = 0; i < indices.length; i++) {
+              const idx = indices[i];
+              if (!pts[idx]) continue;
+              if (first) {
+                path.moveTo(pts[idx].x, pts[idx].y);
+                first = false;
+              } else {
+                path.lineTo(pts[idx].x, pts[idx].y);
+              }
+            }
+          } else if (segType === 'IFCARCINDEX' && indices.length >= 3) {
+            const p1 = pts[indices[0]], p2 = pts[indices[1]], p3 = pts[indices[2]];
+            if (p1 && p2 && p3) {
+              if (first) {
+                path.moveTo(p1.x, p1.y);
+                first = false;
+              }
+              const d = 2 * (p1.x * (p2.y - p3.y) + p2.x * (p3.y - p1.y) + p3.x * (p1.y - p2.y));
+              if (Math.abs(d) > 1e-9) {
+                const ux = ((p1.x * p1.x + p1.y * p1.y) * (p2.y - p3.y) + (p2.x * p2.x + p2.y * p2.y) * (p3.y - p1.y) + (p3.x * p3.x + p3.y * p3.y) * (p1.y - p2.y)) / d;
+                const uy = ((p1.x * p1.x + p1.y * p1.y) * (p3.x - p2.x) + (p2.x * p2.x + p2.y * p2.y) * (p1.x - p3.x) + (p3.x * p3.x + p3.y * p3.y) * (p2.x - p1.x)) / d;
+                const r = Math.hypot(p1.x - ux, p1.y - uy);
+                const a1 = Math.atan2(p1.y - uy, p1.x - ux);
+                const a2 = Math.atan2(p2.y - uy, p2.x - ux);
+                const a3 = Math.atan2(p3.y - uy, p3.x - ux);
+                let d12 = a2 - a1;
+                while (d12 < 0) d12 += Math.PI * 2;
+                let d13 = a3 - a1;
+                while (d13 < 0) d13 += Math.PI * 2;
+                const ccw = (d12 < d13);
+                path.absarc(ux, uy, r, a1, a3, !ccw);
+              } else {
+                path.lineTo(p3.x, p3.y);
+              }
+            }
           }
         }
       }
