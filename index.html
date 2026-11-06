@@ -43174,9 +43174,42 @@ class BIMViewerApp {
       this.canvas.style.cursor = 'default';
     });
 
+    const triggerLookAroundMode = (clientX, clientY) => {
+      this.isLookAround = true;
+      this.wasLookAround = true;
+      this.suppressLeftClick = true;
+      this.lookAroundStartX = clientX;
+      this.lookAroundStartY = clientY;
+      if (this.isLeftInteracting || this.isBoxSelecting) {
+        this.isLeftInteracting = false;
+        this.isBoxSelecting = false;
+        this.hideMarqueeBox();
+      }
+      if (this.isOrbiting) {
+        this.isOrbiting = false;
+        if (this.pivotHelper) this.pivotHelper.visible = false;
+      }
+    };
+
+    // In Chromium/Edge, pressing a secondary button while a primary button is held down
+    // does not dispatch a new pointerdown event, but DOES dispatch mousedown with buttons === 3!
+    this.canvas.addEventListener('mousedown', (e) => {
+      const isBoth = ((e.buttons & 1) !== 0) && ((e.buttons & 2) !== 0);
+      const isShiftRight = e.shiftKey && ((e.buttons & 2) !== 0);
+      if (isBoth || isShiftRight) {
+        triggerLookAroundMode(e.clientX, e.clientY);
+      }
+    });
+
     // Pointer events: Left click (select/clear) & Left drag (box select)
     // Middle drag (pan) | Right click (context menu) & Right drag (orbit around pointed surface)
     this.canvas.addEventListener('pointerdown', (e) => {
+      const isBoth = ((e.buttons & 1) !== 0) && ((e.buttons & 2) !== 0);
+      const isShiftRight = e.shiftKey && (((e.buttons & 2) !== 0) || e.button === 2);
+      if (isBoth || isShiftRight) {
+        triggerLookAroundMode(e.clientX, e.clientY);
+        return;
+      }
       this.clearHoverOverlay();
       if (this.cameraTweenRaf) {
         cancelAnimationFrame(this.cameraTweenRaf);
@@ -43250,15 +43283,8 @@ class BIMViewerApp {
           }
         }
 
-        // If right button is currently active/held, pressing left button switches to Look Around!
-        if (this.isOrbiting || (e.buttons & 2)) {
-          this.isOrbiting = false;
-          this.isLookAround = true;
-          this.wasLookAround = true;
-          this.lookAroundStartX = e.clientX;
-          this.lookAroundStartY = e.clientY;
-          this.suppressLeftClick = true;
-          if (this.pivotHelper) this.pivotHelper.visible = false;
+        if (this.isOrbiting || ((e.buttons & 2) !== 0)) {
+          triggerLookAroundMode(e.clientX, e.clientY);
           return;
         }
 
@@ -43274,20 +43300,8 @@ class BIMViewerApp {
         this.panStartY = e.clientY;
         e.preventDefault();
       } else if (e.button === 2) { // Right click: Orbit or Look Around
-        // Look Around trigger: Shift held OR Left button interacting / held
-        const isLookAroundTrigger = e.shiftKey || this.isLeftInteracting || ((e.buttons & 1) !== 0);
-        if (isLookAroundTrigger) {
-          this.isLookAround = true;
-          this.wasLookAround = true;
-          this.lookAroundStartX = e.clientX;
-          this.lookAroundStartY = e.clientY;
-          this.isOrbiting = false;
-          if (this.isLeftInteracting) {
-            this.isLeftInteracting = false;
-            this.suppressLeftClick = true;
-            this.hideMarqueeBox();
-          }
-          if (this.pivotHelper) this.pivotHelper.visible = false;
+        if (this.isLeftInteracting || ((e.buttons & 1) !== 0) || e.shiftKey) {
+          triggerLookAroundMode(e.clientX, e.clientY);
           return;
         }
 
@@ -43412,7 +43426,11 @@ class BIMViewerApp {
         }
         return;
       }
-      if (this.isLookAround) {
+      const isChordedLookAround = (((e.buttons & 1) !== 0) && ((e.buttons & 2) !== 0)) || (e.shiftKey && ((e.buttons & 2) !== 0));
+      if (isChordedLookAround) {
+        if (!this.isLookAround) {
+          triggerLookAroundMode(e.clientX, e.clientY);
+        }
         const dx = e.clientX - this.lookAroundStartX;
         const dy = e.clientY - this.lookAroundStartY;
         if (Math.hypot(dx, dy) > 1) {
@@ -43420,6 +43438,25 @@ class BIMViewerApp {
           this.lookAroundStartY = e.clientY;
           this.lookAround(dx, dy);
         }
+        return;
+      }
+
+      if (this.isLookAround) {
+        if (((e.buttons & 2) === 0) && ((e.buttons & 1) === 0)) {
+          this.isLookAround = false;
+        } else {
+          const dx = e.clientX - this.lookAroundStartX;
+          const dy = e.clientY - this.lookAroundStartY;
+          if (Math.hypot(dx, dy) > 1) {
+            this.lookAroundStartX = e.clientX;
+            this.lookAroundStartY = e.clientY;
+            this.lookAround(dx, dy);
+          }
+          return;
+        }
+      }
+
+      if (this.wasLookAround) {
         return;
       }
       if (this.isLeftInteracting) {
@@ -43456,7 +43493,7 @@ class BIMViewerApp {
       }
     });
 
-    window.addEventListener('pointerup', (e) => {
+    const handlePointerOrMouseUp = (e) => {
       if (this.isGizmoDragging) {
         this.isGizmoDragging = false;
         this.clippingEngine.endDrag();
@@ -43505,21 +43542,31 @@ class BIMViewerApp {
         this.canvas.style.cursor = this.isMeasureMode ? 'crosshair' : 'default';
         return;
       }
-      if (e.button === 0) {
+      const allButtonsReleased = (e.buttons === 0);
+
+      if (this.isLookAround) {
+        this.isLookAround = false;
+        this.pushViewSnapshot();
+      }
+
+      if (allButtonsReleased || e.button === 0) {
         if (this.suppressLeftClick) {
           this.suppressLeftClick = false;
           this.isLeftInteracting = false;
+          this.isBoxSelecting = false;
           this.hideMarqueeBox();
-          return;
-        }
-        if (this.isLeftInteracting) {
+        } else if (this.isBoxSelecting && this.leftMoved) {
+          this.isBoxSelecting = false;
           this.isLeftInteracting = false;
           this.hideMarqueeBox();
-          if (this.isBoxSelecting && this.leftMoved) {
-            this.isBoxSelecting = false;
+          if (!this.wasLookAround) {
             this.finishBoxSelection(e, this.boxSelectStartPos.x, this.boxSelectStartPos.y, e.clientX, e.clientY);
-          } else {
-            this.isBoxSelecting = false;
+          }
+        } else if (this.isLeftInteracting) {
+          this.isLeftInteracting = false;
+          this.isBoxSelecting = false;
+          this.hideMarqueeBox();
+          if (!this.wasLookAround) {
             const rect = this.canvas.getBoundingClientRect();
             if (e.clientX >= rect.left && e.clientX <= rect.right &&
                 e.clientY >= rect.top && e.clientY <= rect.bottom) {
@@ -43528,32 +43575,62 @@ class BIMViewerApp {
           }
         }
       }
-      if (e.button === 1 && this.isPanning) {
-        const wasPanning = this.panMoved;
-        this.isPanning = false;
-        this.panMoved = false;
-        if (wasPanning) {
-          this.pushViewSnapshot();
+
+      if (allButtonsReleased || e.button === 1) {
+        if (this.isPanning) {
+          const wasPanning = this.panMoved;
+          this.isPanning = false;
+          this.panMoved = false;
+          if (wasPanning) {
+            this.pushViewSnapshot();
+          }
         }
       }
-      if (e.button === 2) {
-        if (this.isLookAround) {
-          this.isLookAround = false;
-          this.pushViewSnapshot();
+
+      if (allButtonsReleased || e.button === 2) {
+        if (this.isOrbiting) {
+          const wasOrbitMoved = this.orbitMoved || this.isRightDragging;
+          this.isOrbiting = false;
+          this.orbitMoved = false;
+          if (wasOrbitMoved) {
+            this.pushViewSnapshot();
+          }
+          if (this.pivotHelper) {
+            if (this.pivotTimeout) clearTimeout(this.pivotTimeout);
+            this.pivotTimeout = setTimeout(() => {
+              if (this.pivotHelper) this.pivotHelper.visible = false;
+            }, 1200);
+          }
         }
-        const wasOrbitMoved = this.orbitMoved || this.isRightDragging;
+      }
+
+      if (allButtonsReleased) {
+        this.isLeftInteracting = false;
+        this.isBoxSelecting = false;
+        this.hideMarqueeBox();
         this.isOrbiting = false;
-        this.orbitMoved = false;
-        if (wasOrbitMoved) {
-          this.pushViewSnapshot();
-        }
-        if (this.pivotHelper) {
-          if (this.pivotTimeout) clearTimeout(this.pivotTimeout);
-          this.pivotTimeout = setTimeout(() => {
-            if (this.pivotHelper) this.pivotHelper.visible = false;
-          }, 1200);
+        this.isPanning = false;
+        this.isLookAround = false;
+        this.suppressLeftClick = false;
+        if (this.wasLookAround) {
+          setTimeout(() => {
+            this.wasLookAround = false;
+          }, 80);
         }
       }
+    };
+
+    window.addEventListener('pointerup', handlePointerOrMouseUp);
+    window.addEventListener('mouseup', handlePointerOrMouseUp);
+    window.addEventListener('blur', () => {
+      this.isLeftInteracting = false;
+      this.isBoxSelecting = false;
+      this.hideMarqueeBox();
+      this.isOrbiting = false;
+      this.isPanning = false;
+      this.isLookAround = false;
+      this.wasLookAround = false;
+      this.suppressLeftClick = false;
     });
 
     // Double-click handler: finish Multi-Point measurement OR approach/pass-through component
