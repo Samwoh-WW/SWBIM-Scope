@@ -3021,12 +3021,27 @@ class IFCParser {
     }
 
     try {
-      // 1. Compute Newell's unit normal from outer contour
+      // 1. Strip duplicate closure points if present
+      const cleanPts = [...pts];
+      if (cleanPts.length > 2 && cleanPts[cleanPts.length - 1].distanceToSquared(cleanPts[0]) < 1e-10) {
+        cleanPts.pop();
+      }
+      const cleanHoles = (holesList || []).map(h => {
+        const ch = [...h];
+        if (ch.length > 2 && ch[ch.length - 1].distanceToSquared(ch[0]) < 1e-10) {
+          ch.pop();
+        }
+        return ch;
+      }).filter(h => h.length >= 3);
+
+      if (cleanPts.length < 3) return [];
+
+      // 2. Compute Newell's unit normal from outer contour
       let nx = 0, ny = 0, nz = 0;
-      const n = pts.length;
+      const n = cleanPts.length;
       for (let i = 0; i < n; i++) {
-        const c = pts[i];
-        const nxt = pts[(i + 1) % n];
+        const c = cleanPts[i];
+        const nxt = cleanPts[(i + 1) % n];
         nx += (c.y - nxt.y) * (c.z + nxt.z);
         ny += (c.z - nxt.z) * (c.x + nxt.x);
         nz += (c.x - nxt.x) * (c.y + nxt.y);
@@ -3037,28 +3052,39 @@ class IFCParser {
       }
       const normal = new THREE.Vector3(nx / len, ny / len, nz / len);
 
-      // 2. Build right-handed orthonormal basis (u, v, normal)
+      // 3. Build right-handed orthonormal basis (u, v, normal)
       const ref = (Math.abs(normal.z) < 0.9) ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
       const u = new THREE.Vector3().crossVectors(ref, normal).normalize();
       const v = new THREE.Vector3().crossVectors(normal, u).normalize();
 
-      // 3. Project outer contour and holes to 2D
-      const pts2D = pts.map(p => new THREE.Vector2(p.dot(u), p.dot(v)));
-      const holes2D = (holesList && holesList.length > 0) ? holesList.map(h => 
+      // 4. Project outer contour and holes to 2D
+      const pts2D = cleanPts.map(p => new THREE.Vector2(p.dot(u), p.dot(v)));
+      const holes2D = cleanHoles.map(h => 
         h.map(p => new THREE.Vector2(p.dot(u), p.dot(v)))
-      ).filter(h => h.length >= 3) : [];
+      );
 
-      const allPts3D = [...pts];
-      if (holesList && holesList.length > 0) {
-        for (const h of holesList) {
-          if (h && h.length >= 3) {
-            allPts3D.push(...h);
-          }
+      // Ensure holes have opposite winding from outer contour for robust earcut triangulation
+      const outerCw = THREE.ShapeUtils.isClockWise(pts2D);
+      const alignedHoles2D = [];
+      const alignedCleanHoles3D = [];
+      for (let k = 0; k < holes2D.length; k++) {
+        const h2D = holes2D[k];
+        const ch3D = cleanHoles[k];
+        if (THREE.ShapeUtils.isClockWise(h2D) === outerCw) {
+          h2D.reverse();
+          ch3D.reverse();
         }
+        alignedHoles2D.push(h2D);
+        alignedCleanHoles3D.push(ch3D);
       }
 
-      // 4. Triangulate using Three.js ShapeUtils.triangulateShape (earcut)
-      const triangles = THREE.ShapeUtils.triangulateShape(pts2D, holes2D);
+      const allPts3D = [...cleanPts];
+      for (const h of alignedCleanHoles3D) {
+        allPts3D.push(...h);
+      }
+
+      // 5. Triangulate using Three.js ShapeUtils.triangulateShape (earcut)
+      const triangles = THREE.ShapeUtils.triangulateShape(pts2D, alignedHoles2D);
       if (triangles && triangles.length > 0) {
         const result = [];
         for (const tri of triangles) {
@@ -3105,11 +3131,33 @@ class IFCParser {
     for (const fId of faceIds) {
       const fEnt = this.getEntity(fId);
       if (!fEnt) continue;
-      const indices = [...fEnt.rawArgs.matchAll(/(\d+)/g)].map(m => parseInt(m[1], 10) - 1);
-      if (indices.length >= 3) {
-        const polyPts = indices.map(idx => pts[idx]).filter(Boolean);
+
+      let outerIndices = [];
+      let holesIndices = [];
+
+      if (fEnt.type === 'IFCINDEXEDPOLYGONALFACEWITHVOIDS') {
+        const fArgs = this.parseArgs(fEnt.rawArgs);
+        if (fArgs.length > 0 && fArgs[0]) {
+          outerIndices = [...fArgs[0].matchAll(/(\d+)/g)].map(m => parseInt(m[1], 10) - 1);
+        }
+        if (fArgs.length > 1 && fArgs[1]) {
+          const innerMatches = [...fArgs[1].matchAll(/\(([^()]+)\)/g)];
+          for (const im of innerMatches) {
+            const hIdx = [...im[1].matchAll(/(\d+)/g)].map(m => parseInt(m[1], 10) - 1);
+            if (hIdx.length >= 3) {
+              holesIndices.push(hIdx);
+            }
+          }
+        }
+      } else {
+        outerIndices = [...fEnt.rawArgs.matchAll(/(\d+)/g)].map(m => parseInt(m[1], 10) - 1);
+      }
+
+      if (outerIndices.length >= 3) {
+        const polyPts = outerIndices.map(idx => pts[idx]).filter(Boolean);
+        const holesList = holesIndices.map(h => h.map(idx => pts[idx]).filter(Boolean)).filter(h => h.length >= 3);
         if (polyPts.length >= 3) {
-          const triVerts = this.triangulate3DPolygon(polyPts);
+          const triVerts = this.triangulate3DPolygon(polyPts, holesList);
           for (const v of triVerts) {
             positions.push(v.x, v.y, v.z);
           }
@@ -3120,6 +3168,7 @@ class IFCParser {
     if (positions.length === 0) return null;
     const geom = new THREE.BufferGeometry();
     geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geom.computeVertexNormals();
     return geom;
   }
 
