@@ -10,9 +10,9 @@ This document records all formal version iterations and major changes of SWBIM S
 
 ## Development Time Metrics
 
-> ⏱️ **Total Active Development Time**: **48 Hours 06 Minutes (48.10 Hours)**  
-> 📅 **Total Calendar Span**: **11 Days 21 Hours 37 Minutes** (2026-09-29 22:17 to 2026-10-11 19:55)  
-> 🔢 **Total Engineering Steps**: **22,150 Steps** (across 25 active development sprints)  
+> ⏱️ **Total Active Development Time**: **69 Hours 55 Minutes (69.92 Hours)**  
+> 📅 **Total Calendar Span**: **37 Days 21 Hours 49 Minutes** (2026-09-29 22:17 to 2026-11-06 20:07)  
+> 🔢 **Total Engineering Steps**: **28,934 Steps** (across 36 active development sprints)  
 > 🔄 **Update Policy**: Recalculated automatically from active development telemetry logs upon every distribution build.
 
 ### Daily Breakdown
@@ -26,11 +26,84 @@ This document records all formal version iterations and major changes of SWBIM S
 | **2026-10-04** | 10:02~10:34, 19:23~22:34 (3 sessions) | 9h 31m (9.52h) | Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover |
 | **2026-10-05** | 19:04~00:27 | 5h 23m (5.38h) | Stationary panels, pure highlight, CAD box selection, pivot orbit, bottom shadow |
 | **2026-10-06** | 20:29~21:12 | 0h 43m (0.72h) | Multi-format subtitle & metadata sync, FBX robust loader, bilingual toggle sync |
-| **2026-10-07** | 18:43~22:04, 23:03~23:05 | 3h 23m (3.39h) | Feature development |
-| **2026-10-08** | 13:25~13:42, 21:37~21:46 (3 sessions) | 0h 46m (0.77h) | Feature development |
-| **2026-10-09** | 22:06~01:14 | 3h 07m (3.13h) | Feature development |
-| **2026-10-10** | 19:58~22:21 | 2h 23m (2.39h) | Feature development |
-| **2026-10-11** | 00:31~01:54, 19:41~19:55 (3 sessions) | 3h 47m (3.78h) | Feature development |
+| **2026-10-07** | 18:43~22:04, 23:03~23:05 | 3h 23m (3.39h) | Multi-version IFC comparison engine, 4-color diff & ghost mesh |
+| **2026-10-08** | 13:25~13:42, 21:37~21:46 (3 sessions) | 0h 46m (0.77h) | Difference tree, property diff table & comparison safety guards |
+| **2026-10-09** | 22:06~01:14 | 3h 07m (3.13h) | IFC geometry optimizations & smooth creased normal reconstruction |
+| **2026-10-10** | 19:58~22:21 | 2h 23m (2.39h) | IFC recursive mapped item multi-tier roof fixes & deep pset extraction |
+| **2026-10-11** | 00:31~01:54, 19:41~19:55 (5 sessions) | 5h 34m (5.58h) | Progressive Web App (PWA) offline deployment & Service Worker caching |
+| **2026-10-12** | 22:26~01:18 | 2h 51m (2.85h) | Comprehensive documentation alignment & multi-format metadata governance |
+| **2026-10-16** | 23:32~00:20 | 0h 47m (0.80h) | Architecture & codebase health audit, security & performance review |
+| **2026-10-25** | 17:41~22:51 | 5h 10m (5.18h) | Smart radius, arc & sphere measurement, CAD-grade badges, 3D point & slope |
+| **2026-10-26** | 21:24~21:27 | 0h 02m (0.04h) | Development guidelines & 3D geometry snapping invariants established |
+| **2026-10-27** | 19:50~20:35, 21:25~00:21 | 3h 40m (3.67h) | 3D distance & angle measurement, XYZ offsets, pitch/yaw/bearing |
+| **2026-10-28** | 21:15~01:33 | 4h 18m (4.31h) | Multipoint polyline & 3D polygon area measurement, self-intersection scarlet alert, 3-way multi-repo publishing pipeline |
+| **2026-11-05** | 20:40~23:30 | 2h 50m (2.83h) | Dual-scheme hotkeys, candidate popup, smooth zoom navigation & help manual refactor |
+| **2026-11-06** | 19:47~20:07 | 0h 19m (0.33h) | Changelog comprehensive update & metrics engine overhaul |
+
+---
+
+## [v1.2611052330] - 2026-11-05 23:30
+
+### Dual-Scheme Hotkey System, Candidate HUD Popup, Smooth Framing Transitions & Overhauled Help Manual
+- **Dual-Scheme Hotkey Architecture & One-Click Toggle Pill**
+  1. **Dual-Scheme Architecture (Single-Key & Two-Key Revit Standard)**: Implemented two comprehensive hotkey paradigms: ① "Single-Key Mode" triggered by direct single keystrokes (e.g. `D` for measure, `O` for ortho/persp, `F` for zoom fit, `S` for section plane), optimized for rapid single-handed navigation; ② "Two-Key Mode" adhering strictly to industry-standard Autodesk Revit keyboard conventions (e.g. `HH` hide element, `HI` isolate element, `HR` reset hide/isolate, `SD` shaded display, `HL` hidden line, `BX` selection section box, `ZX` zoom to selection, `ZA` zoom all).
+  2. **One-Click Toggle Pill in Inspector Header**: Added a sleek dual-segment pill button (`Single Key` / `Two Key`) immediately to the right of the Shortcuts title in the inspector panel; clicking either side seamlessly toggles to the other scheme, with user preferences persisted locally.
+  3. **Full Shortcuts Cheatsheet HUD**: Clicking the cheatsheet button reveals an interactive full-screen modal displaying comprehensive side-by-side keybinding tables for both schemes with full naming designations.
+
+- **Keyboard Dual Execution**
+  1. **Vertical Candidate Panel Above Capsule HUD**: Dynamically expands a matching candidate list panel (`#shortcuts-candidate-panel`) directly above the bottom-center feedback capsule (`#shortcuts-key-capsule`). In Single-Key mode, pressing `D` displays `D _` with 5 measurement submodes stacked above (`1: Distance`, `2: Angle`, `3: Radius`, `4: Polyline`, `5: Area`); in Revit Two-Key mode, typing the first prefix (e.g. `H`) displays `H _` along with all matching candidate commands (`HI: Isolate Selected`, `HH: Hide Selected`, `HR: Reset Hide/Isolate`).
+  2. **Mouse-Clickable & Keyboard-Executable Dual Control**: Users can either tap the second hotkey key to execute immediately or hover and click candidate items directly with the mouse cursor, bridging keyboard speed and visual discovery.
+  3. **5-Second Extended Retention & Fast View Decoupling**: Extended the candidate panel and capsule retention window to 5 seconds (`5000ms`) for comfortable review and mouse interaction; decoupled instant view presets (`T`/`F`) which retain a crisp 650ms auto-commit timer to avoid lag during rapid navigation; supports instant dismissal via `Esc` key or viewport backdrop clicks.
+  4. **Reduced Capsule Typography**: Downsized the floating HUD capsule font by one step (`12px`, padding `5px 12px`), matching professional CAD interface ergonomics.
+
+- **Unified Smooth Camera Transitions & Help Manual Overhaul**
+  1. **Page Down Zoom to Selection**: Unified single-key framing shortcut to `Page Down` across both Single-Key and Two-Key modes, advancing perspective and orthographic cameras to frame the selected entity at 70% viewport occupancy.
+  2. **Page Up Smooth Zoom to Fit**: Unified global framing shortcut to `Page Up` across both schemes; replaces jarring instantaneous viewport snaps with a smooth 450ms cubic-bezier camera fly-in transition.
+  3. **Comprehensive Help Manual Restructuring**: Modernized `help_system.js` to align with latest UI paradigms; updated Section 4 with all 5 measurement workflows, CAD-grade snapping glyphs, and self-intersection triangulation; streamlined Section 7 to focus on scheme switching, HUD capsule feedback, and candidate popups with direct interactive trigger buttons.
+  4. **Non-Obstructive Responsive Sliding Toolbar**: Floating tools panel smoothly glides when the right inspector collapses while preserving safe clearance margins so as never to occlude the restore toggle button; cleaned dynamic HUD measurement headers and formalized `3D Area (est.)` estimation readouts.
+
+---
+
+## [v1.2610290130] - 2026-10-29 01:30
+
+### Multi-Point Polyline, 3D Polygon Area & Self-Intersection Scarlet Alert
+- **Multi-Point Continuous Polyline Measurement**
+  1. **Continuous 3D Polyline Drafting**: Introduced the 4th measurement submode "Polyline", enabling sequential multi-point clicks across geometry surfaces, vertices, and edges to construct an interactive 3D polyline network.
+  2. **Segment-by-Segment 3D Dimension Badges**: Automatically calculates authentic Euclidean distances between adjacent vertices, anchoring compact dimension badges at segment midpoints with screen-space pixel locking and Liang-Barsky viewport clamping.
+  3. **Cumulative Perimeter & Real-Time Undo**: Computes running cumulative perimeter displayed on the terminal endpoint badge; supports `Backspace` to undo the previous vertex, `Enter` or double-click to close the path, and `Esc` to commit and retain the 3D dimensions.
+
+- **3D Best-Fit Plane & Newell-Earcut Triangulation Area**
+  1. **Enclosed Polygon Surface Area Engine**: Introduced the 5th measurement submode "Area", supporting 3 or more spatial control points enclosing arbitrary 3D coplanar or non-coplanar polygonal boundaries.
+  2. **Newell 3D Best-Fit Plane Projection**: Employs Newell's method to compute optimal spatial plane normals from boundary vertices, projecting 3D points orthogonally onto a 2D local coordinate system.
+  3. **Mapbox Earcut Triangulation**: Integrates Mapbox Earcut triangulation to robustly partition arbitrary concave/convex polygons into non-overlapping triangle meshes, calculating total surface area and perimeter; supports one-click copying and metric/imperial unit conversion ($m^2 \leftrightarrow 	ext{sq ft}$).
+
+- **Topological Self-Intersection Detection & Scarlet Alert**
+  1. **Real-Time Boundary Intersection Detection**: Continuously monitors boundary edge segments during drawing to detect non-endpoint intersection crossovers (e.g. figure-eight or overlapping loop topologies).
+  2. **Instant Scarlet Alert Styling**: Flips polygon fill mesh and boundary contour lines from calm cyan to vivid Scarlet Red (`#ef4444`) upon intersection detection, displaying cautionary feedback on the HUD badge to prevent erroneous area interpretations.
+
+- **Plan A Multi-Repo Synchronized Publishing Pipeline**
+  1. **Unified Multi-Repo Publishing Pipeline (`publish_all.py`)**: Established an automated multi-repository publishing suite adhering to Windows Credential Manager account isolation (Plan A): Variant A to `wwbim/BIM-Scope.git` (main), Variant B Deliverables to `samwoh/SWBIM-Scope.git` (main), and Variant B Source to `Samwoh-WW/SWBIM-Scope.git` (main).
+  2. **Compilation Verification & SHA Matrix Summary**: Automates dual-variant single-file compilation, telemetry updates, working tree sanitation, and git push across all remotes, printing a verified 3-way commit SHA summary.
+
+---
+
+## [v1.2610280020] - 2026-10-28 00:20
+
+### 3D Two-Point Distance (XYZ Offsets), Three-Point Angle & Geometry Snapping Invariants
+- **Yaw Analysis**
+  1. **3D Euclidean Distance & Orthogonal Bounding Guides**: Measures spatial distance with a centered numeric badge along the primary dimension line, complemented by automated 3D orthogonal bounding dashed guides decomposing XYZ projections.
+  2. **ΔX, ΔY, ΔZ Offsets & Elevation Deltas**: Reports exact component offsets in the HUD card: $\Delta X$ (Easting), $\Delta Y$ (Vertical Elevation Delta), and $\Delta Z$ (Northing), color-coded with standard red/green/blue axis markers.
+  3. **Sightline Pitch & Compass Bearing (Yaw)**: Calculates spatial sightline pitch/slope angle against the horizontal ground plane (in degrees and grade percentage) and true-north horizontal azimuth bearing (Yaw), addressing structural and civil inspection workflows.
+
+- **Three-Point 3D Spatial Angle & Projected Horizontal Angle**
+  1. **Three-Point Angle Calibration**: Introduced the "Angle" measurement mode, capturing points A, vertex B, and point C sequentially across 3D surfaces.
+  2. **Spatial Angle & Horizontal Projection Angle**: Solves true 3D spatial angle ($0^\circ \sim 180^\circ$) via vector dot products, alongside horizontal projection angles for architectural layout verification.
+  3. **Spatial Arc Sector & Angle Badge**: Dynamically constructs an anti-aliased coplanar circular arc sector and bisector dimension badge anchored at vertex B.
+
+- **CAD-Grade Geometric Snapping Invariants**
+  1. **Geometric Snapping Glyphs**: Full CAD-standard snap indicators: Endpoint (□), Midpoint (△), Center (⨁), and Nearest on edge (⧗).
+  2. **Elimination of Screen-Space Re-Interpolation**: Strict enforcement of 3D geometric invariants, prohibiting 2D screen-pixel interpolation for edge projection, employing 3D ray-to-segment perpendicular distance solving to prevent 0.2m perspective drift.
+  3. **Normal Culling & Line-of-Sight Occlusion Testing**: Filters backfacing geometry via normal dot products and conducts camera-to-candidate raycast occlusion testing (`isPointOccluded`) with clipping plane awareness and adaptive 5mm-40mm safety buffers.
 
 ---
 
