@@ -9085,7 +9085,6 @@ class BIMViewerApp {
           const wasOrbitMoved = this.orbitMoved || this.isRightDragging;
           this.isOrbiting = false;
           this.orbitMoved = false;
-          this.isRightDragging = false;
           if (wasOrbitMoved) {
             this.pushViewSnapshot();
           }
@@ -9095,8 +9094,13 @@ class BIMViewerApp {
               if (this.pivotHelper) this.pivotHelper.visible = false;
             }, 1200);
           }
+          setTimeout(() => {
+            this.isRightDragging = false;
+          }, 0);
         } else {
-          this.isRightDragging = false;
+          setTimeout(() => {
+            this.isRightDragging = false;
+          }, 0);
         }
       }
 
@@ -9107,8 +9111,10 @@ class BIMViewerApp {
         this.isOrbiting = false;
         this.isPanning = false;
         this.isLookAround = false;
-        this.isRightDragging = false;
         this.suppressLeftClick = false;
+        setTimeout(() => {
+          this.isRightDragging = false;
+        }, 0);
         if (this.wasLookAround) {
           setTimeout(() => {
             this.wasLookAround = false;
@@ -9159,9 +9165,12 @@ class BIMViewerApp {
       e.preventDefault();
       if (this.wasLookAround) {
         this.wasLookAround = false;
+        this.isRightDragging = false;
         return;
       }
-      if (!this.isRightDragging) {
+      const wasDragging = this.isRightDragging;
+      this.isRightDragging = false;
+      if (!wasDragging) {
         this.handleContextMenu(e);
       }
     });
