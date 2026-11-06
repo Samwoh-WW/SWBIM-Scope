@@ -8686,6 +8686,7 @@ class BIMViewerApp {
         this.isOrbiting = false;
         if (this.pivotHelper) this.pivotHelper.visible = false;
       }
+      this.isRightDragging = false;
     };
 
     // In Chromium/Edge, pressing a secondary button while a primary button is held down
@@ -8707,6 +8708,8 @@ class BIMViewerApp {
         triggerLookAroundMode(e.clientX, e.clientY);
         return;
       }
+      this.wasLookAround = false;
+      this.suppressLeftClick = false;
       this.clearHoverOverlay();
       if (this.cameraTweenRaf) {
         cancelAnimationFrame(this.cameraTweenRaf);
@@ -8953,9 +8956,6 @@ class BIMViewerApp {
         }
       }
 
-      if (this.wasLookAround) {
-        return;
-      }
       if (this.isLeftInteracting) {
         const dx = e.clientX - this.leftDownPos.x;
         const dy = e.clientY - this.leftDownPos.y;
@@ -9056,19 +9056,15 @@ class BIMViewerApp {
           this.isBoxSelecting = false;
           this.isLeftInteracting = false;
           this.hideMarqueeBox();
-          if (!this.wasLookAround) {
-            this.finishBoxSelection(e, this.boxSelectStartPos.x, this.boxSelectStartPos.y, e.clientX, e.clientY);
-          }
+          this.finishBoxSelection(e, this.boxSelectStartPos.x, this.boxSelectStartPos.y, e.clientX, e.clientY);
         } else if (this.isLeftInteracting) {
           this.isLeftInteracting = false;
           this.isBoxSelecting = false;
           this.hideMarqueeBox();
-          if (!this.wasLookAround) {
-            const rect = this.canvas.getBoundingClientRect();
-            if (e.clientX >= rect.left && e.clientX <= rect.right &&
-                e.clientY >= rect.top && e.clientY <= rect.bottom) {
-              this.handleCanvasClick(e);
-            }
+          const rect = this.canvas.getBoundingClientRect();
+          if (e.clientX >= rect.left && e.clientX <= rect.right &&
+              e.clientY >= rect.top && e.clientY <= rect.bottom) {
+            this.handleCanvasClick(e);
           }
         }
       }
@@ -9089,6 +9085,7 @@ class BIMViewerApp {
           const wasOrbitMoved = this.orbitMoved || this.isRightDragging;
           this.isOrbiting = false;
           this.orbitMoved = false;
+          this.isRightDragging = false;
           if (wasOrbitMoved) {
             this.pushViewSnapshot();
           }
@@ -9098,6 +9095,8 @@ class BIMViewerApp {
               if (this.pivotHelper) this.pivotHelper.visible = false;
             }, 1200);
           }
+        } else {
+          this.isRightDragging = false;
         }
       }
 
@@ -9108,17 +9107,19 @@ class BIMViewerApp {
         this.isOrbiting = false;
         this.isPanning = false;
         this.isLookAround = false;
+        this.isRightDragging = false;
         this.suppressLeftClick = false;
         if (this.wasLookAround) {
           setTimeout(() => {
             this.wasLookAround = false;
-          }, 80);
+          }, 0);
         }
       }
     };
 
     window.addEventListener('pointerup', handlePointerOrMouseUp);
     window.addEventListener('mouseup', handlePointerOrMouseUp);
+    window.addEventListener('pointercancel', handlePointerOrMouseUp);
     window.addEventListener('blur', () => {
       this.isLeftInteracting = false;
       this.isBoxSelecting = false;
