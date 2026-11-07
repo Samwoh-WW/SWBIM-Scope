@@ -6977,7 +6977,7 @@ class BIMViewerApp {
 
     // Check if converted Potree folder/files (metadata.json or _potree)
     const metadataFile = fileList.find(f => {
-      const name = (f.name || '').split(/[/\]/).pop().toLowerCase();
+      const name = (f.name || '').split('/').pop().split('\\').pop().toLowerCase();
       return name === 'metadata.json';
     });
     if (metadataFile) {
@@ -6989,7 +6989,7 @@ class BIMViewerApp {
 
     // Check if orphaned .bin files dropped without metadata.json
     const hasBin = fileList.some(f => {
-      const name = (f.name || '').split(/[/\]/).pop().toLowerCase();
+      const name = (f.name || '').split('/').pop().split('\\').pop().toLowerCase();
       return name === 'octree.bin' || name === 'hierarchy.bin';
     });
     if (hasBin && !metadataFile) {
@@ -9837,14 +9837,14 @@ class BIMViewerApp {
               const file = await handle.getFile();
               if (path) {
                 Object.defineProperty(file, 'webkitRelativePath', {
-                  value: ${path}/,
+                  value: path + '/' + file.name,
                   writable: true,
                   configurable: true
                 });
               }
               files.push(file);
             } else if (handle.kind === 'directory') {
-              const dirPath = path ? ${path}/ : handle.name;
+              const dirPath = path ? (path + '/' + handle.name) : handle.name;
               for await (const entry of handle.values()) {
                 await readHandle(entry, dirPath);
               }
@@ -9868,7 +9868,7 @@ class BIMViewerApp {
         if (!entry) return resolve();
         if (entry.isFile) {
           entry.file((f) => {
-            const relPath = path ? ${path}/ : f.name;
+            const relPath = path ? (path + '/' + f.name) : f.name;
             Object.defineProperty(f, 'webkitRelativePath', {
               value: relPath,
               writable: true,
@@ -9878,7 +9878,7 @@ class BIMViewerApp {
             resolve();
           }, () => resolve());
         } else if (entry.isDirectory) {
-          const dirPath = path ? ${path}/ : entry.name;
+          const dirPath = path ? (path + '/' + entry.name) : entry.name;
           const reader = entry.createReader();
           const readAll = () => {
             reader.readEntries(async (entries) => {
