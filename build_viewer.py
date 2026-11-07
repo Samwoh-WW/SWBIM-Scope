@@ -1301,6 +1301,10 @@ def generate_html(variant_cfg, sources):
             <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
             <span data-i18n="menuResetSecRot">Reset Sectioning Rotation</span>
           </div>
+          <div class="context-menu-item" id="menu-disable-sectioning" style="display:none">
+            <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            <span id="menu-disable-sectioning-text" data-i18n="menuDisableSectioning">Turn Off Sectioning</span>
+          </div>
           <div class="context-menu-divider" id="menu-measure-divider" style="display:none"></div>
           <div class="context-menu-item" id="menu-measure-create-point" style="display:none">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="fill:none;stroke:var(--accent)"><circle cx="12" cy="12" r="3"></circle><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line></svg>

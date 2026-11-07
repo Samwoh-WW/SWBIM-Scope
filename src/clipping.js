@@ -1206,6 +1206,7 @@ class ClippingEngine {
 
   updateGizmoScaleForCamera(camera) {
     if (!camera) return;
+    this._lastCamera = camera;
     if (this.planeGroup && this.planeGizmoGroup) {
       const dist = Math.max(1.0, camera.position.distanceTo(this.planeGroup.position));
       let gizmoScale;
@@ -1226,8 +1227,7 @@ class ClippingEngine {
         this.planeEdges.scale.set(visDim, visDim, 1);
       }
     }
-    if (this.boxGroup && this.faceHandles) {
-      const minDim = Math.max(0.2, Math.min(this.boxHalfSizes.x, this.boxHalfSizes.y, this.boxHalfSizes.z));
+    if (this.boxGroup && this.faceHandles && !this.activeDragGizmo) {
       const dist = Math.max(1.0, camera.position.distanceTo(this.boxCenter));
       let camScale;
       if (camera.isPerspectiveCamera) {
@@ -1236,7 +1236,8 @@ class ClippingEngine {
         const orthoSpan = Math.abs(camera.top - camera.bottom) / (camera.zoom || 1);
         camScale = orthoSpan * 0.04;
       }
-      const handleScale = Math.max(0.35, Math.min(40.0, Math.min(camScale, Math.max(0.7, minDim * 0.45))));
+      const handleScale = Math.max(0.45, Math.min(40.0, camScale));
+      this._boxHandleScale = handleScale;
       Object.values(this.faceHandles).forEach(h => {
         h.scale.setScalar(handleScale);
       });
@@ -2186,9 +2187,9 @@ class ClippingEngine {
       if (this.faceHandles.zPos) this.faceHandles.zPos.position.set(0, 0, hz);
       if (this.faceHandles.zNeg) this.faceHandles.zNeg.position.set(0, 0, -hz);
       
-      // Proportionate scaling for face handles
+      // Preserve camera-consistent handle scale so dragging a face never shrinks or jumps gizmo size
       const minDim = Math.min(hx, hy, hz);
-      const handleScale = Math.max(0.7, Math.min(2.2, minDim * 0.16));
+      const handleScale = this._boxHandleScale || Math.max(0.7, Math.min(2.2, minDim * 0.16));
       Object.values(this.faceHandles).forEach(h => {
         h.scale.setScalar(handleScale);
       });

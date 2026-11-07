@@ -8399,6 +8399,10 @@ mark.help-match-highlight {
             <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
             <span data-i18n="menuResetSecRot">Reset Sectioning Rotation</span>
           </div>
+          <div class="context-menu-item" id="menu-disable-sectioning" style="display:none">
+            <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            <span id="menu-disable-sectioning-text" data-i18n="menuDisableSectioning">Turn Off Sectioning</span>
+          </div>
           <div class="context-menu-divider" id="menu-measure-divider" style="display:none"></div>
           <div class="context-menu-item" id="menu-measure-create-point" style="display:none">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="fill:none;stroke:var(--accent)"><circle cx="12" cy="12" r="3"></circle><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line></svg>
@@ -24708,6 +24712,7 @@ const I18N = {
       menuHideSectionBox: "Hide Section Box",
       menuShowSectionBox: "Show Section Box",
       menuResetSecRot: "Reset Sectioning Rotation",
+      menuDisableSectioning: "Turn Off Sectioning",
       secRotResetMsg: "Sectioning rotation reset to 0°",
       secBoxHiddenMsg: "Section Box hidden (clipping active)",
       secBoxShownMsg: "Section Box visible",
@@ -25341,6 +25346,7 @@ const I18N = {
       menuHideSectionBox: "隐藏Section box",
       menuShowSectionBox: "显示Section box",
       menuResetSecRot: "重置Sectioning旋转",
+      menuDisableSectioning: "关闭剖切",
       secRotResetMsg: "已重置Sectioning旋转为初始0度",
       secBoxHiddenMsg: "Section Box已隐藏（剖切保持生效）",
       secBoxShownMsg: "Section Box已恢复显示",
@@ -27315,6 +27321,7 @@ class ClippingEngine {
 
   updateGizmoScaleForCamera(camera) {
     if (!camera) return;
+    this._lastCamera = camera;
     if (this.planeGroup && this.planeGizmoGroup) {
       const dist = Math.max(1.0, camera.position.distanceTo(this.planeGroup.position));
       let gizmoScale;
@@ -27335,8 +27342,7 @@ class ClippingEngine {
         this.planeEdges.scale.set(visDim, visDim, 1);
       }
     }
-    if (this.boxGroup && this.faceHandles) {
-      const minDim = Math.max(0.2, Math.min(this.boxHalfSizes.x, this.boxHalfSizes.y, this.boxHalfSizes.z));
+    if (this.boxGroup && this.faceHandles && !this.activeDragGizmo) {
       const dist = Math.max(1.0, camera.position.distanceTo(this.boxCenter));
       let camScale;
       if (camera.isPerspectiveCamera) {
@@ -27345,7 +27351,8 @@ class ClippingEngine {
         const orthoSpan = Math.abs(camera.top - camera.bottom) / (camera.zoom || 1);
         camScale = orthoSpan * 0.04;
       }
-      const handleScale = Math.max(0.35, Math.min(40.0, Math.min(camScale, Math.max(0.7, minDim * 0.45))));
+      const handleScale = Math.max(0.45, Math.min(40.0, camScale));
+      this._boxHandleScale = handleScale;
       Object.values(this.faceHandles).forEach(h => {
         h.scale.setScalar(handleScale);
       });
@@ -28295,9 +28302,9 @@ class ClippingEngine {
       if (this.faceHandles.zPos) this.faceHandles.zPos.position.set(0, 0, hz);
       if (this.faceHandles.zNeg) this.faceHandles.zNeg.position.set(0, 0, -hz);
       
-      // Proportionate scaling for face handles
+      // Preserve camera-consistent handle scale so dragging a face never shrinks or jumps gizmo size
       const minDim = Math.min(hx, hy, hz);
-      const handleScale = Math.max(0.7, Math.min(2.2, minDim * 0.16));
+      const handleScale = this._boxHandleScale || Math.max(0.7, Math.min(2.2, minDim * 0.16));
       Object.values(this.faceHandles).forEach(h => {
         h.scale.setScalar(handleScale);
       });
