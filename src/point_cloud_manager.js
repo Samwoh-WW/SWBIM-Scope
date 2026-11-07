@@ -876,6 +876,7 @@ class BIMPointCloudManager {
       this.app.camera.position.copy(targetCam);
       this.app.camera.lookAt(center);
       if (this.app.controls) this.app.controls.update();
+      this.app.camera.updateMatrixWorld(true);
       if (this.app.compass3d) this.app.compass3d.update();
       if (!this.app.isNavigatingViewHistory && typeof this.app.pushViewSnapshot === 'function') {
         this.app.pushViewSnapshot();

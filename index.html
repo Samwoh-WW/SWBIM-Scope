@@ -29403,6 +29403,7 @@ class BIMPointCloudManager {
       this.app.camera.position.copy(targetCam);
       this.app.camera.lookAt(center);
       if (this.app.controls) this.app.controls.update();
+      this.app.camera.updateMatrixWorld(true);
       if (this.app.compass3d) this.app.compass3d.update();
       if (!this.app.isNavigatingViewHistory && typeof this.app.pushViewSnapshot === 'function') {
         this.app.pushViewSnapshot();
@@ -48792,6 +48793,7 @@ class BIMViewerApp {
     this.contextMenuMeasureSurfaceHit = null;
     this.contextMenuHitPoint = null;
     if (this.canvas && this.camera) {
+      this.camera.updateMatrixWorld(true);
       const rect = this.canvas.getBoundingClientRect();
       this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;

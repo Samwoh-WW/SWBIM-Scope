@@ -10199,6 +10199,7 @@ class BIMViewerApp {
     this.contextMenuMeasureSurfaceHit = null;
     this.contextMenuHitPoint = null;
     if (this.canvas && this.camera) {
+      this.camera.updateMatrixWorld(true);
       const rect = this.canvas.getBoundingClientRect();
       this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
