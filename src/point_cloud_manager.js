@@ -375,7 +375,6 @@ class BIMPointCloudManager {
     const card = document.getElementById('inspector-pointcloud-card');
     if (card) card.style.display = 'none';
   }
-  }
 
   toggleOrientation(pco = this.activePointCloud) {
     if (!pco) return;

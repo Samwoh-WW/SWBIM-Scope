@@ -7258,3 +7258,50 @@ mark.help-match-highlight {
   background: var(--accent) !important;
   color: #000000 !important;
 }
+
+/* Tree File Level Header & Rows */
+.tree-file-header {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  background: var(--bg-surface-2, rgba(255,255,255,0.03));
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease;
+}
+.tree-file-header:hover {
+  background: var(--bg-hover, rgba(255,255,255,0.08));
+}
+.tree-file-header.selected {
+  background: rgba(56, 189, 248, 0.15) !important;
+  border-left: 3px solid #38bdf8;
+}
+.file-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+.file-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.file-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary, #e2e8f0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.file-count {
+  font-size: 11px;
+  color: var(--text-muted, #94a3b8);
+  margin-left: 4px;
+  flex-shrink: 0;
+}
