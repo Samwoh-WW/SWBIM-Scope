@@ -49563,13 +49563,16 @@ class BIMViewerApp {
       btnDisableSec.onclick = () => {
         this.hideContextMenu();
         if (this.clippingEngine && this.clippingEngine.enabled) {
-          this.clippingEngine.setEnabled(false);
+          this.clippingEngine.enabled = false;
+          this.clippingEngine.update();
           const chkActive = document.getElementById('sec-active-chk');
-          const secControlsBody = document.getElementById('sec-controls-body');
           if (chkActive) chkActive.checked = false;
-          if (secControlsBody) {
-            secControlsBody.style.opacity = '0.45';
-            secControlsBody.style.pointerEvents = 'none';
+          if (this.selectedMeshes && this.selectedMeshes.length > 0) {
+            const remaining = this.selectedMeshes.filter(m => this.isPickableElement(m));
+            if (remaining.length === 0) this.clearSelection();
+            else if (remaining.length !== this.selectedMeshes.length) this.selectElements(remaining);
+          } else if (this.selectedMesh && !this.isPickableElement(this.selectedMesh)) {
+            this.clearSelection();
           }
           this.syncSectionUI();
           this.needsRender = true;
