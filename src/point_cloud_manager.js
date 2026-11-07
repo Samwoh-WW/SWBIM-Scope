@@ -93,7 +93,7 @@ class BIMPointCloudManager {
     this.pointColorType = 0; // 0: RGB, 3: ELEVATION, 4: INTENSITY, 8: CLASSIFICATION
     this.opacity = 1.0;
     this.offset = new THREE.Vector3(0, 0, 0);
-    this.clipEdgeThreshold = 0.035; // 35mm cut edge red line band
+    this.clipEdgeThreshold = 0.010; // 10mm (0.01m) minimum floor cut edge red line band with dynamic screen thickness
 
     // Snapping Picker
     this.picker = null;
@@ -148,16 +148,27 @@ class BIMPointCloudManager {
         );
       }
 
-      // 3. Highlight boundary points in pure red if within threshold
+      // 3. Highlight boundary points in pure CAD red if within dynamic screen-distance threshold
       const pHighlight = 'if (insideAnyHighlight) { vColor.r += 0.5; }';
       if (!this.vertexShader.includes('clipEdgeThreshold > 0.0') && this.vertexShader.includes(pHighlight)) {
         const edgeHighlightCode = [
           'if (insideAnyHighlight) { vColor.r += 0.5; }',
           '#if defined use_clip_plane',
           '  #if defined clip_outside',
-          '    if (insideAllPlanes && clipPlaneCount > 0.0 && clipEdgeThreshold > 0.0 && minClipDist < clipEdgeThreshold) {',
-          '      vColor.rgb = vec3(1.0, 0.0, 0.0);',
-          '    }',
+          '    #if !defined(color_type_point_index)',
+          '      if (insideAllPlanes && clipPlaneCount > 0.0 && clipEdgeThreshold > 0.0) {',
+          '        float zDist = max(-mvPosition.z, 0.1);',
+          '        float pixelWorldSize = useOrthographicCamera ? (orthoHeight / max(screenHeight, 1.0)) : (2.0 * zDist * tanHalfFOV / max(screenHeight, 1.0));',
+          '        float edgeThreshold = max(clipEdgeThreshold, 5.0 * pixelWorldSize);',
+          '        if (minClipDist <= edgeThreshold) {',
+          '          #ifdef new_format',
+          '            vColor = vec4(1.0, 0.0, 0.0, vColor.a);',
+          '          #else',
+          '            vColor = vec3(1.0, 0.0, 0.0);',
+          '          #endif',
+          '        }',
+          '      }',
+          '    #endif',
           '  #endif',
           '#endif'
         ].join('\n');
@@ -166,7 +177,7 @@ class BIMPointCloudManager {
 
       // 4. Ensure clipEdgeThreshold uniform exists on material
       if (this.uniforms && !this.uniforms.clipEdgeThreshold) {
-        this.uniforms.clipEdgeThreshold = { type: 'f', value: 0.035 };
+        this.uniforms.clipEdgeThreshold = { type: 'f', value: 0.010 };
       }
     };
   }
@@ -757,9 +768,9 @@ class BIMPointCloudManager {
 
     if (mat.uniforms) {
       if (!mat.uniforms.clipEdgeThreshold) {
-        mat.uniforms.clipEdgeThreshold = { type: 'f', value: this.clipEdgeThreshold || 0.035 };
+        mat.uniforms.clipEdgeThreshold = { type: 'f', value: this.clipEdgeThreshold || 0.010 };
       } else {
-        mat.uniforms.clipEdgeThreshold.value = this.clipEdgeThreshold || 0.035;
+        mat.uniforms.clipEdgeThreshold.value = this.clipEdgeThreshold || 0.010;
       }
     }
   }
@@ -846,9 +857,9 @@ class BIMPointCloudManager {
         }
         if (pco.material.uniforms) {
           if (!pco.material.uniforms.clipEdgeThreshold) {
-            pco.material.uniforms.clipEdgeThreshold = { type: 'f', value: this.clipEdgeThreshold || 0.035 };
+            pco.material.uniforms.clipEdgeThreshold = { type: 'f', value: this.clipEdgeThreshold || 0.010 };
           } else {
-            pco.material.uniforms.clipEdgeThreshold.value = this.clipEdgeThreshold || 0.035;
+            pco.material.uniforms.clipEdgeThreshold.value = this.clipEdgeThreshold || 0.010;
           }
         }
         if (typeof pco.material.syncClippingPlanes === 'function') {
@@ -1508,7 +1519,7 @@ class BIMPointCloudManager {
         pco.material.opacity = s.opacity;
         pco.material.transparent = s.opacity < 0.999;
         if (pco.material.uniforms && pco.material.uniforms.clipEdgeThreshold) {
-          pco.material.uniforms.clipEdgeThreshold.value = this.clipEdgeThreshold || 0.035;
+          pco.material.uniforms.clipEdgeThreshold.value = this.clipEdgeThreshold || 0.010;
         }
       }
     }
