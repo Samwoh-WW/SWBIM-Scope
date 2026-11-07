@@ -9314,13 +9314,13 @@ class BIMViewerApp {
     
     // Mouse Move for Coordinates HUD, Measure, and Gizmo Hover (Throttled with requestAnimationFrame)
     this.canvas.addEventListener('mousemove', (e) => {
-      this.pendingMouseMoveEvt = { clientX: e.clientX, clientY: e.clientY, shiftKey: Boolean(e.shiftKey) };
+      this.pendingMouseMoveEvt = { clientX: e.clientX, clientY: e.clientY, shiftKey: Boolean(e.shiftKey), ctrlKey: Boolean(e.ctrlKey) };
       if (this.hoverRaf) return;
 
       this.hoverRaf = requestAnimationFrame(() => {
         this.hoverRaf = null;
         if (!this.pendingMouseMoveEvt) return;
-        const { clientX, clientY, shiftKey } = this.pendingMouseMoveEvt;
+        const { clientX, clientY, shiftKey, ctrlKey } = this.pendingMouseMoveEvt;
         this.pendingMouseMoveEvt = null;
 
         const rect = this.canvas.getBoundingClientRect();
@@ -9329,20 +9329,23 @@ class BIMViewerApp {
         
         this.raycaster.setFromCamera(this.mouse, this.camera);
 
-        // Section Plane & Box Hover detection (shows gizmo on plane/box hover, grab cursor on gizmo hover; Shift pierces to back faces)
+        // Section Plane & Box Hover detection (shows gizmo on plane/box hover, grab cursor on gizmo hover; Shift pierces to back faces, Ctrl triggers central box gizmo)
         if (this.clippingEngine && this.clippingEngine.enabled && !this.isOrbiting && !this.isPanning && !this.isBoxSelecting && !this.isGizmoDragging) {
           const prevHoveredFace = this.clippingEngine.hoveredBoxFace;
           const prevHoveredGizmo = this.clippingEngine.hoveredGizmo;
           const prevPlaneVis = this.clippingEngine.planeGizmoGroup ? this.clippingEngine.planeGizmoGroup.visible : false;
           const prevFaceVis = this.clippingEngine.boxHoverFaceMesh ? this.clippingEngine.boxHoverFaceMesh.visible : false;
-          const isOverGizmo = this.clippingEngine.updateHover(this.raycaster, Boolean(shiftKey));
+          const prevCentralVis = this.clippingEngine.boxCentralGizmoGroup ? this.clippingEngine.boxCentralGizmoGroup.visible : false;
+          const isOverGizmo = this.clippingEngine.updateHover(this.raycaster, Boolean(shiftKey), Boolean(ctrlKey));
           const nowPlaneVis = this.clippingEngine.planeGizmoGroup ? this.clippingEngine.planeGizmoGroup.visible : false;
           const nowFaceVis = this.clippingEngine.boxHoverFaceMesh ? this.clippingEngine.boxHoverFaceMesh.visible : false;
+          const nowCentralVis = this.clippingEngine.boxCentralGizmoGroup ? this.clippingEngine.boxCentralGizmoGroup.visible : false;
           if (
             prevHoveredFace !== this.clippingEngine.hoveredBoxFace ||
             prevHoveredGizmo !== this.clippingEngine.hoveredGizmo ||
             prevPlaneVis !== nowPlaneVis ||
-            prevFaceVis !== nowFaceVis
+            prevFaceVis !== nowFaceVis ||
+            prevCentralVis !== nowCentralVis
           ) {
             this.needsRender = true;
             this.requestRender(150);
@@ -9624,9 +9627,9 @@ class BIMViewerApp {
         this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
         this.raycaster.setFromCamera(this.mouse, this.camera);
 
-        // Check if clicking Section Gizmo (highest priority; sync Shift state first so Shift+Click hits back-face gizmos)
+        // Check if clicking Section Gizmo (highest priority; sync Shift/Ctrl state first so Shift+Click hits back faces and Ctrl hits central gizmo)
         if (this.clippingEngine && this.clippingEngine.enabled) {
-          this.clippingEngine.updateHover(this.raycaster, Boolean(e.shiftKey));
+          this.clippingEngine.updateHover(this.raycaster, Boolean(e.shiftKey), Boolean(e.ctrlKey));
           const gizmoHits = this.clippingEngine.intersectGizmos(this.raycaster);
           if (gizmoHits.length > 0) {
             this.isGizmoDragging = true;
@@ -9908,7 +9911,7 @@ class BIMViewerApp {
         this.clippingEngine.endDrag();
         if (this.clippingEngine && this.clippingEngine.enabled && this.camera) {
           this.raycaster.setFromCamera(this.mouse, this.camera);
-          const isOverGizmo = this.clippingEngine.updateHover(this.raycaster, Boolean(e && e.shiftKey));
+          const isOverGizmo = this.clippingEngine.updateHover(this.raycaster, Boolean(e && e.shiftKey), Boolean(e && e.ctrlKey));
           this.canvas.style.cursor = isOverGizmo ? 'grab' : 'default';
         } else {
           this.canvas.style.cursor = 'default';
@@ -11101,10 +11104,13 @@ class BIMViewerApp {
       });
     }
 
-    // 5. Global Keyboard Listener (including Shift keydown/keyup for Section Box back-face pass-through)
+    // 5. Global Keyboard Listener (including Shift for Section Box back-face pass-through and Ctrl for Central Gizmo)
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Shift') {
         this.handleSectionBoxShiftChange(true);
+      }
+      if (e.key === 'Control') {
+        this.handleSectionBoxCtrlChange(true);
       }
       this.handleGlobalKeyDown(e);
     });
@@ -11112,12 +11118,36 @@ class BIMViewerApp {
       if (e.key === 'Shift') {
         this.handleSectionBoxShiftChange(false);
       }
+      if (e.key === 'Control') {
+        this.handleSectionBoxCtrlChange(false);
+      }
     });
     window.addEventListener('blur', () => {
       if (this.clippingEngine && this.clippingEngine.isShiftDown) {
         this.handleSectionBoxShiftChange(false);
       }
+      if (this.clippingEngine && this.clippingEngine.isCtrlDown) {
+        this.handleSectionBoxCtrlChange(false);
+      }
     });
+  }
+
+  handleSectionBoxCtrlChange(isCtrl) {
+    if (!this.clippingEngine) return;
+    this.clippingEngine.setCtrlMode(isCtrl);
+    if (!this.clippingEngine.enabled || this.clippingEngine.mode !== 'box' || this.isGizmoDragging) {
+      return;
+    }
+    if (this.camera) {
+      this.camera.updateMatrixWorld(true);
+      this.raycaster.setFromCamera(this.mouse, this.camera);
+      const isOverGizmo = this.clippingEngine.updateHover(this.raycaster, undefined, isCtrl);
+      if (this.canvas && !this.isOrbiting && !this.isPanning) {
+        this.canvas.style.cursor = isOverGizmo ? 'grab' : '';
+      }
+      this.needsRender = true;
+      this.requestRender(150);
+    }
   }
 
   handleSectionBoxShiftChange(isShift) {
