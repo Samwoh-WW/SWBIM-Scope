@@ -48016,13 +48016,13 @@ class BIMViewerApp {
     
     // Mouse Move for Coordinates HUD, Measure, and Gizmo Hover (Throttled with requestAnimationFrame)
     this.canvas.addEventListener('mousemove', (e) => {
-      this.pendingMouseMoveEvt = { clientX: e.clientX, clientY: e.clientY };
+      this.pendingMouseMoveEvt = { clientX: e.clientX, clientY: e.clientY, shiftKey: Boolean(e.shiftKey) };
       if (this.hoverRaf) return;
 
       this.hoverRaf = requestAnimationFrame(() => {
         this.hoverRaf = null;
         if (!this.pendingMouseMoveEvt) return;
-        const { clientX, clientY } = this.pendingMouseMoveEvt;
+        const { clientX, clientY, shiftKey } = this.pendingMouseMoveEvt;
         this.pendingMouseMoveEvt = null;
 
         const rect = this.canvas.getBoundingClientRect();
@@ -48033,7 +48033,22 @@ class BIMViewerApp {
 
         // Section Plane & Box Hover detection (shows gizmo on plane/box hover, grab cursor on gizmo hover; Shift pierces to back faces)
         if (this.clippingEngine && this.clippingEngine.enabled && !this.isOrbiting && !this.isPanning && !this.isBoxSelecting && !this.isGizmoDragging) {
-          const isOverGizmo = this.clippingEngine.updateHover(this.raycaster, Boolean(evt.shiftKey));
+          const prevHoveredFace = this.clippingEngine.hoveredBoxFace;
+          const prevHoveredGizmo = this.clippingEngine.hoveredGizmo;
+          const prevPlaneVis = this.clippingEngine.planeGizmoGroup ? this.clippingEngine.planeGizmoGroup.visible : false;
+          const prevFaceVis = this.clippingEngine.boxHoverFaceMesh ? this.clippingEngine.boxHoverFaceMesh.visible : false;
+          const isOverGizmo = this.clippingEngine.updateHover(this.raycaster, Boolean(shiftKey));
+          const nowPlaneVis = this.clippingEngine.planeGizmoGroup ? this.clippingEngine.planeGizmoGroup.visible : false;
+          const nowFaceVis = this.clippingEngine.boxHoverFaceMesh ? this.clippingEngine.boxHoverFaceMesh.visible : false;
+          if (
+            prevHoveredFace !== this.clippingEngine.hoveredBoxFace ||
+            prevHoveredGizmo !== this.clippingEngine.hoveredGizmo ||
+            prevPlaneVis !== nowPlaneVis ||
+            prevFaceVis !== nowFaceVis
+          ) {
+            this.needsRender = true;
+            this.requestRender(150);
+          }
           if (isOverGizmo) {
             this.canvas.style.cursor = 'grab';
             this.clearHoverOverlay();
@@ -49121,6 +49136,13 @@ class BIMViewerApp {
       itemResetSecRot.style.display = isSecEnabled ? 'flex' : 'none';
     }
 
+    const itemDisableSec = document.getElementById('menu-disable-sectioning');
+    const itemDisableSecText = document.getElementById('menu-disable-sectioning-text');
+    if (itemDisableSec) {
+      itemDisableSec.style.display = isSecEnabled ? 'flex' : 'none';
+      if (itemDisableSecText) itemDisableSecText.textContent = I18N.t('menuDisableSectioning');
+    }
+
     if (itemSecDivider) {
       itemSecDivider.style.display = (isSecBox || isSecEnabled) ? 'block' : 'none';
     }
@@ -49188,7 +49210,7 @@ class BIMViewerApp {
     const allOtherIds = [
       'menu-show-all', 'menu-zoom-global', 'menu-reset-view', 'menu-selected-divider', 'menu-hide', 'menu-isolate', 'menu-zoom-to', 'menu-section-box',
       'menu-enable-sec-plane-here', 'menu-enable-sec-box-here', 'menu-move-sec-here', 'menu-group-isolate', 'menu-group-hide', 'menu-group-zoom', 'menu-group-sec-box',
-      'menu-sectioning-divider', 'menu-toggle-section-box', 'menu-reset-sec-rot',
+      'menu-sectioning-divider', 'menu-toggle-section-box', 'menu-reset-sec-rot', 'menu-disable-sectioning',
       'menu-measure-divider', 'menu-measure-create-point', 'menu-measure-delete-point', 'menu-measure-delete-measurement',
       'menu-measure-insert-point', 'menu-measure-prepend-point', 'menu-measure-append-point', 'menu-measure-break-closure'
     ];
@@ -49305,6 +49327,12 @@ class BIMViewerApp {
     }
 
     if (itemResetSecRot) itemResetSecRot.style.display = isSecEnabled ? 'flex' : 'none';
+    const itemDisableSec = document.getElementById('menu-disable-sectioning');
+    const itemDisableSecText = document.getElementById('menu-disable-sectioning-text');
+    if (itemDisableSec) {
+      itemDisableSec.style.display = isSecEnabled ? 'flex' : 'none';
+      if (itemDisableSecText) itemDisableSecText.textContent = I18N.t('menuDisableSectioning');
+    }
     if (itemSecDivider) itemSecDivider.style.display = (isSecBox || isSecEnabled) ? 'block' : 'none';
 
     ['menu-measure-divider', 'menu-measure-create-point', 'menu-measure-delete-point'].forEach(id => {
@@ -49526,6 +49554,27 @@ class BIMViewerApp {
           this.clippingEngine.resetSectionRotation();
           this.syncSectionUI();
           showToast(I18N.t('secRotResetMsg'), 'success');
+        }
+      };
+    }
+
+    const btnDisableSec = document.getElementById('menu-disable-sectioning');
+    if (btnDisableSec) {
+      btnDisableSec.onclick = () => {
+        this.hideContextMenu();
+        if (this.clippingEngine && this.clippingEngine.enabled) {
+          this.clippingEngine.setEnabled(false);
+          const chkActive = document.getElementById('sec-active-chk');
+          const secControlsBody = document.getElementById('sec-controls-body');
+          if (chkActive) chkActive.checked = false;
+          if (secControlsBody) {
+            secControlsBody.style.opacity = '0.45';
+            secControlsBody.style.pointerEvents = 'none';
+          }
+          this.syncSectionUI();
+          this.needsRender = true;
+          this.requestRender(150);
+          showToast(I18N.t('secDisabledMsg'), 'info');
         }
       };
     }
