@@ -2982,9 +2982,8 @@ class BIMViewerApp {
       el.className = 'offscreen-indicator';
       el.innerHTML = `
         <div class="offscreen-pointer" id="offscreen-pointer">
-          <svg viewBox="0 0 24 24" fill="none">
-            <path d="M 8 5 L 16 12 L 8 19" fill="none" stroke="#000000" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M 8 5 L 16 12 L 8 19" fill="none" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <svg viewBox="0 0 24 24" width="22" height="22" style="overflow:visible">
+            <path d="M 7 4 L 17 12 L 7 20 L 10 12 Z" fill="#ffffff" stroke="#000000" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
           </svg>
         </div>
         <div class="offscreen-target">
