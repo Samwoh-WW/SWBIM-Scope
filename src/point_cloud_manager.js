@@ -340,7 +340,22 @@ class BIMPointCloudManager {
     // Set elevation range for gradient mapping
     if (pco.boundingBox) {
       mat.elevationRange = [pco.boundingBox.min.z, pco.boundingBox.max.z];
+    } else if (pco.pcoGeometry && pco.pcoGeometry.boundingBox) {
+      mat.elevationRange = [pco.pcoGeometry.boundingBox.min.z, pco.pcoGeometry.boundingBox.max.z];
     }
+
+    // Set intensity range from metadata if available
+    let intMin = 0;
+    let intMax = 65535;
+    if (pco.pcoGeometry && pco.pcoGeometry.loader && pco.pcoGeometry.loader.metadata) {
+      const attrs = pco.pcoGeometry.loader.metadata.attributes || [];
+      const intAttr = attrs.find(a => a.name === 'intensity');
+      if (intAttr && Array.isArray(intAttr.max) && intAttr.max[0] > 0) {
+        intMin = (intAttr.min && intAttr.min[0] !== undefined) ? intAttr.min[0] : 0;
+        intMax = intAttr.max[0];
+      }
+    }
+    mat.intensityRange = [intMin, intMax];
   }
 
   update(camera, renderer) {
@@ -440,7 +455,9 @@ class BIMPointCloudManager {
     }
 
     this.isPointCloudSelected = true;
-    this.updateModelHierarchyTree();
+    if (this.app.syncTreeSelection) {
+      this.app.syncTreeSelection();
+    }
     this.renderInspectorCard();
 
     if (this.app._wakeRender) {
@@ -749,12 +766,30 @@ class BIMPointCloudManager {
       if (pco.material) {
         pco.material.size = this.pointSize;
         pco.material.pointColorType = this.pointColorType;
+        if (pco.boundingBox) {
+          pco.material.elevationRange = [pco.boundingBox.min.z, pco.boundingBox.max.z];
+        } else if (pco.pcoGeometry && pco.pcoGeometry.boundingBox) {
+          pco.material.elevationRange = [pco.pcoGeometry.boundingBox.min.z, pco.pcoGeometry.boundingBox.max.z];
+        }
+
+        let intMin = 0;
+        let intMax = 65535;
+        if (pco.pcoGeometry && pco.pcoGeometry.loader && pco.pcoGeometry.loader.metadata) {
+          const attrs = pco.pcoGeometry.loader.metadata.attributes || [];
+          const intAttr = attrs.find(a => a.name === 'intensity');
+          if (intAttr && Array.isArray(intAttr.max) && intAttr.max[0] > 0) {
+            intMin = (intAttr.min && intAttr.min[0] !== undefined) ? intAttr.min[0] : 0;
+            intMax = intAttr.max[0];
+          }
+        }
+        pco.material.intensityRange = [intMin, intMax];
+
         pco.material.opacity = this.opacity;
         pco.material.transparent = this.opacity < 0.999;
       }
     }
     if (this.app._wakeRender) {
-      this.app._wakeRender();
+      this.app._wakeRender(300);
     }
   }
 

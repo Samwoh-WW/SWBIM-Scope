@@ -957,7 +957,7 @@ class VirtualBimTree {
         if (this.app.pointCloudManager) {
           this.app.pointCloudManager.activePointCloud = f.pco;
           this.app.pointCloudManager.isPointCloudSelected = true;
-          this.app.clearSelection();
+          this.app.clearSelection(true);
           this.app.pointCloudManager.renderInspectorCard();
         }
       } else {
@@ -1296,9 +1296,15 @@ class VirtualBimTree {
     const selectedSet = new Set(this.app.selectedMeshes || (this.app.selectedMesh ? [this.app.selectedMesh] : []));
     for (let i = 0; i < this.pool.length; i++) {
       const slot = this.pool[i];
-      if (slot.el.style.display !== 'none' && slot.row && slot.row.type === 'leaf') {
-        const isSel = selectedSet.has(slot.row.leaf.mesh);
-        slot.leafEl.classList.toggle('selected', isSel);
+      if (slot.el.style.display !== 'none' && slot.row) {
+        if (slot.row.type === 'leaf') {
+          const isSel = selectedSet.has(slot.row.leaf.mesh);
+          slot.leafEl.classList.toggle('selected', isSel);
+        } else if (slot.row.type === 'file') {
+          const f = slot.row.file;
+          const isPcSelected = f.fileType === 'pointcloud' && this.app.pointCloudManager && this.app.pointCloudManager.isPointCloudSelected && (this.app.pointCloudManager.activePointCloud === f.pco);
+          slot.fileEl.classList.toggle('selected', Boolean(f.selected || isPcSelected));
+        }
       }
     }
   }
@@ -4327,6 +4333,33 @@ class BIMViewerApp {
     const hasPointCloud = Boolean(this.pointCloudManager && this.pointCloudManager.pointClouds.length > 0);
     if (!hasModel && !hasPointCloud) return;
 
+    // Snapshot existing collapse & visibility states so user toggles are NEVER wiped
+    let prevModelFileCollapsed = false;
+    let prevModelFileVisible = true;
+    let hasPrevModel = false;
+    const prevSubGroupCollapsedMap = new Map();
+    const prevPcFileCollapsedMap = new Map();
+    const prevPcFileVisibleMap = new Map();
+
+    const existingGroups = (this.virtualStructTree && Array.isArray(this.virtualStructTree.groups)) ?
+      this.virtualStructTree.groups : [];
+    
+    for (const g of existingGroups) {
+      if (g.id === 'file-model-primary') {
+        hasPrevModel = true;
+        prevModelFileCollapsed = Boolean(g.collapsed);
+        prevModelFileVisible = (g.visible !== false);
+        if (Array.isArray(g.subGroups)) {
+          for (const sg of g.subGroups) {
+            prevSubGroupCollapsedMap.set(sg.name, sg.collapsed);
+          }
+        }
+      } else if (g.fileType === 'pointcloud' && g.pco) {
+        prevPcFileCollapsedMap.set(g.pco, g.collapsed);
+        prevPcFileVisibleMap.set(g.pco, g.visible !== false);
+      }
+    }
+
     const isZh = (typeof I18N !== 'undefined' ? I18N.currentLang : 'zh') === 'zh';
 
     // 1. Prepare BIM Model Groups (if model is loaded)
@@ -4384,7 +4417,11 @@ class BIMViewerApp {
             };
           });
 
-          // RULE: "默认收起子层级" -> sub-levels collapsed: true by default!
+          // RULE: "默认收起子层级" -> sub-levels collapsed: true by default, but preserve if previously toggled!
+          const isCollapsed = prevSubGroupCollapsedMap.has(name) ?
+            prevSubGroupCollapsedMap.get(name) :
+            true;
+
           groups.push({
             id: `group-${gId++}`,
             name: name,
@@ -4392,7 +4429,7 @@ class BIMViewerApp {
             catName: isCategory ? name : null,
             meshes: meshes,
             colorHex: colorHex,
-            collapsed: true, // DEFAULT COLLAPSED!
+            collapsed: isCollapsed,
             hasOpacitySlider: hasOpacitySlider,
             opacity: 1.0,
             leaves: leaves
@@ -4417,6 +4454,13 @@ class BIMViewerApp {
         const colorModeLabel = this.pointCloudManager.getColorModeLabel ? this.pointCloudManager.getColorModeLabel(pco) : 'RGB';
         const pSize = (pco.material && typeof pco.material.size === 'number') ? pco.material.size.toFixed(1) : '1.0';
 
+        const pcCollapsed = prevPcFileCollapsedMap.has(pco) ?
+          prevPcFileCollapsedMap.get(pco) :
+          true; // "默认收起子层级"
+        const pcVisible = prevPcFileVisibleMap.has(pco) ?
+          prevPcFileVisibleMap.get(pco) :
+          (pco.visible !== false);
+
         pcFileNodes.push({
           type: 'file',
           id: `file-pc-${pIdx}`,
@@ -4426,8 +4470,8 @@ class BIMViewerApp {
           pco: pco,
           countText: `${countStr} pts`,
           count: pointCount,
-          visible: pco.visible !== false,
-          collapsed: true, // "默认收起子层级"
+          visible: pcVisible,
+          collapsed: pcCollapsed,
           subGroups: [
             {
               id: `pc-sub-info-${pIdx}`,
@@ -4453,6 +4497,8 @@ class BIMViewerApp {
     const buildTabFileGroups = (subGroups) => {
       const groups = [];
       if (hasModel) {
+        const isCollapsed = hasPrevModel ? prevModelFileCollapsed : false;
+        const isVisible = hasPrevModel ? prevModelFileVisible : true;
         groups.push({
           type: 'file',
           id: 'file-model-primary',
@@ -4462,8 +4508,8 @@ class BIMViewerApp {
           model: this.activeModel,
           countText: `${totalModelElements} items`,
           count: totalModelElements,
-          visible: true,
-          collapsed: false, // File node itself is open so user sees the sub-levels
+          visible: isVisible,
+          collapsed: isCollapsed,
           subGroups: subGroups
         });
       }
@@ -4807,7 +4853,6 @@ class BIMViewerApp {
     // Sync tree selection
     if (this.pointCloudManager && this.pointCloudManager.isPointCloudSelected) {
       this.pointCloudManager.isPointCloudSelected = false;
-      this.pointCloudManager.updateModelHierarchyTree();
     }
     this.syncTreeSelection();
 
@@ -5187,7 +5232,6 @@ class BIMViewerApp {
     this.selectedMeshes = [mesh];
     if (this.pointCloudManager && this.pointCloudManager.isPointCloudSelected) {
       this.pointCloudManager.isPointCloudSelected = false;
-      this.pointCloudManager.updateModelHierarchyTree();
     }
     this.syncTreeSelection();
     if (clickPoint) {
@@ -6333,7 +6377,7 @@ class BIMViewerApp {
     showToast(`Isolated ${structureName}`, 'warning');
   }
   
-  clearSelection() {
+  clearSelection(keepPointCloud = false) {
     this.selectedMesh = null;
     this.selectedMeshes = [];
     this.lastClickPoint = null;
@@ -6343,12 +6387,13 @@ class BIMViewerApp {
     if (this.compareEngine) {
       this.compareEngine.onSelectionCleared();
     }
-    if (this.pointCloudManager && this.pointCloudManager.isPointCloudSelected) {
+    if (!keepPointCloud && this.pointCloudManager && this.pointCloudManager.isPointCloudSelected) {
       this.pointCloudManager.isPointCloudSelected = false;
-      this.pointCloudManager.updateModelHierarchyTree();
     }
     this.syncTreeSelection();
-    this.renderModelInfoInspector();
+    if (!keepPointCloud) {
+      this.renderModelInfoInspector();
+    }
   }
 
   calculateModelStats(rootObject) {
@@ -9368,11 +9413,21 @@ class BIMViewerApp {
         this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
         this.raycaster.setFromCamera(this.mouse, this.camera);
         let hitPoint = null;
+        let hitDist = Infinity;
         if (this.activeModel) {
           const intersects = this.raycaster.intersectObjects(this.activeModel.children, true);
           const valid = intersects.filter(h => this.isPickableElement(h.object));
           if (valid.length > 0) {
             hitPoint = valid[0].point;
+            hitDist = valid[0].distance;
+          }
+        }
+        if (this.pointCloudManager && this.pointCloudManager.pointClouds.length > 0) {
+          const pcHit = this.pointCloudManager.raycast(this.raycaster, 25);
+          if (pcHit && pcHit.point) {
+            if (!hitPoint || pcHit.distance < hitDist) {
+              hitPoint = pcHit.point;
+            }
           }
         }
         if (hitPoint) {
@@ -11736,12 +11791,24 @@ class BIMViewerApp {
 
     this.raycaster.setFromCamera(this.mouse, this.camera);
     let hitPoint = null;
+    let hitDist = Infinity;
 
     if (this.activeModel) {
       const intersects = this.raycaster.intersectObjects(this.activeModel.children, true);
       const valid = intersects.filter(h => this.isPickableElement(h.object));
       if (valid.length > 0) {
         hitPoint = valid[0].point;
+        hitDist = valid[0].distance;
+      }
+    }
+
+    if (this.pointCloudManager && this.pointCloudManager.pointClouds.length > 0) {
+      const pcHit = this.pointCloudManager.raycast(this.raycaster, 25);
+      if (pcHit && pcHit.point) {
+        if (!hitPoint || pcHit.distance < hitDist) {
+          hitPoint = pcHit.point;
+          hitDist = pcHit.distance;
+        }
       }
     }
 
@@ -11749,8 +11816,12 @@ class BIMViewerApp {
       // Intersect plane facing camera passing through current pivotPoint
       const camDir = new THREE.Vector3();
       this.camera.getWorldDirection(camDir);
-      const pivotRef = this.pivotPoint || this.controls.target;
-      const refPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(camDir.negate(), pivotRef);
+      let pivotRef = this.pivotPoint || this.controls.target;
+      const toPiv = new THREE.Vector3().subVectors(pivotRef, this.camera.position);
+      if (toPiv.dot(camDir) < 0.5) {
+        pivotRef = this.camera.position.clone().addScaledVector(camDir, 15.0);
+      }
+      const refPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(camDir.clone().negate(), pivotRef);
       const targetPoint = new THREE.Vector3();
       if (this.raycaster.ray.intersectPlane(refPlane, targetPoint)) {
         hitPoint = targetPoint;
@@ -11855,7 +11926,25 @@ class BIMViewerApp {
     const searchRoots = this.activeModel ? [this.activeModel] : this.scene.children;
     const intersects = this.raycaster.intersectObjects(searchRoots, true);
     const valid = intersects.filter(hit => this.isPickableElement(hit.object));
-    if (valid.length === 0) return;
+    if (valid.length === 0) {
+      if (this.pointCloudManager && this.pointCloudManager.pointClouds.length > 0) {
+        const pcHit = this.pointCloudManager.raycast(this.raycaster, 25);
+        if (pcHit && pcHit.point) {
+          const hitPoint = pcHit.point;
+          const currentDist = this.camera.position.distanceTo(hitPoint);
+          const viewDir = new THREE.Vector3().subVectors(this.camera.position, hitPoint).normalize();
+          if (viewDir.lengthSq() < 0.001) {
+            this.camera.getWorldDirection(viewDir).negate();
+          }
+          const targetDist = Math.max(1.5, Math.min(currentDist * 0.4, 8.0));
+          const targetCam = hitPoint.clone().addScaledVector(viewDir, targetDist);
+          this.pivotPoint.copy(hitPoint);
+          this.showPivotIndicator(hitPoint);
+          this.tweenCamera(targetCam, hitPoint, 400);
+        }
+      }
+      return;
+    }
 
     const hit = valid[0];
     const hitMesh = hit.object;
