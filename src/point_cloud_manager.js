@@ -634,8 +634,9 @@ class BIMPointCloudManager {
       if (hit && hit.position) {
         return {
           point: hit.position.clone(),
+          normal: (hit.normal && hit.normal.isVector3) ? hit.normal.clone() : new THREE.Vector3(0, 1, 0),
           distance: this.app.camera.position.distanceTo(hit.position),
-          pointCloud: hit.pointcloud,
+          pointCloud: hit.pointCloud || hit.pointcloud,
           index: hit.pointIndex
         };
       }
@@ -710,6 +711,7 @@ class BIMPointCloudManager {
 
     const hasOriginalPos = Boolean(this.activePointCloud && this.activePointCloud.userData && this.activePointCloud.userData._originalPosition);
     const isZUp = Boolean(this.activePointCloud && this.activePointCloud.userData && this.activePointCloud.userData._isZUp);
+    const coordMapping = (this.activePointCloud && this.activePointCloud.userData && this.activePointCloud.userData.coordinateMapping) || 'auto';
 
     card.innerHTML = `
       <div class="inspector-card-header" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
@@ -797,6 +799,19 @@ class BIMPointCloudManager {
           </button>
         </div>
       </div>
+
+      <!-- Coordinate Mapping (大地测绘坐标映射) -->
+      <div class="pc-control-row" style="margin-bottom:12px;">
+        <div style="font-size:11.5px; margin-bottom:5px;">${isZh ? '坐标映射 (Coordinate Mapping)' : 'Coordinate Mapping'}</div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
+          <button type="button" id="btn-pc-map-auto" class="pc-map-btn ${(!coordMapping || coordMapping === 'auto') ? 'active' : ''}" style="padding:4px 6px; font-size:11px; border-radius:4px; cursor:pointer;">
+            ${isZh ? '✨ 智能大地映射' : '✨ Auto Geodetic'}
+          </button>
+          <button type="button" id="btn-pc-map-swap" class="pc-map-btn ${coordMapping === 'swap_yz' ? 'active' : ''}" style="padding:4px 6px; font-size:11px; border-radius:4px; cursor:pointer;">
+            ${isZh ? '🔀 互换 Y ⇄ Z' : '🔀 Swap Y ⇄ Z'}
+          </button>
+        </div>
+      </div>
     `;
 
     // Hook events
@@ -869,6 +884,26 @@ class BIMPointCloudManager {
         if (this.activePointCloud.userData._isZUp) {
           this.toggleOrientation(this.activePointCloud);
         }
+      });
+    }
+
+    const btnMapAuto = card.querySelector('#btn-pc-map-auto');
+    const btnMapSwap = card.querySelector('#btn-pc-map-swap');
+    if (btnMapAuto && btnMapSwap && this.activePointCloud) {
+      btnMapAuto.addEventListener('click', () => {
+        this.activePointCloud.userData.coordinateMapping = 'auto';
+        this.renderInspectorCard();
+        if (this.app.renderMeasurementResults) this.app.renderMeasurementResults();
+        if (this.app.updateMeasureMarkersAndCallouts) this.app.updateMeasureMarkersAndCallouts();
+        if (this.app._wakeRender) this.app._wakeRender(200);
+      });
+      btnMapSwap.addEventListener('click', () => {
+        const cur = this.activePointCloud.userData.coordinateMapping;
+        this.activePointCloud.userData.coordinateMapping = (cur === 'swap_yz') ? 'asprs' : 'swap_yz';
+        this.renderInspectorCard();
+        if (this.app.renderMeasurementResults) this.app.renderMeasurementResults();
+        if (this.app.updateMeasureMarkersAndCallouts) this.app.updateMeasureMarkersAndCallouts();
+        if (this.app._wakeRender) this.app._wakeRender(200);
       });
     }
   }

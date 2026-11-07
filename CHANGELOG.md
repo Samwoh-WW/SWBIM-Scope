@@ -10,9 +10,9 @@ This document records all formal version iterations and major changes of SWBIM S
 
 ## Development Time Metrics
 
-> ⏱️ **Total Active Development Time**: **80 Hours 28 Minutes (80.47 Hours)**  
-> 📅 **Total Calendar Span**: **38 Days 17 Hours 41 Minutes** (2026-09-29 22:17 to 2026-11-07 15:59)  
-> 🔢 **Total Engineering Steps**: **32,584 Steps** (across 38 active development sprints)  
+> ⏱️ **Total Active Development Time**: **81 Hours 39 Minutes (81.65 Hours)**  
+> 📅 **Total Calendar Span**: **38 Days 18 Hours 52 Minutes** (2026-09-29 22:17 to 2026-11-07 17:10)  
+> 🔢 **Total Engineering Steps**: **32,999 Steps** (across 38 active development sprints)  
 > 🔄 **Update Policy**: Recalculated automatically from active development telemetry logs upon every distribution build.
 
 ### Daily Breakdown
@@ -39,7 +39,7 @@ This document records all formal version iterations and major changes of SWBIM S
 | **2026-10-28** | 21:15~01:33 | 4h 18m (4.31h) | Multipoint polyline & 3D polygon area measurement, self-intersection scarlet alert, 3-way multi-repo publishing pipeline |
 | **2026-11-05** | 20:40~23:30 | 2h 50m (2.83h) | Dual-scheme hotkeys, candidate popup, smooth zoom navigation & help manual refactor |
 | **2026-11-06** | 19:47~20:39, 22:52~03:19 | 5h 18m (5.32h) | Changelog comprehensive update & metrics engine overhaul |
-| **2026-11-07** | 10:25~15:59 | 5h 34m (5.57h) | Feature development |
+| **2026-11-07** | 10:25~17:10 | 6h 44m (6.75h) | Feature development |
 
 ---
 

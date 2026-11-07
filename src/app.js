@@ -1988,8 +1988,9 @@ class BimSnapEngine {
         candidate: {
           type: 'pointcloud',
           point: hit.point.clone(),
-          normal: new THREE.Vector3(0, 0, 1),
+          normal: (hit.normal && hit.normal.isVector3) ? hit.normal.clone() : new THREE.Vector3(0, 1, 0),
           targetMesh: hit.pointCloud,
+          pointCloud: hit.pointCloud,
           screenX: sx,
           screenY: sy,
           hudLabel: (window.I18N ? window.I18N.t('pointCloudSnapFeature') : 'Point Cloud Vertex') || 'Point Cloud',
@@ -9159,13 +9160,14 @@ class BIMViewerApp {
             point: snapResult.point,
             normal: snapResult.normal,
             object: snapResult.targetMesh,
+            pointCloud: snapResult.pointCloud || snapResult.targetMesh,
             face: { normal: snapResult.normal },
             isClosureSnap: !!(snapResult && snapResult.isClosureSnap)
           } : (valid.length > 0 ? valid[0] : null);
 
           if (effectiveHit) {
             const p = effectiveHit.point;
-            const northing = Math.abs(p.z);
+            const pco = effectiveHit.pointCloud || (effectiveHit.object && effectiveHit.object.isPointCloudOctree ? effectiveHit.object : null);
             if (!this.cachedCoordEls) {
               this.cachedCoordEls = {
                 x: document.getElementById('coord-x'),
@@ -9173,9 +9175,16 @@ class BIMViewerApp {
                 rl: document.getElementById('coord-rl')
               };
             }
-            if (this.cachedCoordEls.x) this.cachedCoordEls.x.textContent = Math.abs(p.x) < 0.05 ? "0.0" : p.x.toFixed(1);
-            if (this.cachedCoordEls.y) this.cachedCoordEls.y.textContent = Math.abs(-p.z) < 0.05 ? "0.0" : Math.abs(-p.z).toFixed(1);
-            if (this.cachedCoordEls.rl) this.cachedCoordEls.rl.textContent = p.y.toFixed(2);
+            if (pco) {
+              const c = this.formatMeasurePointCoords(p, pco);
+              if (this.cachedCoordEls.x) this.cachedCoordEls.x.textContent = (c.x).toFixed(1);
+              if (this.cachedCoordEls.y) this.cachedCoordEls.y.textContent = (c.y).toFixed(1);
+              if (this.cachedCoordEls.rl) this.cachedCoordEls.rl.textContent = (c.z).toFixed(2);
+            } else {
+              if (this.cachedCoordEls.x) this.cachedCoordEls.x.textContent = Math.abs(p.x) < 0.05 ? "0.0" : p.x.toFixed(1);
+              if (this.cachedCoordEls.y) this.cachedCoordEls.y.textContent = Math.abs(-p.z) < 0.05 ? "0.0" : Math.abs(-p.z).toFixed(1);
+              if (this.cachedCoordEls.rl) this.cachedCoordEls.rl.textContent = p.y.toFixed(2);
+            }
 
             if (this.measureMode === 'point') {
               this.updateMeasurePointPreview(effectiveHit);
@@ -9219,6 +9228,7 @@ class BIMViewerApp {
         if (valid.length > 0 || snapResult) {
           const hitMesh = snapResult ? snapResult.targetMesh : valid[0].object;
           const p = snapResult ? snapResult.point : (valid.length > 0 ? valid[0].point : null);
+          const pco = (snapResult && (snapResult.pointCloud || snapResult.targetMesh)) || (valid.length > 0 && valid[0].object && valid[0].object.isPointCloudOctree ? valid[0].object : null);
           
           if (!this.cachedCoordEls) {
             this.cachedCoordEls = {
@@ -9228,10 +9238,17 @@ class BIMViewerApp {
             };
           }
           if (p) {
-            const northing = Math.abs(p.z);
-            if (this.cachedCoordEls.x) this.cachedCoordEls.x.textContent = Math.abs(p.x) < 0.05 ? "0.0" : p.x.toFixed(1);
-            if (this.cachedCoordEls.y) this.cachedCoordEls.y.textContent = Math.abs(northing) < 0.05 ? "0.0" : northing.toFixed(1);
-            if (this.cachedCoordEls.rl) this.cachedCoordEls.rl.textContent = p.y.toFixed(2);
+            if (pco) {
+              const c = this.formatMeasurePointCoords(p, pco);
+              if (this.cachedCoordEls.x) this.cachedCoordEls.x.textContent = (c.x).toFixed(1);
+              if (this.cachedCoordEls.y) this.cachedCoordEls.y.textContent = (c.y).toFixed(1);
+              if (this.cachedCoordEls.rl) this.cachedCoordEls.rl.textContent = (c.z).toFixed(2);
+            } else {
+              const northing = Math.abs(p.z);
+              if (this.cachedCoordEls.x) this.cachedCoordEls.x.textContent = Math.abs(p.x) < 0.05 ? "0.0" : p.x.toFixed(1);
+              if (this.cachedCoordEls.y) this.cachedCoordEls.y.textContent = Math.abs(northing) < 0.05 ? "0.0" : northing.toFixed(1);
+              if (this.cachedCoordEls.rl) this.cachedCoordEls.rl.textContent = p.y.toFixed(2);
+            }
           }
 
           // Subtle hover highlight on current pointed element
@@ -12868,16 +12885,20 @@ class BIMViewerApp {
     // 4. Live Side Panel Feedback for Deltas and Slope
     const unit = this.measureUnit || 'm';
     const scale = unit === 'mm' ? 1000 : 1;
+    const p1Marker = this.pendingDistanceStart ? this.pendingDistanceStart.marker1 : null;
+    const c1 = this.formatMeasurePointCoords(p1, p1Marker ? p1Marker.pointCloud : null);
+    const c2 = this.formatMeasurePointCoords(p2, (candidateHit && candidateHit.pointCloud) ? candidateHit.pointCloud : (p1Marker ? p1Marker.pointCloud : null));
+
     const p2El = document.getElementById('measure-res-p2');
-    if (p2El) p2El.textContent = `(${(p2.x * scale).toFixed(2)}, ${(-p2.z * scale).toFixed(2)}, ${(p2.y * scale).toFixed(2)})`;
+    if (p2El) p2El.textContent = `(${c2.x.toFixed(2)}, ${c2.y.toFixed(2)}, ${c2.z.toFixed(2)})`;
     const distEl = document.getElementById('measure-res-distance');
     if (distEl) distEl.textContent = `${(dist * scale).toFixed(unit === 'mm' ? 0 : 3)} ${unit}`;
     const dxEl = document.getElementById('measure-res-dx');
-    if (dxEl) dxEl.textContent = `${(Math.abs(p2.x - p1.x) * scale).toFixed(unit === 'mm' ? 0 : 3)} ${unit}`;
+    if (dxEl) dxEl.textContent = `${(Math.abs(c2.x - c1.x)).toFixed(unit === 'mm' ? 0 : 3)} ${unit}`;
     const dyEl = document.getElementById('measure-res-dy');
-    if (dyEl) dyEl.textContent = `${(Math.abs((-p2.z) - (-p1.z)) * scale).toFixed(unit === 'mm' ? 0 : 3)} ${unit}`;
+    if (dyEl) dyEl.textContent = `${(Math.abs(c2.y - c1.y)).toFixed(unit === 'mm' ? 0 : 3)} ${unit}`;
     const dzEl = document.getElementById('measure-res-dz');
-    if (dzEl) dzEl.textContent = `${(Math.abs(p2.y - p1.y) * scale).toFixed(unit === 'mm' ? 0 : 3)} ${unit}`;
+    if (dzEl) dzEl.textContent = `${(Math.abs(c2.z - c1.z)).toFixed(unit === 'mm' ? 0 : 3)} ${unit}`;
     const slopeData = this.computeDistanceSlope(p1, p2);
     const slopeExp = this.formatSlopeExpressions(slopeData);
     const rEl = document.getElementById('measure-res-slope-ratio');
@@ -12943,6 +12964,7 @@ class BIMViewerApp {
       normal: slopeData.normal.clone(),
       slopeData,
       showSlopeArrow: false,
+      pointCloud: hit.pointCloud || hit.targetMesh || (hit.object && hit.object.isPointCloudOctree ? hit.object : null),
       baseColor: 0x00f0ff,
       calloutOffset: { x: 0, y: 0 },
       calloutEl: null,
@@ -12966,16 +12988,21 @@ class BIMViewerApp {
     marker.point.copy(hit.point);
     marker.normal.copy(slopeData.normal);
     marker.slopeData = slopeData;
+    if (hit.pointCloud || hit.targetMesh || (hit.object && hit.object.isPointCloudOctree)) {
+      marker.pointCloud = hit.pointCloud || hit.targetMesh || hit.object;
+    }
     this.orientMeasureMarkerToSurface(marker);
 
     const distRec = this.distanceMeasurements.find(d => d.id === marker.distanceMeasurementId);
     if (distRec) {
       const p1 = distRec.marker1.point;
       const p2 = distRec.marker2.point;
+      const c1 = this.formatMeasurePointCoords(p1, distRec.marker1 ? distRec.marker1.pointCloud : null);
+      const c2 = this.formatMeasurePointCoords(p2, distRec.marker2 ? distRec.marker2.pointCloud : null);
       const dist = p1.distanceTo(p2);
-      const dx = Math.abs(p2.x - p1.x);
-      const dy = Math.abs((-p2.z) - (-p1.z));
-      const dz = Math.abs(p2.y - p1.y);
+      const dx = Math.abs(c2.x - c1.x);
+      const dy = Math.abs(c2.y - c1.y);
+      const dz = Math.abs(c2.z - c1.z);
       distRec.data = { p1: p1.clone(), p2: p2.clone(), dist, dx, dy, dz };
 
       // Update 3D connecting line
@@ -14171,6 +14198,7 @@ class BIMViewerApp {
       normal: slopeData.normal.clone(),
       slopeData,
       showSlopeArrow: true,
+      pointCloud: hit.pointCloud || hit.targetMesh || (hit.object && hit.object.isPointCloudOctree ? hit.object : null),
       calloutOffset: { x: 44 + staggerIdx * 10, y: -56 + staggerIdx * 14 },
       calloutEl: null,
       leaderLineEl: null,
@@ -14195,6 +14223,9 @@ class BIMViewerApp {
     marker.point.copy(hit.point);
     marker.normal.copy(slopeData.normal);
     marker.slopeData = slopeData;
+    if (hit.pointCloud || hit.targetMesh || (hit.object && hit.object.isPointCloudOctree)) {
+      marker.pointCloud = hit.pointCloud || hit.targetMesh || hit.object;
+    }
 
     this.orientMeasureMarkerToSurface(marker);
     this.createOrUpdateMeasureCalloutDOM(marker);
@@ -14322,17 +14353,53 @@ class BIMViewerApp {
     this.requestRender(200);
   }
 
-  formatMeasurePointCoords(point) {
+  formatMeasurePointCoords(point, pco = null) {
     const unit = this.measureUnit || 'm';
     const scale = unit === 'mm' ? 1000 : 1;
     const decimals = unit === 'mm' ? 0 : 3;
-    // BIM Engineering Coordinate Convention: X = Easting (point.x), Y = Northing (-point.z), Z = Elevation (point.y)
-    const rawX = point.x * scale;
-    const rawY = -point.z * scale;
-    const rawZ = point.y * scale;
+    let rawX, rawY, rawZ;
+
+    if (pco && typeof pco.worldToLocal === 'function') {
+      const local = pco.worldToLocal(point.clone());
+      const mapping = pco.userData && pco.userData.coordinateMapping;
+      if (mapping === 'swap_yz') {
+        rawX = local.x * scale;
+        rawY = local.z * scale;
+        rawZ = local.y * scale;
+      } else if (mapping === 'asprs') {
+        rawX = local.x * scale;
+        rawY = local.y * scale;
+        rawZ = local.z * scale;
+      } else {
+        // Auto Geodetic Mapping:
+        // ASPRS Surveying coordinates: X = Easting, Y = Northing, Z = Elevation.
+        // If Northing is a large coordinate (thousands of meters) and Elevation is orthometric height (< 1000m),
+        // check whether local.z is the large coordinate (e.g. 36722) and local.y is small (e.g. 94).
+        const absY = Math.abs(local.y);
+        const absZ = Math.abs(local.z);
+        if (absZ > 1000 && absY < 1000) {
+          rawX = local.x * scale;
+          rawY = local.z * scale;
+          rawZ = local.y * scale;
+        } else {
+          rawX = local.x * scale;
+          rawY = local.y * scale;
+          rawZ = local.z * scale;
+        }
+      }
+    } else {
+      // BIM Engineering Coordinate Convention: X = Easting (point.x), Y = Northing (-point.z), Z = Elevation (point.y)
+      rawX = point.x * scale;
+      rawY = -point.z * scale;
+      rawZ = point.y * scale;
+    }
+
     const cleanZero = (v) => (Math.abs(v) < 1e-5 ? 0 : v);
     return {
       unit,
+      x: cleanZero(rawX),
+      y: cleanZero(rawY),
+      z: cleanZero(rawZ),
       xStr: `${cleanZero(rawX).toFixed(decimals)} ${unit}`,
       yStr: `${cleanZero(rawY).toFixed(decimals)} ${unit}`,
       zStr: `${cleanZero(rawZ).toFixed(decimals)} ${unit}`
@@ -14360,7 +14427,7 @@ class BIMViewerApp {
     const svgEl = document.getElementById('measure-leader-svg');
     if (!listEl || !svgEl) return;
 
-    const coords = this.formatMeasurePointCoords(marker.point);
+    const coords = this.formatMeasurePointCoords(marker.point, marker.pointCloud);
     const slopeStr = this.formatSlopeString(marker.slopeData);
     const copyTooltip = I18N.t('measureCopyTooltip');
     const slopeLabel = I18N.t('measureMaxSlope');
@@ -14420,7 +14487,7 @@ class BIMViewerApp {
         copyBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           e.preventDefault();
-          const c = this.formatMeasurePointCoords(marker.point);
+          const c = this.formatMeasurePointCoords(marker.point, marker.pointCloud);
           const s = this.formatSlopeString(marker.slopeData);
           const text = `X: ${c.xStr}\nY: ${c.yStr}\nZ: ${c.zStr}\n${I18N.t('measureMaxSlope')}: ${s}`;
           copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
@@ -15275,6 +15342,7 @@ class BIMViewerApp {
       normal: slopeData.normal.clone(),
       slopeData,
       showSlopeArrow: false,
+      pointCloud: hit.pointCloud || hit.targetMesh || (hit.object && hit.object.isPointCloudOctree ? hit.object : null),
       baseColor: 0x00f0ff,
       calloutOffset: { x: 0, y: 0 },
       calloutEl: badgeEl,
@@ -15584,6 +15652,9 @@ class BIMViewerApp {
     marker.point.copy(hit.point);
     marker.normal.copy(slopeData.normal);
     marker.slopeData = slopeData;
+    if (hit.pointCloud || hit.targetMesh || (hit.object && hit.object.isPointCloudOctree)) {
+      marker.pointCloud = hit.pointCloud || hit.targetMesh || hit.object;
+    }
 
     this.orientMeasureMarkerToSurface(marker);
 
@@ -16729,8 +16800,9 @@ class BIMViewerApp {
         const unit = this.measureUnit || 'm';
         const scale = unit === 'mm' ? 1000 : 1;
         const p1 = effectiveHit.point;
+        const c1 = this.formatMeasurePointCoords(p1, marker1 ? marker1.pointCloud : null);
         const p1El = document.getElementById('measure-res-p1');
-        if (p1El) p1El.textContent = `(${(p1.x * scale).toFixed(2)}, ${(-p1.z * scale).toFixed(2)}, ${(p1.y * scale).toFixed(2)})`;
+        if (p1El) p1El.textContent = `(${c1.x.toFixed(2)}, ${c1.y.toFixed(2)}, ${c1.z.toFixed(2)})`;
         const p2El = document.getElementById('measure-res-p2');
         if (p2El) p2El.textContent = '--';
         const distEl = document.getElementById('measure-res-distance');
@@ -16782,9 +16854,11 @@ class BIMViewerApp {
         calloutEl.className = 'measure-distance-callout';
 
         const dist = p1.distanceTo(p2);
-        const dx = Math.abs(p2.x - p1.x);
-        const dy = Math.abs((-p2.z) - (-p1.z));
-        const dz = Math.abs(p2.y - p1.y);
+        const c1 = this.formatMeasurePointCoords(p1, marker1 ? marker1.pointCloud : null);
+        const c2 = this.formatMeasurePointCoords(p2, marker2 ? marker2.pointCloud : null);
+        const dx = Math.abs(c2.x - c1.x);
+        const dy = Math.abs(c2.y - c1.y);
+        const dz = Math.abs(c2.z - c1.z);
 
         const distRec = {
           id: distId,
@@ -17030,7 +17104,7 @@ class BIMViewerApp {
     const ptSlopeEl = document.getElementById('measure-res-pt-slope');
 
     if (activePt) {
-      const c = this.formatMeasurePointCoords(activePt.point);
+      const c = this.formatMeasurePointCoords(activePt.point, activePt.pointCloud);
       const slopeExp = this.formatSlopeExpressions(activePt.slopeData);
       if (elevEl) elevEl.textContent = c.zStr;
       if (ptXEl) ptXEl.textContent = c.xStr;
@@ -17148,13 +17222,14 @@ class BIMViewerApp {
       if (dEl) dEl.textContent = slopeExp.deg;
       const slopeEl = document.getElementById('measure-res-slope');
       if (slopeEl) slopeEl.textContent = slopeExp.full;
-      if (p1El) p1El.textContent = `(${(p1.x * scale).toFixed(2)}, ${(-p1.z * scale).toFixed(2)}, ${(p1.y * scale).toFixed(2)})`;
-      if (p2El) p2El.textContent = `(${(p2.x * scale).toFixed(2)}, ${(-p2.z * scale).toFixed(2)}, ${(p2.y * scale).toFixed(2)})`;
+      const c1 = this.formatMeasurePointCoords(p1, activeDist.marker1 ? activeDist.marker1.pointCloud : null);
+      const c2 = this.formatMeasurePointCoords(p2, activeDist.marker2 ? activeDist.marker2.pointCloud : null);
+      if (p1El) p1El.textContent = `(${c1.x.toFixed(2)}, ${c1.y.toFixed(2)}, ${c1.z.toFixed(2)})`;
+      if (p2El) p2El.textContent = `(${c2.x.toFixed(2)}, ${c2.y.toFixed(2)}, ${c2.z.toFixed(2)})`;
     } else if (this.pendingDistanceStart) {
       const p1 = this.pendingDistanceStart.point;
-      const unit = this.measureUnit || 'm';
-      const scale = unit === 'mm' ? 1000 : 1;
-      if (p1El) p1El.textContent = `(${(p1.x * scale).toFixed(2)}, ${(-p1.z * scale).toFixed(2)}, ${(p1.y * scale).toFixed(2)})`;
+      const c1 = this.formatMeasurePointCoords(p1, this.pendingDistanceStart.marker1 ? this.pendingDistanceStart.marker1.pointCloud : null);
+      if (p1El) p1El.textContent = `(${c1.x.toFixed(2)}, ${c1.y.toFixed(2)}, ${c1.z.toFixed(2)})`;
       if (p2El) p2El.textContent = '--';
       if (resDistEl) resDistEl.textContent = '--';
       if (dxEl) dxEl.textContent = '--';
