@@ -247,10 +247,19 @@ class BIMPointCloudManager {
   }
 
   onPointCloudLoaded(pco) {
-    // Standard Coordinate Conversion: ASPRS LAS/LAZ files use surveying coordinates (Z-up).
-    // In Three.js / BIM Scope (Y-up), rotate -90 deg on X so elevation becomes +Y (matching IFC & FBX).
+    // Potree constructor in potree-core copies raw offset: pco.position.copy(pcoGeometry.offset);
+    // In surveying (ASPRS LAS/LAZ): X = Easting, Y = Northing, Z = Elevation (Z-up).
+    // In Three.js / BIM Scope (Y-up):
+    // Three.js X = Easting
+    // Three.js Y = Elevation (Z_las)
+    // Three.js Z = -Northing (-Y_las)
+    const rawOffset = (pco.pcoGeometry && pco.pcoGeometry.offset) ? pco.pcoGeometry.offset.clone() : pco.position.clone();
+    pco.userData._rawOffset = rawOffset.clone();
+    pco.position.set(rawOffset.x, rawOffset.z, -rawOffset.y);
     pco.rotation.x = -Math.PI / 2;
     pco.userData._isZUp = true;
+    pco.isPointCloud = true;
+    pco.userData.isPointCloud = true;
     pco.updateMatrixWorld(true);
 
     // Configure Point Cloud Material
@@ -290,9 +299,12 @@ class BIMPointCloudManager {
     if (!pco) return;
     const isZUp = Boolean(pco.userData._isZUp);
     pco.userData._isZUp = !isZUp;
+    const rawOffset = pco.userData._rawOffset || (pco.pcoGeometry && pco.pcoGeometry.offset) || new THREE.Vector3();
     if (pco.userData._isZUp) {
+      pco.position.set(rawOffset.x, rawOffset.z, -rawOffset.y);
       pco.rotation.x = -Math.PI / 2;
     } else {
+      pco.position.set(rawOffset.x, rawOffset.y, rawOffset.z);
       pco.rotation.x = 0;
     }
     pco.updateMatrixWorld(true);
@@ -636,7 +648,7 @@ class BIMPointCloudManager {
           point: hit.position.clone(),
           normal: (hit.normal && hit.normal.isVector3) ? hit.normal.clone() : new THREE.Vector3(0, 1, 0),
           distance: this.app.camera.position.distanceTo(hit.position),
-          pointCloud: hit.pointCloud || hit.pointcloud,
+          pointCloud: hit.pointCloud || hit.pointcloud || (visiblePcos.length === 1 ? visiblePcos[0] : null),
           index: hit.pointIndex
         };
       }
@@ -704,8 +716,8 @@ class BIMPointCloudManager {
       if (box) {
         const c = box.getCenter(new THREE.Vector3());
         const s = box.getSize(new THREE.Vector3());
-        centerStr = `X: ${c.x.toFixed(1)}, Y: ${c.y.toFixed(1)}, Z: ${c.z.toFixed(1)}`;
-        sizeStr = `ΔX: ${s.x.toFixed(1)}m, ΔY: ${s.y.toFixed(1)}m, ΔZ: ${s.z.toFixed(1)}m`;
+        centerStr = `X: ${c.x.toFixed(1)}, Y: ${(-c.z).toFixed(1)}, RL: ${c.y.toFixed(1)}`;
+        sizeStr = `ΔX: ${s.x.toFixed(1)}m, ΔY: ${s.z.toFixed(1)}m, ΔRL: ${s.y.toFixed(1)}m`;
       }
     }
 

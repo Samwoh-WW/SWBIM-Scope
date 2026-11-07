@@ -4581,9 +4581,10 @@ class BIMViewerApp {
       }
     }
     
-    // Check ancestor hierarchy for helpers, gizmos, or overlays
+    // Check ancestor hierarchy for helpers, gizmos, overlays, or hidden parent models
     let curr = obj;
     while (curr) {
+      if (curr.visible === false) return false;
       if (this.clippingEngine && (curr === this.clippingEngine.planeGroup || curr === this.clippingEngine.boxGroup)) return false;
       if (curr === this.pivotHelper || curr === this.highlightOverlayGroup || curr === this.hoverOverlayGroup) return false;
       if (curr.userData && (curr.userData.isGizmo || curr.userData.isBoxHelper || 
@@ -9106,6 +9107,21 @@ class BIMViewerApp {
           snapResult = this.snapEngine.resolveSnap(clientX, clientY, this.camera, valid.length > 0 ? valid[0] : null);
         }
 
+        // Direct Point Cloud hover detection (when hovering over point clouds)
+        let pcHoverHit = null;
+        if (this.pointCloudManager && this.pointCloudManager.pointClouds.length > 0) {
+          if (snapResult && (snapResult.type === 'pointcloud' || snapResult.pointCloud)) {
+            pcHoverHit = snapResult;
+          } else {
+            const rawPcHit = this.pointCloudManager.raycast(this.raycaster, 25);
+            if (rawPcHit && rawPcHit.point) {
+              if (valid.length === 0 || rawPcHit.distance < valid[0].distance) {
+                pcHoverHit = rawPcHit;
+              }
+            }
+          }
+        }
+
         // Multi-point measurement: magnetic snap to closure point (Pt #1 in append, or Pt #last in prepend)
         let multiPointClosureSnap = null;
         if (this.isMeasureMode && this.measureMode === 'multipoint' && this.multiPointState && this.multiPointState.isDrawing && this.multiPointState.points.length >= 2 && this.multiPointInsertSegIdx < 0) {
@@ -9159,15 +9175,20 @@ class BIMViewerApp {
           let effectiveHit = snapResult ? {
             point: snapResult.point,
             normal: snapResult.normal,
-            object: snapResult.targetMesh,
+            object: snapResult.targetMesh || snapResult.pointCloud,
             pointCloud: snapResult.pointCloud || snapResult.targetMesh,
             face: { normal: snapResult.normal },
             isClosureSnap: !!(snapResult && snapResult.isClosureSnap)
-          } : (valid.length > 0 ? valid[0] : null);
+          } : (pcHoverHit ? {
+            point: pcHoverHit.point,
+            normal: pcHoverHit.normal,
+            object: pcHoverHit.pointCloud,
+            pointCloud: pcHoverHit.pointCloud,
+            face: { normal: pcHoverHit.normal }
+          } : (valid.length > 0 ? valid[0] : null));
 
           if (effectiveHit) {
             const p = effectiveHit.point;
-            const pco = effectiveHit.pointCloud || (effectiveHit.object && effectiveHit.object.isPointCloudOctree ? effectiveHit.object : null);
             if (!this.cachedCoordEls) {
               this.cachedCoordEls = {
                 x: document.getElementById('coord-x'),
@@ -9175,16 +9196,10 @@ class BIMViewerApp {
                 rl: document.getElementById('coord-rl')
               };
             }
-            if (pco) {
-              const c = this.formatMeasurePointCoords(p, pco);
-              if (this.cachedCoordEls.x) this.cachedCoordEls.x.textContent = (c.x).toFixed(1);
-              if (this.cachedCoordEls.y) this.cachedCoordEls.y.textContent = (c.y).toFixed(1);
-              if (this.cachedCoordEls.rl) this.cachedCoordEls.rl.textContent = (c.z).toFixed(2);
-            } else {
-              if (this.cachedCoordEls.x) this.cachedCoordEls.x.textContent = Math.abs(p.x) < 0.05 ? "0.0" : p.x.toFixed(1);
-              if (this.cachedCoordEls.y) this.cachedCoordEls.y.textContent = Math.abs(-p.z) < 0.05 ? "0.0" : Math.abs(-p.z).toFixed(1);
-              if (this.cachedCoordEls.rl) this.cachedCoordEls.rl.textContent = p.y.toFixed(2);
-            }
+            const c = this.formatMeasurePointCoords(p, effectiveHit.pointCloud);
+            if (this.cachedCoordEls.x) this.cachedCoordEls.x.textContent = (c.x).toFixed(1);
+            if (this.cachedCoordEls.y) this.cachedCoordEls.y.textContent = (c.y).toFixed(1);
+            if (this.cachedCoordEls.rl) this.cachedCoordEls.rl.textContent = (c.z).toFixed(2);
 
             if (this.measureMode === 'point') {
               this.updateMeasurePointPreview(effectiveHit);
@@ -9225,10 +9240,10 @@ class BIMViewerApp {
           return;
         }
 
-        if (valid.length > 0 || snapResult) {
-          const hitMesh = snapResult ? snapResult.targetMesh : valid[0].object;
-          const p = snapResult ? snapResult.point : (valid.length > 0 ? valid[0].point : null);
-          const pco = (snapResult && (snapResult.pointCloud || snapResult.targetMesh)) || (valid.length > 0 && valid[0].object && valid[0].object.isPointCloudOctree ? valid[0].object : null);
+        if (valid.length > 0 || snapResult || pcHoverHit) {
+          const hitMesh = snapResult ? (snapResult.targetMesh || snapResult.pointCloud) : (pcHoverHit ? pcHoverHit.pointCloud : valid[0].object);
+          const p = snapResult ? snapResult.point : (pcHoverHit ? pcHoverHit.point : (valid.length > 0 ? valid[0].point : null));
+          const pco = (snapResult && (snapResult.pointCloud || snapResult.targetMesh)) || (pcHoverHit && pcHoverHit.pointCloud) || (valid.length > 0 && valid[0].object && (valid[0].object.isPointCloud || valid[0].object.isPointCloudOctree) ? valid[0].object : null);
           
           if (!this.cachedCoordEls) {
             this.cachedCoordEls = {
@@ -9238,17 +9253,10 @@ class BIMViewerApp {
             };
           }
           if (p) {
-            if (pco) {
-              const c = this.formatMeasurePointCoords(p, pco);
-              if (this.cachedCoordEls.x) this.cachedCoordEls.x.textContent = (c.x).toFixed(1);
-              if (this.cachedCoordEls.y) this.cachedCoordEls.y.textContent = (c.y).toFixed(1);
-              if (this.cachedCoordEls.rl) this.cachedCoordEls.rl.textContent = (c.z).toFixed(2);
-            } else {
-              const northing = Math.abs(p.z);
-              if (this.cachedCoordEls.x) this.cachedCoordEls.x.textContent = Math.abs(p.x) < 0.05 ? "0.0" : p.x.toFixed(1);
-              if (this.cachedCoordEls.y) this.cachedCoordEls.y.textContent = Math.abs(northing) < 0.05 ? "0.0" : northing.toFixed(1);
-              if (this.cachedCoordEls.rl) this.cachedCoordEls.rl.textContent = p.y.toFixed(2);
-            }
+            const c = this.formatMeasurePointCoords(p, pco);
+            if (this.cachedCoordEls.x) this.cachedCoordEls.x.textContent = (c.x).toFixed(1);
+            if (this.cachedCoordEls.y) this.cachedCoordEls.y.textContent = (c.y).toFixed(1);
+            if (this.cachedCoordEls.rl) this.cachedCoordEls.rl.textContent = (c.z).toFixed(2);
           }
 
           // Subtle hover highlight on current pointed element
@@ -11679,10 +11687,23 @@ class BIMViewerApp {
         const snap = this.snapEngine.currentSnap || this.snapEngine.resolveSnap(e.clientX, e.clientY, this.camera, hit);
         if (snap) {
           hit = {
-            object: snap.targetMesh,
+            object: snap.targetMesh || snap.pointCloud,
             point: snap.point,
             normal: snap.normal,
-            face: { normal: snap.normal }
+            face: { normal: snap.normal },
+            pointCloud: snap.pointCloud || snap.targetMesh
+          };
+        }
+      }
+      if (!hit && this.pointCloudManager && this.pointCloudManager.pointClouds.length > 0) {
+        const pcHit = this.pointCloudManager.raycast(this.raycaster, 25);
+        if (pcHit && pcHit.point) {
+          hit = {
+            object: pcHit.pointCloud,
+            point: pcHit.point,
+            normal: pcHit.normal || new THREE.Vector3(0, 1, 0),
+            face: { normal: pcHit.normal || new THREE.Vector3(0, 1, 0) },
+            pointCloud: pcHit.pointCloud
           };
         }
       }
@@ -12964,7 +12985,7 @@ class BIMViewerApp {
       normal: slopeData.normal.clone(),
       slopeData,
       showSlopeArrow: false,
-      pointCloud: hit.pointCloud || hit.targetMesh || (hit.object && hit.object.isPointCloudOctree ? hit.object : null),
+      pointCloud: hit.pointCloud || hit.targetMesh || (hit.object && (hit.object.isPointCloud || hit.object.isPointCloudOctree) ? hit.object : (this.pointCloudManager && this.pointCloudManager.activePointCloud)),
       baseColor: 0x00f0ff,
       calloutOffset: { x: 0, y: 0 },
       calloutEl: null,
@@ -13043,7 +13064,11 @@ class BIMViewerApp {
     const slopeData = this.computeDistanceSlope(distRec.data.p1, distRec.data.p2);
     const slopeStr = this.formatSlopeString(slopeData);
     const slopeLabel = I18N.t('measureSlope') || 'Slope';
-    distRec.calloutEl.title = `${I18N.t('measureDist')}: ${dVal} ${unit}\nΔX: ${dxVal} ${unit}\nΔY: ${dyVal} ${unit}\nΔZ: ${dzVal} ${unit}\n${slopeLabel}: ${slopeStr}\nClick to copy, Shift+Click to delete`;
+    const isZh = (typeof I18N !== 'undefined' ? I18N.currentLang : 'zh') === 'zh';
+    const xLabel = isZh ? 'Δ东 (ΔX)' : 'ΔEasting (ΔX)';
+    const yLabel = isZh ? 'Δ北 (ΔY)' : 'ΔNorthing (ΔY)';
+    const zLabel = isZh ? 'Δ高差 (ΔZ/RL)' : 'ΔHeight (ΔZ/RL)';
+    distRec.calloutEl.title = ${I18N.t('measureDist')}:  \n:  \n:  \n:  \n: \nClick to copy, Shift+Click to delete;
   }
 
   deleteDistanceMeasurement(id) {
@@ -14357,42 +14382,18 @@ class BIMViewerApp {
     const unit = this.measureUnit || 'm';
     const scale = unit === 'mm' ? 1000 : 1;
     const decimals = unit === 'mm' ? 0 : 3;
-    let rawX, rawY, rawZ;
 
-    if (pco && typeof pco.worldToLocal === 'function') {
-      const local = pco.worldToLocal(point.clone());
-      const mapping = pco.userData && pco.userData.coordinateMapping;
-      if (mapping === 'swap_yz') {
-        rawX = local.x * scale;
-        rawY = local.z * scale;
-        rawZ = local.y * scale;
-      } else if (mapping === 'asprs') {
-        rawX = local.x * scale;
-        rawY = local.y * scale;
-        rawZ = local.z * scale;
-      } else {
-        // Auto Geodetic Mapping:
-        // ASPRS Surveying coordinates: X = Easting, Y = Northing, Z = Elevation.
-        // If Northing is a large coordinate (thousands of meters) and Elevation is orthometric height (< 1000m),
-        // check whether local.z is the large coordinate (e.g. 36722) and local.y is small (e.g. 94).
-        const absY = Math.abs(local.y);
-        const absZ = Math.abs(local.z);
-        if (absZ > 1000 && absY < 1000) {
-          rawX = local.x * scale;
-          rawY = local.z * scale;
-          rawZ = local.y * scale;
-        } else {
-          rawX = local.x * scale;
-          rawY = local.y * scale;
-          rawZ = local.z * scale;
-        }
-      }
-    } else {
-      // BIM Engineering Coordinate Convention: X = Easting (point.x), Y = Northing (-point.z), Z = Elevation (point.y)
-      rawX = point.x * scale;
-      rawY = -point.z * scale;
-      rawZ = point.y * scale;
-    }
+    // BIM Scope World Coordinate Convention (Both IFC models and Y-up Point Clouds):
+    // World X = Easting
+    // World Y = Elevation (RL)
+    // World Z = -Northing
+    // Therefore:
+    // Easting = point.x
+    // Northing = -point.z
+    // Elevation = point.y
+    const rawX = point.x * scale;
+    const rawY = -point.z * scale;
+    const rawZ = point.y * scale;
 
     const cleanZero = (v) => (Math.abs(v) < 1e-5 ? 0 : v);
     return {
@@ -16509,7 +16510,9 @@ class BIMViewerApp {
       effectiveHit = {
         ...hitOrPoint,
         point: snap.point,
-        face: { ...(hitOrPoint.face || {}), normal: snap.normal }
+        face: { ...(hitOrPoint.face || {}), normal: snap.normal },
+        normal: snap.normal,
+        pointCloud: snap.pointCloud || snap.targetMesh || hitOrPoint.pointCloud
       };
     }
 
