@@ -83,6 +83,7 @@ class BIMPointCloudManager {
     this.potree = null;
     this.pointClouds = [];
     this.activePointCloud = null;
+    this.isPointCloudSelected = false;
 
     // Visual & Rendering Configuration
     this.pointSize = 1.0;
@@ -179,11 +180,22 @@ class BIMPointCloudManager {
 
     const fileMap = new Map();
     for (const f of fileList) {
-      fileMap.set(f.name.toLowerCase(), f);
+      const baseName = f.name.toLowerCase();
+      fileMap.set(baseName, f);
+      if (f.webkitRelativePath) {
+        const relBase = f.webkitRelativePath.split('/').pop().toLowerCase();
+        fileMap.set(relBase, f);
+      }
     }
 
     if (!fileMap.has('metadata.json')) {
       if (this.app.showToast) this.app.showToast('metadata.json not found in dropped files', 3000);
+      return null;
+    }
+
+    // Check if octree.bin exists in the dropped files
+    if (!fileMap.has('octree.bin')) {
+      this.showMissingBinModal();
       return null;
     }
 
@@ -217,6 +229,7 @@ class BIMPointCloudManager {
     this.app.scene.add(pco);
     this.pointClouds.push(pco);
     this.activePointCloud = pco;
+    this.isPointCloudSelected = true;
 
     // Link with existing clipping planes
     this.syncClippingWithApp();
@@ -227,10 +240,8 @@ class BIMPointCloudManager {
     // Update Right Sidebar Inspector
     this.renderInspectorCard();
 
-    // Fit View if no other models loaded, or frame with scene
-    if (!this.app.objects || this.app.objects.length === 0) {
-      this.fitPointCloudView(pco);
-    }
+    // Fit View to point cloud
+    this.fitPointCloudView(pco);
 
     const pointCount = this.getPointCloudPointCount(pco);
     const countStr = (pointCount || 0).toLocaleString();
@@ -240,7 +251,7 @@ class BIMPointCloudManager {
     }
 
     if (this.app._wakeRender) {
-      this.app._wakeRender();
+      this.app._wakeRender(1000);
     }
   }
 
@@ -289,7 +300,10 @@ class BIMPointCloudManager {
   update(camera, renderer) {
     if (!this.potree || this.pointClouds.length === 0) return;
     try {
-      this.potree.updatePointClouds(this.pointClouds, camera, renderer);
+      const res = this.potree.updatePointClouds(this.pointClouds, camera, renderer);
+      if ((res && res.nodeLoadPromises && res.nodeLoadPromises.length > 0) || (this.potree.numNodesLoading > 0)) {
+        if (this.app._wakeRender) this.app._wakeRender(250);
+      }
     } catch (e) {
       // Catch any frame-rate worker synchronization glitches silently
     }
@@ -316,31 +330,111 @@ class BIMPointCloudManager {
     }
   }
 
-  fitPointCloudView(pco = this.activePointCloud) {
-    if (!pco || !this.app || !this.app.camera) return;
-    const srcBox = (pco.pcoGeometry && pco.pcoGeometry.boundingBox) ? pco.pcoGeometry.boundingBox : pco.boundingBox;
-    if (!srcBox) return;
-    const box = srcBox.clone();
+  getWorldBoundingBox(pco = this.activePointCloud) {
+    if (!pco) return null;
+    pco.updateMatrixWorld(true);
+    let box = null;
+    if (pco.pcoGeometry && pco.pcoGeometry.boundingBox) {
+      box = pco.pcoGeometry.boundingBox.clone();
+    } else if (pco.boundingBox) {
+      box = pco.boundingBox.clone();
+    }
+    if (!box) return null;
     box.applyMatrix4(pco.matrixWorld);
+    return box;
+  }
+
+  fitPointCloudView(pco = this.activePointCloud, immediate = false) {
+    if (!pco || !this.app || !this.app.camera) return;
+    const box = this.getWorldBoundingBox(pco);
+    if (!box) return;
 
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z, 5.0);
 
-    const fov = (this.app.camera.fov || 60) * (Math.PI / 180);
-    const cameraDist = (maxDim / 2) / Math.tan(fov / 2) * 1.5;
+    const fov = (this.app.camera.fov || 45) * (Math.PI / 180);
+    const cameraDist = Math.max((maxDim / 2) / Math.tan(fov / 2) * 1.5, 10.0);
+
+    const neededFar = Math.max(this.app.camera.far || 5000, cameraDist * 4 + maxDim * 2);
+    if (this.app.camera.far < neededFar) {
+      if (typeof this.app.setFarClip === 'function') {
+        this.app.setFarClip(neededFar, true);
+      } else {
+        this.app.camera.far = neededFar;
+        this.app.camera.updateProjectionMatrix();
+      }
+    }
 
     const offsetDir = new THREE.Vector3(1, 1, 0.8).normalize();
-    this.app.camera.position.copy(center).addScaledVector(offsetDir, cameraDist);
+    const targetCam = center.clone().addScaledVector(offsetDir, cameraDist);
+
+    if (this.app.pivotPoint) {
+      this.app.pivotPoint.copy(center);
+      if (typeof this.app.showPivotIndicator === 'function') {
+        this.app.showPivotIndicator(center);
+      }
+    }
 
     if (this.app.controls && this.app.controls.target) {
       this.app.controls.target.copy(center);
-      this.app.controls.update();
     }
-    this.app.camera.lookAt(center);
 
-    if (this.app.compass3d) this.app.compass3d.update();
-    if (this.app._wakeRender) this.app._wakeRender();
+    if (immediate || !this.app.tweenCamera) {
+      this.app.camera.position.copy(targetCam);
+      this.app.camera.lookAt(center);
+      if (this.app.controls) this.app.controls.update();
+      if (this.app.compass3d) this.app.compass3d.update();
+      if (!this.app.isNavigatingViewHistory && typeof this.app.pushViewSnapshot === 'function') {
+        this.app.pushViewSnapshot();
+      }
+    } else {
+      this.app.tweenCamera(targetCam, center);
+    }
+
+    this.isPointCloudSelected = true;
+    this.updateModelHierarchyTree();
+    this.renderInspectorCard();
+
+    if (this.app._wakeRender) {
+      this.app._wakeRender(1000);
+    }
+  }
+
+  centerToOrigin(pco = this.activePointCloud) {
+    if (!pco) return;
+    const box = this.getWorldBoundingBox(pco);
+    if (!box) return;
+
+    const center = box.getCenter(new THREE.Vector3());
+    if (!pco.userData._originalPosition) {
+      pco.userData._originalPosition = pco.position.clone();
+    }
+
+    pco.position.sub(center);
+    pco.updateMatrixWorld(true);
+
+    this.fitPointCloudView(pco);
+    this.renderInspectorCard();
+
+    if (this.app.showToast) {
+      const msg = window.I18N ? window.I18N.t('pointCloudCenteredToast') : 'Point cloud centered to [0, 0, 0]';
+      this.app.showToast(msg, 3500);
+    }
+  }
+
+  restoreOriginalCoordinates(pco = this.activePointCloud) {
+    if (!pco || !pco.userData._originalPosition) return;
+    pco.position.copy(pco.userData._originalPosition);
+    pco.updateMatrixWorld(true);
+
+    this.fitPointCloudView(pco);
+    this.renderInspectorCard();
+
+    if (this.app.showToast) {
+      const msg = window.I18N ? window.I18N.t('pointCloudRestoredToast') : 'Original coordinates restored';
+      this.app.showToast(msg, 3500);
+    }
   }
 
   // --- SNAPPING & RAYCASTING ---
@@ -377,42 +471,74 @@ class BIMPointCloudManager {
 
   // --- LEFT SIDEBAR MODEL HIERARCHY TREE ---
   updateModelHierarchyTree() {
-    const treeContainer = document.getElementById('model-tree') || document.getElementById('structures-tree');
-    if (!treeContainer) return;
+    const structTree = document.getElementById('tree-structures');
+    const tabStruct = document.getElementById('tab-struct-content');
+    const targetParent = structTree ? structTree.parentNode : tabStruct;
+    if (!targetParent) return;
 
     let pcTreeGroup = document.getElementById('tree-group-pointcloud');
     if (!pcTreeGroup) {
       pcTreeGroup = document.createElement('div');
       pcTreeGroup.id = 'tree-group-pointcloud';
       pcTreeGroup.className = 'tree-node-group pointcloud-group';
-      treeContainer.prepend(pcTreeGroup); // Place at top of hierarchy for fast access
+      if (structTree) {
+        targetParent.insertBefore(pcTreeGroup, structTree);
+      } else {
+        targetParent.prepend(pcTreeGroup);
+      }
     }
 
     const isZh = (window.I18N ? window.I18N.currentLang : 'zh') === 'zh';
     const totalPoints = this.pointClouds.reduce((sum, p) => sum + this.getPointCloudPointCount(p), 0);
+    const isSelected = this.isPointCloudSelected;
 
     pcTreeGroup.innerHTML = `
-      <div class="tree-node-row" style="display:flex; align-items:center; justify-content:space-between; padding:6px 8px; background:rgba(56,189,248,0.08); border-radius:6px; margin-bottom:6px; border:1px solid rgba(56,189,248,0.25);">
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span style="font-size:15px;">☁️</span>
-          <span style="font-size:12.5px; font-weight:700; color:var(--accent);">${isZh ? '点云图层 (Point Cloud)' : 'Point Cloud Layer'}</span>
-          <span style="font-size:11px; color:var(--text-secondary); font-family:var(--font-mono);">(${((totalPoints || 0)).toLocaleString()} pts)</span>
+      <div class="tree-node-row pc-tree-item ${isSelected ? 'selected' : ''}" style="display:flex; align-items:center; justify-content:space-between; padding:8px 10px; background:${isSelected ? 'rgba(56,189,248,0.22)' : 'rgba(56,189,248,0.09)'}; border-radius:6px; margin:6px 0; border:1px solid ${isSelected ? 'var(--accent)' : 'rgba(56,189,248,0.35)'}; cursor:pointer; transition:all 0.15s ease;">
+        <div class="pc-tree-info" style="display:flex; align-items:center; gap:8px; min-width:0; flex:1;">
+          <span style="font-size:16px;">☁️</span>
+          <div style="display:flex; flex-direction:column; min-width:0;">
+            <span style="font-size:12px; font-weight:700; color:var(--accent); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${isZh ? '点云图层 (Point Cloud)' : 'Point Cloud Layer'}</span>
+            <span style="font-size:10px; color:var(--text-muted); font-family:var(--font-mono);">${((totalPoints || 0)).toLocaleString()} pts · ${isZh ? '双击聚焦' : 'DblClick Focus'}</span>
+          </div>
         </div>
-        <div style="display:flex; align-items:center; gap:10px;">
-          <button type="button" class="pc-tree-vis-btn" id="btn-pc-toggle-vis" title="Toggle Visibility" style="background:none; border:none; color:var(--accent); cursor:pointer; font-size:14px; padding:2px;">
+        <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+          <button type="button" class="small-btn pc-tree-focus-btn" id="btn-pc-tree-focus" title="${isZh ? '聚焦到点云' : 'Zoom to Point Cloud'}" style="padding:2px 7px; font-size:11px; background:rgba(56,189,248,0.18); border:1px solid rgba(56,189,248,0.4); color:var(--accent); border-radius:4px; cursor:pointer;">🎯 ${isZh ? '聚焦' : 'Focus'}</button>
+          <button type="button" class="pc-tree-vis-btn" id="btn-pc-toggle-vis" title="${isZh ? '显示/隐藏点云' : 'Toggle Visibility'}" style="background:none; border:none; color:var(--accent); cursor:pointer; font-size:15px; padding:2px 4px;">
             ${this.activePointCloud && this.activePointCloud.visible ? '👁️' : '👁️‍🗨️'}
           </button>
         </div>
       </div>
     `;
 
+    const row = pcTreeGroup.querySelector('.pc-tree-item');
+    if (row) {
+      row.onclick = (e) => {
+        if (e.target.closest('#btn-pc-tree-focus') || e.target.closest('#btn-pc-toggle-vis')) return;
+        this.isPointCloudSelected = true;
+        this.updateModelHierarchyTree();
+        this.renderInspectorCard();
+      };
+      row.ondblclick = (e) => {
+        if (e.target.closest('#btn-pc-toggle-vis')) return;
+        this.fitPointCloudView();
+      };
+    }
+
+    const focusBtn = pcTreeGroup.querySelector('#btn-pc-tree-focus');
+    if (focusBtn) {
+      focusBtn.onclick = (e) => {
+        e.stopPropagation();
+        this.fitPointCloudView();
+      };
+    }
+
     const visBtn = pcTreeGroup.querySelector('#btn-pc-toggle-vis');
     if (visBtn) {
-      visBtn.addEventListener('click', (e) => {
+      visBtn.onclick = (e) => {
         e.stopPropagation();
         this.toggleVisibility();
         visBtn.textContent = this.activePointCloud && this.activePointCloud.visible ? '👁️' : '👁️‍🗨️';
-      });
+      };
     }
   }
 
@@ -444,6 +570,20 @@ class BIMPointCloudManager {
     const isZh = (window.I18N ? window.I18N.currentLang : 'zh') === 'zh';
     const numPoints = this.getPointCloudPointCount(this.activePointCloud);
 
+    let centerStr = '-';
+    let sizeStr = '-';
+    if (this.activePointCloud) {
+      const box = this.getWorldBoundingBox(this.activePointCloud);
+      if (box) {
+        const c = box.getCenter(new THREE.Vector3());
+        const s = box.getSize(new THREE.Vector3());
+        centerStr = `X: ${c.x.toFixed(1)}, Y: ${c.y.toFixed(1)}, Z: ${c.z.toFixed(1)}`;
+        sizeStr = `ΔX: ${s.x.toFixed(1)}m, ΔY: ${s.y.toFixed(1)}m, ΔZ: ${s.z.toFixed(1)}m`;
+      }
+    }
+
+    const hasOriginalPos = Boolean(this.activePointCloud && this.activePointCloud.userData && this.activePointCloud.userData._originalPosition);
+
     card.innerHTML = `
       <div class="inspector-card-header" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
         <div style="display:flex; align-items:center; gap:6px;">
@@ -451,6 +591,28 @@ class BIMPointCloudManager {
           <span style="font-weight:700; font-size:13px; color:var(--accent); text-transform:uppercase; letter-spacing:0.5px;">${isZh ? '点云属性与渲染控制' : 'Point Cloud Properties'}</span>
         </div>
         <span style="font-size:11px; color:var(--text-secondary); font-family:var(--font-mono);">${((numPoints || 0)).toLocaleString()} pts</span>
+      </div>
+
+      <!-- Quick Action Buttons: Zoom & Center to Origin -->
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-bottom:12px;">
+        <button type="button" id="btn-pc-zoom-fit" style="padding:6px 8px; font-size:11.5px; font-weight:700; background:var(--accent); color:#000; border:none; border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:4px;">
+          <span>🎯</span> ${isZh ? '聚焦定位点云' : 'Zoom to Points'}
+        </button>
+        <button type="button" id="btn-pc-center-origin" style="padding:6px 8px; font-size:11.5px; font-weight:600; background:rgba(56,189,248,0.12); color:var(--accent); border:1px solid rgba(56,189,248,0.35); border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:4px;">
+          <span>${hasOriginalPos ? '↺' : '📍'}</span> ${hasOriginalPos ? (isZh ? '恢复原始坐标' : 'Restore Coords') : (isZh ? '移至原点居中' : 'Center to [0,0,0]')}
+        </button>
+      </div>
+
+      <!-- Spatial Coordinate Readout Box -->
+      <div style="background:rgba(0,0,0,0.25); border:1px solid var(--border-color); border-radius:6px; padding:8px 10px; margin-bottom:12px; font-size:11px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
+          <span style="color:var(--text-muted);">${isZh ? '空间中心' : 'Center'}:</span>
+          <span style="font-family:var(--font-mono); color:var(--text-primary); font-weight:600;">${centerStr}</span>
+        </div>
+        <div style="display:flex; justify-content:space-between;">
+          <span style="color:var(--text-muted);">${isZh ? '包围盒跨度' : 'Extents'}:</span>
+          <span style="font-family:var(--font-mono); color:var(--text-secondary);">${sizeStr}</span>
+        </div>
       </div>
 
       <!-- Point Size Slider -->
@@ -494,16 +656,6 @@ class BIMPointCloudManager {
           <span id="pc-val-opacity" style="font-family:var(--font-mono); color:var(--accent); font-weight:700;">${Math.round(this.opacity * 100)}%</span>
         </div>
         <input type="range" id="pc-slider-opacity" min="0.1" max="1.0" step="0.05" value="${this.opacity}" style="width:100%;">
-      </div>
-
-      <!-- Actions -->
-      <div style="display:flex; gap:8px;">
-        <button type="button" id="btn-pc-fit-view" style="flex:1; padding:6px; font-size:11.5px; font-weight:700; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer;">
-          🎯 ${isZh ? '聚焦居中' : 'Fit View'}
-        </button>
-        <button type="button" id="btn-pc-reset-pos" style="flex:1; padding:6px; font-size:11.5px; background:var(--bg-hover); color:var(--text-primary); border:1px solid var(--border-color); border-radius:6px; cursor:pointer;">
-          🔄 ${isZh ? '重置位置' : 'Reset Pos'}
-        </button>
       </div>
     `;
 
@@ -549,18 +701,18 @@ class BIMPointCloudManager {
       });
     }
 
-    const btnFit = card.querySelector('#btn-pc-fit-view');
-    if (btnFit) {
-      btnFit.addEventListener('click', () => this.fitPointCloudView());
+    const btnZoomFit = card.querySelector('#btn-pc-zoom-fit');
+    if (btnZoomFit) {
+      btnZoomFit.addEventListener('click', () => this.fitPointCloudView());
     }
 
-    const btnReset = card.querySelector('#btn-pc-reset-pos');
-    if (btnReset) {
-      btnReset.addEventListener('click', () => {
-        if (this.activePointCloud) {
-          this.activePointCloud.position.set(0, 0, 0);
-          this.activePointCloud.updateMatrixWorld();
-          if (this.app._wakeRender) this.app._wakeRender();
+    const btnCenter = card.querySelector('#btn-pc-center-origin');
+    if (btnCenter) {
+      btnCenter.addEventListener('click', () => {
+        if (hasOriginalPos) {
+          this.restoreOriginalCoordinates();
+        } else {
+          this.centerToOrigin();
         }
       });
     }
@@ -578,6 +730,95 @@ class BIMPointCloudManager {
     if (this.app._wakeRender) {
       this.app._wakeRender();
     }
+  }
+
+  // --- MISSING OCTREE.BIN GUIDANCE MODAL ---
+  showMissingBinModal() {
+    let modal = document.getElementById('missing-bin-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'missing-bin-modal';
+      modal.className = 'las-converter-modal-overlay';
+      document.body.appendChild(modal);
+    }
+
+    const isZh = (window.I18N ? window.I18N.currentLang : 'zh') === 'zh';
+
+    modal.innerHTML = `
+      <div class="las-modal-card">
+        <div class="las-modal-header">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="font-size:24px;">⚠️</span>
+            <div>
+              <div class="las-modal-title">${isZh ? '缺少点云二进制数据 (Missing octree.bin)' : 'Missing Point Cloud Data (octree.bin)'}</div>
+              <div class="las-modal-subtitle">${isZh ? '仅检测到元数据描述文件 metadata.json' : 'Only metadata.json descriptor was dropped'}</div>
+            </div>
+          </div>
+          <button type="button" class="las-modal-close" id="btn-close-missing-bin">✕</button>
+        </div>
+
+        <div class="las-modal-body">
+          <div style="background:rgba(234,179,8,0.12); border:1px solid rgba(234,179,8,0.35); border-radius:8px; padding:12px; margin-bottom:14px; font-size:12.5px; line-height:1.6; color:var(--text-primary);">
+            ${isZh
+              ? '您刚才仅拖入了 <strong>metadata.json</strong> 配置文件。<br>受现代浏览器<strong>安全沙箱隔离限制</strong>，网页端无法自动读取您磁盘同目录下的 <code>octree.bin</code> 与 <code>hierarchy.bin</code> 实体数据，因此无法呈现三维点。'
+              : 'You only dropped <strong>metadata.json</strong>.<br>Due to browser security sandbox restrictions, a web page cannot automatically read sibling binary files (<code>octree.bin</code> and <code>hierarchy.bin</code>) from your local drive.'}
+          </div>
+
+          <div style="font-size:13px; font-weight:700; margin-bottom:8px; color:var(--accent);">
+            💡 ${isZh ? '请采用以下任意一种方式查看：' : 'Please use any of the following methods to view:'}
+          </div>
+
+          <div class="las-steps-container">
+            <div class="las-step-item">
+              <div class="las-step-num">1</div>
+              <div class="las-step-content">
+                <div class="las-step-title">${isZh ? '拖入整个输出文件夹 (推荐)' : 'Drop the entire folder (Recommended)'}</div>
+                <div class="las-step-desc">${isZh ? '直接将 Las2Web 转换生成的整个文件夹拖入本视口，系统将自动递归读取所有分块。' : 'Drag the entire Potree folder directly into BIM Scope to load all chunks automatically.'}</div>
+              </div>
+            </div>
+
+            <div class="las-step-item">
+              <div class="las-step-num">2</div>
+              <div class="las-step-content">
+                <div class="las-step-title">${isZh ? '多选文件同时拖入' : 'Select all files and drop together'}</div>
+                <div class="las-step-desc">${isZh ? '在文件夹内按 <code>Ctrl+A</code> 全选 <code>metadata.json</code>、<code>octree.bin</code>、<code>hierarchy.bin</code>，一同拖入。' : 'Select metadata.json, octree.bin, and hierarchy.bin together and drop them.'}</div>
+              </div>
+            </div>
+
+            <div class="las-step-item">
+              <div class="las-step-num">3</div>
+              <div class="las-step-content">
+                <div class="las-step-title">${isZh ? '通过 Las2Web 本地服务自动打开' : 'Auto-view via Las2Web local server'}</div>
+                <div class="las-step-desc">${isZh ? '在 Las2Web 转换完成后直接点击「查看点云」，自动通过本地 HTTP 流式秒开。' : 'Click "View Point Cloud" in Las2Web to stream smoothly from local HTTP server.'}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="las-modal-footer">
+          <button type="button" class="las-btn-download" id="btn-dismiss-missing-bin" style="width:100%; text-align:center; cursor:pointer;">
+            ✓ ${isZh ? '我知道了，我来拖入整个文件夹' : 'Got it, I will drop the folder'}
+          </button>
+        </div>
+      </div>
+    `;
+
+    modal.style.display = 'flex';
+    void modal.offsetWidth;
+    modal.classList.add('visible');
+
+    const closeBtn = modal.querySelector('#btn-close-missing-bin');
+    const dismissBtn = modal.querySelector('#btn-dismiss-missing-bin');
+    const hide = () => {
+      modal.classList.remove('visible');
+      setTimeout(() => { modal.style.display = 'none'; }, 300);
+    };
+
+    if (closeBtn) closeBtn.onclick = hide;
+    if (dismissBtn) dismissBtn.onclick = hide;
+    modal.onclick = (e) => {
+      if (e.target === modal) hide();
+    };
   }
 
   // --- LAS/LAZ PREPROCESSING GUIDANCE MODAL ---

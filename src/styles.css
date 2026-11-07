@@ -7029,3 +7029,30 @@ mark.help-match-highlight {
   color: #ffffff;
   font-weight: 700;
 }
+
+
+/* Point Cloud Hierarchy Tree Item */
+.tree-pointcloud-section {
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+
+.pc-tree-item {
+  transition: all 0.15s ease;
+}
+
+.pc-tree-item:hover {
+  background: rgba(56, 189, 248, 0.16) !important;
+  border-color: rgba(56, 189, 248, 0.5) !important;
+}
+
+.pc-tree-item.selected {
+  background: rgba(56, 189, 248, 0.22) !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.25);
+}
+
+.pc-tree-focus-btn:hover {
+  background: var(--accent) !important;
+  color: #000000 !important;
+}

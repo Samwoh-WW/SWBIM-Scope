@@ -3605,14 +3605,29 @@ class BIMViewerApp {
 
   // Zoom to Fit (smooth camera animation framing entire active model along current viewing line of sight)
   zoomToFit(immediate = false) {
-    if (!this.activeModel) return;
+    const hasModel = Boolean(this.activeModel);
+    const hasPointCloud = Boolean(this.pointCloudManager && this.pointCloudManager.activePointCloud && this.pointCloudManager.activePointCloud.visible);
+
+    if (!hasModel && !hasPointCloud) return;
+
+    if (!hasModel && hasPointCloud) {
+      this.pointCloudManager.fitPointCloudView(this.pointCloudManager.activePointCloud, immediate);
+      return;
+    }
+
     const box = new THREE.Box3().setFromObject(this.activeModel);
+    if (hasPointCloud) {
+      const pcBox = this.pointCloudManager.getWorldBoundingBox(this.pointCloudManager.activePointCloud);
+      if (pcBox && !pcBox.isEmpty()) {
+        box.union(pcBox);
+      }
+    }
     if (box.isEmpty()) return;
 
     const size = new THREE.Vector3();
     box.getSize(size);
     const maxDim = Math.max(size.x, size.y, size.z, 10);
-    const neededFar = Math.min(10000, Math.max(5000, Math.ceil(maxDim * 5)));
+    const neededFar = Math.min(100000, Math.max(5000, Math.ceil(maxDim * 5)));
     if (this.camera && this.camera.far < neededFar) {
       this.setFarClip(neededFar, true);
     }
@@ -4403,6 +4418,10 @@ class BIMViewerApp {
     if (this.highlightBox) this.highlightBox.visible = false;
 
     // Sync tree selection
+    if (this.pointCloudManager && this.pointCloudManager.isPointCloudSelected) {
+      this.pointCloudManager.isPointCloudSelected = false;
+      this.pointCloudManager.updateModelHierarchyTree();
+    }
     this.syncTreeSelection();
 
     // Render multi-selection inspector
@@ -4779,6 +4798,10 @@ class BIMViewerApp {
     }
     this.selectedMesh = mesh;
     this.selectedMeshes = [mesh];
+    if (this.pointCloudManager && this.pointCloudManager.isPointCloudSelected) {
+      this.pointCloudManager.isPointCloudSelected = false;
+      this.pointCloudManager.updateModelHierarchyTree();
+    }
     this.syncTreeSelection();
     if (clickPoint) {
       this.lastClickPoint = clickPoint.clone();
@@ -5932,6 +5955,10 @@ class BIMViewerApp {
     this.clearHoverOverlay();
     if (this.compareEngine) {
       this.compareEngine.onSelectionCleared();
+    }
+    if (this.pointCloudManager && this.pointCloudManager.isPointCloudSelected) {
+      this.pointCloudManager.isPointCloudSelected = false;
+      this.pointCloudManager.updateModelHierarchyTree();
     }
     this.syncTreeSelection();
     this.renderModelInfoInspector();
@@ -9327,7 +9354,7 @@ class BIMViewerApp {
       });
     });
 
-    window.addEventListener('drop', (e) => {
+    window.addEventListener('drop', async (e) => {
       e.preventDefault();
       e.stopPropagation();
       if (dropzone) dropzone.classList.remove('active');
@@ -9337,10 +9364,63 @@ class BIMViewerApp {
       const texModal = document.getElementById('texture-modal');
       if (texModal && texModal.classList.contains('active')) return;
 
-      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        this.handleFileInput(e.dataTransfer.files);
+      if (e.dataTransfer) {
+        const files = await this.extractFilesFromDataTransfer(e.dataTransfer);
+        if (files && files.length > 0) {
+          this.handleFileInput(files);
+        }
       }
     });
+  }
+
+  async extractFilesFromDataTransfer(dataTransfer) {
+    if (!dataTransfer) return [];
+    const files = [];
+
+    if (dataTransfer.items && dataTransfer.items.length > 0 && typeof dataTransfer.items[0].webkitGetAsEntry === 'function') {
+      const queue = [];
+      for (let i = 0; i < dataTransfer.items.length; i++) {
+        const item = dataTransfer.items[i];
+        if (item.kind === 'file') {
+          const entry = item.webkitGetAsEntry();
+          if (entry) queue.push(entry);
+        }
+      }
+
+      const readEntry = (entry) => new Promise((resolve) => {
+        if (!entry) return resolve();
+        if (entry.isFile) {
+          entry.file((f) => {
+            files.push(f);
+            resolve();
+          }, () => resolve());
+        } else if (entry.isDirectory) {
+          const reader = entry.createReader();
+          const readAll = () => {
+            reader.readEntries(async (entries) => {
+              if (!entries || entries.length === 0) {
+                resolve();
+              } else {
+                for (const child of entries) {
+                  await readEntry(child);
+                }
+                readAll();
+              }
+            }, () => resolve());
+          };
+          readAll();
+        } else {
+          resolve();
+        }
+      });
+
+      for (const entry of queue) {
+        await readEntry(entry);
+      }
+      if (files.length > 0) return files;
+    }
+
+    return Array.from(dataTransfer.files || []);
   }
 
   handleContextMenu(e) {
@@ -10159,6 +10239,10 @@ class BIMViewerApp {
   }
 
   zoomToSelected() {
+    if (this.pointCloudManager && this.pointCloudManager.isPointCloudSelected && this.pointCloudManager.activePointCloud) {
+      this.pointCloudManager.fitPointCloudView(this.pointCloudManager.activePointCloud);
+      return;
+    }
     if (this.selectedMeshes && this.selectedMeshes.length > 1) {
       this.zoomToGroup(this.selectedMeshes);
     } else if (this.selectedMesh) {
