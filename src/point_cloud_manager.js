@@ -172,11 +172,16 @@ class BIMPointCloudManager {
     }
   }
 
-  async loadFromLocalFiles(fileList) {
+  async loadFromLocalFiles(fileList, isAppend = false) {
     this.initPotree();
     if (!this.potree) {
       this.app.showToast('Potree library initialization failed', 3000);
       return null;
+    }
+
+    if (!isAppend) {
+      if (this.app.clearModel) this.app.clearModel(false);
+      this.clearPointClouds();
     }
 
     const fileMap = new Map();
@@ -234,7 +239,7 @@ class BIMPointCloudManager {
       }
       pco.name = pcName;
 
-      this.onPointCloudLoaded(pco);
+      this.onPointCloudLoaded(pco, isAppend);
       return pco;
     } catch (err) {
       console.error('[BIMPointCloudManager] Local load error:', err);
@@ -246,7 +251,7 @@ class BIMPointCloudManager {
     }
   }
 
-  onPointCloudLoaded(pco) {
+  onPointCloudLoaded(pco, isAppend = false) {
     // Potree constructor in potree-core copies raw offset: pco.position.copy(pcoGeometry.offset);
     // In surveying (ASPRS LAS/LAZ): X = Easting, Y = Northing, Z = Elevation (Z-up).
     // In Three.js / BIM Scope (Y-up):
@@ -280,19 +285,96 @@ class BIMPointCloudManager {
     // Update Right Sidebar Inspector
     this.renderInspectorCard();
 
-    // Fit View to point cloud
-    this.fitPointCloudView(pco);
-
     const pointCount = this.getPointCloudPointCount(pco);
     const countStr = (pointCount || 0).toLocaleString();
-    if (this.app.showToast) {
-      const msg = window.I18N ? window.I18N.t('pointCloudLoaded', { count: countStr }) : `Point cloud loaded: ${countStr} points`;
-      this.app.showToast(msg, 3500);
+
+    if (!isAppend) {
+      // Fit View to point cloud only when opened fresh
+      this.fitPointCloudView(pco);
+      if (this.app.showToast) {
+        const msg = window.I18N ? window.I18N.t('pointCloudLoaded', { count: countStr }) : `Point cloud loaded: ${countStr} points`;
+        this.app.showToast(msg, 3500);
+      }
+    } else {
+      // Append mode: preserve current camera view
+      const toastMsg = window.I18N ? window.I18N.t('fileAppendedToast', { name: pco.name }) : `File "${pco.name}" appended to scene. Double-click in tree to focus.`;
+      if (this.app.showToast) {
+        this.app.showToast(toastMsg, 4000);
+      }
     }
 
     if (this.app._wakeRender) {
       this.app._wakeRender(3500);
     }
+  }
+
+  removePointCloud(pco) {
+    if (!pco) return;
+    const name = pco.name || 'Point Cloud';
+    const idx = this.pointClouds.indexOf(pco);
+    if (idx >= 0) {
+      this.pointClouds.splice(idx, 1);
+    }
+    this.app.scene.remove(pco);
+    try {
+      if (pco.material && typeof pco.material.dispose === 'function') {
+        pco.material.dispose();
+      }
+      if (pco.dispose && typeof pco.dispose === 'function') {
+        pco.dispose();
+      }
+    } catch (e) {
+      console.warn('[PointCloud] Dispose error:', e);
+    }
+
+    if (this.activePointCloud === pco) {
+      this.activePointCloud = this.pointClouds[this.pointClouds.length - 1] || null;
+      this.isPointCloudSelected = Boolean(this.activePointCloud);
+    }
+
+    // Rebuild tree
+    this.updateModelHierarchyTree();
+
+    // Update inspector
+    if (this.activePointCloud) {
+      this.renderInspectorCard();
+    } else {
+      const card = document.getElementById('inspector-pointcloud-card');
+      if (card) card.style.display = 'none';
+      if (this.app.loadedModels && this.app.loadedModels.length > 0) {
+        this.app.renderModelInfoInspector();
+      }
+    }
+
+    // Check if entire scene is empty
+    if (this.app.checkEmptySceneState) {
+      this.app.checkEmptySceneState();
+    }
+
+    const toastMsg = window.I18N ? window.I18N.t('fileRemovedToast', { name: name }) : `Removed "${name}" from scene.`;
+    if (this.app.showToast) {
+      this.app.showToast(toastMsg, 3000);
+    }
+    if (this.app._wakeRender) {
+      this.app._wakeRender(300);
+    }
+  }
+
+  clearPointClouds() {
+    const list = [...this.pointClouds];
+    list.forEach(pco => {
+      this.app.scene.remove(pco);
+      try {
+        if (pco.material && typeof pco.material.dispose === 'function') pco.material.dispose();
+        if (pco.dispose && typeof pco.dispose === 'function') pco.dispose();
+      } catch (e) {}
+    });
+    this.pointClouds = [];
+    this.activePointCloud = null;
+    this.isPointCloudSelected = false;
+    const card = document.getElementById('inspector-pointcloud-card');
+    if (card) card.style.display = 'none';
+  }
   }
 
   toggleOrientation(pco = this.activePointCloud) {
