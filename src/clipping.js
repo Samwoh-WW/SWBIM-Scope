@@ -78,6 +78,7 @@ class ClippingEngine {
     this.isShiftDown = false;
     this.isCtrlDown = false;
     this.boxCentralGizmoGroup = null;
+    this.lastRelativeRotDeg = 0;
     
     // Dynamic Section Capping & Bold Cut Contour State
     this.activeModel = null;
@@ -2129,6 +2130,7 @@ class ClippingEngine {
         this.dragStartQuat = this.boxQuaternion.clone();
         this.dragAxis = worldAxis;
         this.dragStartAzimuth = this.getBoxRotationAzimuth();
+        this.lastRelativeRotDeg = 0;
         if (this.boxCentralGizmoGroup) this.boxCentralGizmoGroup.visible = true;
         return;
       }
@@ -2235,6 +2237,8 @@ class ClippingEngine {
           angle = THREE.MathUtils.degToRad(snappedDeg - (this.dragStartAzimuth || 0));
         }
         
+        this.lastRelativeRotDeg = Math.round(THREE.MathUtils.radToDeg(angle));
+        
         const deltaQ = new THREE.Quaternion().setFromAxisAngle(this.dragAxis, angle);
         this.boxQuaternion.copy(deltaQ).multiply(this.dragStartQuat);
         this.updateBoxPlanesAndHelpers();
@@ -2308,6 +2312,7 @@ class ClippingEngine {
   
   endDrag() {
     this.activeDragGizmo = null;
+    this.lastRelativeRotDeg = 0;
     this.dragFace = null;
     if (this.onGizmoChange) this.onGizmoChange();
   }

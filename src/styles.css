@@ -539,6 +539,35 @@ svg.help-btn-svg {
   box-shadow: 0 0 8px var(--accent-glow);
 }
 
+/* SECTION BOX ROTATION HUD TOOLTIP */
+.sec-box-rot-tooltip {
+  position: absolute;
+  pointer-events: none;
+  z-index: 46;
+  display: none;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  font-weight: 600;
+  white-space: nowrap;
+  background: rgba(15, 23, 42, 0.92);
+  color: #00d2ff;
+  border: 1px solid #00aaff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6), 0 0 8px rgba(0, 170, 255, 0.4);
+  transform: translate3d(-50%, -140%, 0);
+  transition: opacity 0.1s ease;
+}
+
+[data-theme="light"] .sec-box-rot-tooltip {
+  background: rgba(255, 255, 255, 0.96);
+  color: #0077cc;
+  border-color: #0088ff;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.16), 0 0 6px rgba(0, 136, 255, 0.3);
+}
+
 /* 3D SNAPPING HUD TOOLTIP */
 .snap-hud-tooltip {
   position: absolute;

@@ -9353,7 +9353,15 @@ class BIMViewerApp {
           if (isOverGizmo) {
             this.canvas.style.cursor = 'grab';
             this.clearHoverOverlay();
+            if (this.clippingEngine.hoveredGizmo?.userData?.part === 'boxCenterRotZ') {
+              const curAzimuth = this.clippingEngine.getBoxRotationAzimuth();
+              this.showSectionBoxRotTooltip(clientX, clientY, `${curAzimuth}°`);
+            } else {
+              this.hideSectionBoxRotTooltip();
+            }
             return;
+          } else {
+            this.hideSectionBoxRotTooltip();
           }
         }
 
@@ -9757,6 +9765,14 @@ class BIMViewerApp {
         this.raycaster.setFromCamera(this.mouse, this.camera);
         this.clippingEngine.onDrag(this.raycaster, this.camera, e);
         this.syncSectionUI();
+
+        if (this.clippingEngine.activeDragGizmo?.userData?.part === 'boxCenterRotZ') {
+          const rel = this.clippingEngine.lastRelativeRotDeg || 0;
+          const sign = rel > 0 ? '+' : '';
+          this.showSectionBoxRotTooltip(e.clientX, e.clientY, `${sign}${rel}°`);
+        } else {
+          this.hideSectionBoxRotTooltip();
+        }
         return;
       }
       if (this.isDraggingMeasurePoint && this.draggingMeasureMarker) {
@@ -9909,6 +9925,7 @@ class BIMViewerApp {
       if (this.isGizmoDragging) {
         this.isGizmoDragging = false;
         this.clippingEngine.endDrag();
+        this.hideSectionBoxRotTooltip();
         if (this.clippingEngine && this.clippingEngine.enabled && this.camera) {
           this.raycaster.setFromCamera(this.mouse, this.camera);
           const isOverGizmo = this.clippingEngine.updateHover(this.raycaster, Boolean(e && e.shiftKey), Boolean(e && e.ctrlKey));
@@ -11135,6 +11152,9 @@ class BIMViewerApp {
   handleSectionBoxCtrlChange(isCtrl) {
     if (!this.clippingEngine) return;
     this.clippingEngine.setCtrlMode(isCtrl);
+    if (!isCtrl) {
+      this.hideSectionBoxRotTooltip();
+    }
     if (!this.clippingEngine.enabled || this.clippingEngine.mode !== 'box' || this.isGizmoDragging) {
       return;
     }
@@ -11147,6 +11167,36 @@ class BIMViewerApp {
       }
       this.needsRender = true;
       this.requestRender(150);
+    }
+  }
+
+  showSectionBoxRotTooltip(clientX, clientY, text) {
+    if (!this.secBoxRotTooltip) {
+      this.secBoxRotTooltip = document.getElementById('sec-box-rot-tooltip');
+      if (!this.secBoxRotTooltip) {
+        this.secBoxRotTooltip = document.createElement('div');
+        this.secBoxRotTooltip.id = 'sec-box-rot-tooltip';
+        this.secBoxRotTooltip.className = 'sec-box-rot-tooltip';
+        (this.container || document.body).appendChild(this.secBoxRotTooltip);
+      }
+    }
+    const container = this.container || document.body;
+    const rect = container.getBoundingClientRect();
+    const leftPx = clientX - rect.left;
+    const topPx = clientY - rect.top;
+
+    this.secBoxRotTooltip.textContent = text;
+    this.secBoxRotTooltip.style.left = `${leftPx}px`;
+    this.secBoxRotTooltip.style.top = `${topPx}px`;
+    this.secBoxRotTooltip.style.display = 'inline-flex';
+  }
+
+  hideSectionBoxRotTooltip() {
+    if (!this.secBoxRotTooltip) {
+      this.secBoxRotTooltip = document.getElementById('sec-box-rot-tooltip');
+    }
+    if (this.secBoxRotTooltip) {
+      this.secBoxRotTooltip.style.display = 'none';
     }
   }
 
