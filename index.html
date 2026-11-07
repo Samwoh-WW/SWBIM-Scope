@@ -47308,13 +47308,6 @@ class BIMViewerApp {
         }
       });
     });
-    if (this.pointCloudManager && this.pointCloudManager.pointClouds && this.pointCloudManager.pointClouds.length > 0) {
-      this.pointCloudManager.pointClouds.forEach(pco => {
-        if (pco && pco.visible !== false) {
-          vertCount += this.pointCloudManager.getPointCloudPointCount(pco) || 0;
-        }
-      });
-    }
     const triEl = document.getElementById('stat-triangles-val');
     const vertEl = document.getElementById('stat-vertices-val');
     if (triEl) triEl.textContent = Math.round(triCount).toLocaleString();
