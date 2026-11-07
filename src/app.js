@@ -9329,9 +9329,9 @@ class BIMViewerApp {
         
         this.raycaster.setFromCamera(this.mouse, this.camera);
 
-        // Section Plane & Box Hover detection (shows gizmo on plane/box hover, grab cursor on gizmo hover)
+        // Section Plane & Box Hover detection (shows gizmo on plane/box hover, grab cursor on gizmo hover; Shift pierces to back faces)
         if (this.clippingEngine && this.clippingEngine.enabled && !this.isOrbiting && !this.isPanning && !this.isBoxSelecting && !this.isGizmoDragging) {
-          const isOverGizmo = this.clippingEngine.updateHover(this.raycaster);
+          const isOverGizmo = this.clippingEngine.updateHover(this.raycaster, Boolean(evt.shiftKey));
           if (isOverGizmo) {
             this.canvas.style.cursor = 'grab';
             this.clearHoverOverlay();
@@ -9609,8 +9609,9 @@ class BIMViewerApp {
         this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
         this.raycaster.setFromCamera(this.mouse, this.camera);
 
-        // Check if clicking Section Gizmo (highest priority)
+        // Check if clicking Section Gizmo (highest priority; sync Shift state first so Shift+Click hits back-face gizmos)
         if (this.clippingEngine && this.clippingEngine.enabled) {
+          this.clippingEngine.updateHover(this.raycaster, Boolean(e.shiftKey));
           const gizmoHits = this.clippingEngine.intersectGizmos(this.raycaster);
           if (gizmoHits.length > 0) {
             this.isGizmoDragging = true;
@@ -9890,8 +9891,15 @@ class BIMViewerApp {
       if (this.isGizmoDragging) {
         this.isGizmoDragging = false;
         this.clippingEngine.endDrag();
-        this.canvas.style.cursor = 'default';
+        if (this.clippingEngine && this.clippingEngine.enabled && this.camera) {
+          this.raycaster.setFromCamera(this.mouse, this.camera);
+          const isOverGizmo = this.clippingEngine.updateHover(this.raycaster, Boolean(e && e.shiftKey));
+          this.canvas.style.cursor = isOverGizmo ? 'grab' : 'default';
+        } else {
+          this.canvas.style.cursor = 'default';
+        }
         this.syncSectionUI();
+        this.requestRender(100);
         return;
       }
       if (this.isDraggingMeasurePoint) {
@@ -11041,8 +11049,40 @@ class BIMViewerApp {
       });
     }
 
-    // 5. Global Keyboard Listener
-    window.addEventListener('keydown', (e) => this.handleGlobalKeyDown(e));
+    // 5. Global Keyboard Listener (including Shift keydown/keyup for Section Box back-face pass-through)
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Shift') {
+        this.handleSectionBoxShiftChange(true);
+      }
+      this.handleGlobalKeyDown(e);
+    });
+    window.addEventListener('keyup', (e) => {
+      if (e.key === 'Shift') {
+        this.handleSectionBoxShiftChange(false);
+      }
+    });
+    window.addEventListener('blur', () => {
+      if (this.clippingEngine && this.clippingEngine.isShiftDown) {
+        this.handleSectionBoxShiftChange(false);
+      }
+    });
+  }
+
+  handleSectionBoxShiftChange(isShift) {
+    if (!this.clippingEngine) return;
+    this.clippingEngine.setShiftPassThrough(isShift);
+    if (!this.clippingEngine.enabled || this.clippingEngine.mode !== 'box' || this.isGizmoDragging) {
+      return;
+    }
+    if (this.camera) {
+      this.camera.updateMatrixWorld(true);
+      this.raycaster.setFromCamera(this.mouse, this.camera);
+      const isOverGizmo = this.clippingEngine.updateHover(this.raycaster, isShift);
+      if (this.canvas && !this.isOrbiting && !this.isPanning) {
+        this.canvas.style.cursor = isOverGizmo ? 'grab' : '';
+      }
+      this.requestRender(150);
+    }
   }
 
   toggleShortcutsMode() {
