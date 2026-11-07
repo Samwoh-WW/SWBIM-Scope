@@ -462,6 +462,7 @@ class ClippingEngine {
       });
       const edgeLines = new THREE.LineSegments(edgeGeo, edgeMat);
       edgeLines.renderOrder = 10000;
+      edgeLines.userData = { isGizmo: true, type: 'box', part: partName, parentGroup: group };
 
       // Invisible hit plane for picking
       const hitGeo = sqGeo.clone();
@@ -1990,7 +1991,7 @@ class ClippingEngine {
   
   setHoverGizmo(hitObject) {
     if (!hitObject) return;
-    const group = hitObject.userData?.parentGroup || hitObject;
+    const group = hitObject.userData?.parentGroup || (hitObject.parent?.userData?.part ? hitObject.parent : hitObject);
     if (this.hoveredGizmo === group) return;
     this.clearHoverGizmo();
     
