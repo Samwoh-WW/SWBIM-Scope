@@ -6976,7 +6976,10 @@ class BIMViewerApp {
     }
 
     // Check if converted Potree folder/files (metadata.json or _potree)
-    const metadataFile = fileList.find(f => f.name.toLowerCase() === 'metadata.json');
+    const metadataFile = fileList.find(f => {
+      const name = (f.name || '').split(/[/\]/).pop().toLowerCase();
+      return name === 'metadata.json';
+    });
     if (metadataFile) {
       if (this.pointCloudManager) {
         this.pointCloudManager.loadFromLocalFiles(fileList);
@@ -6985,7 +6988,10 @@ class BIMViewerApp {
     }
 
     // Check if orphaned .bin files dropped without metadata.json
-    const hasBin = fileList.some(f => f.name.toLowerCase() === 'octree.bin' || f.name.toLowerCase() === 'hierarchy.bin');
+    const hasBin = fileList.some(f => {
+      const name = (f.name || '').split(/[/\]/).pop().toLowerCase();
+      return name === 'octree.bin' || name === 'hierarchy.bin';
+    });
     if (hasBin && !metadataFile) {
       if (this.pointCloudManager) {
         this.pointCloudManager.showMissingBinModal();
@@ -9796,24 +9802,83 @@ class BIMViewerApp {
     if (!dataTransfer) return [];
     const files = [];
 
-    if (dataTransfer.items && dataTransfer.items.length > 0 && typeof dataTransfer.items[0].webkitGetAsEntry === 'function') {
-      const queue = [];
-      for (let i = 0; i < dataTransfer.items.length; i++) {
-        const item = dataTransfer.items[i];
-        if (item.kind === 'file') {
-          const entry = item.webkitGetAsEntry();
-          if (entry) queue.push(entry);
+    // Modern Chrome/Edge: DataTransferItem.getAsFileSystemHandle()
+    // CRITICAL: We must synchronously capture handles from dataTransfer.items
+    // before any async operation, because dataTransfer.items is detached/purged after synchronous event turn!
+    const items = dataTransfer.items ? Array.from(dataTransfer.items) : [];
+    const handlePromises = [];
+    const webkitEntries = [];
+
+    for (const item of items) {
+      if (item.kind === 'file') {
+        if (typeof item.getAsFileSystemHandle === 'function') {
+          try {
+            handlePromises.push(item.getAsFileSystemHandle());
+          } catch (e) {}
+        }
+        if (typeof item.webkitGetAsEntry === 'function') {
+          try {
+            const entry = item.webkitGetAsEntry();
+            if (entry) webkitEntries.push(entry);
+          } catch (e) {}
         }
       }
+    }
 
-      const readEntry = (entry) => new Promise((resolve) => {
+    // 1. Try modern File System Access API
+    if (handlePromises.length > 0) {
+      try {
+        const handles = await Promise.all(handlePromises);
+        const validHandles = handles.filter(Boolean);
+        if (validHandles.length > 0) {
+          async function readHandle(handle, path = '') {
+            if (!handle) return;
+            if (handle.kind === 'file') {
+              const file = await handle.getFile();
+              if (path) {
+                Object.defineProperty(file, 'webkitRelativePath', {
+                  value: ${path}/,
+                  writable: true,
+                  configurable: true
+                });
+              }
+              files.push(file);
+            } else if (handle.kind === 'directory') {
+              const dirPath = path ? ${path}/ : handle.name;
+              for await (const entry of handle.values()) {
+                await readHandle(entry, dirPath);
+              }
+            }
+          }
+
+          for (const handle of validHandles) {
+            await readHandle(handle);
+          }
+
+          if (files.length > 0) return files;
+        }
+      } catch (err) {
+        console.warn('[BIMScope] getAsFileSystemHandle traversal failed, falling back:', err);
+      }
+    }
+
+    // 2. Fallback to webkitGetAsEntry
+    if (webkitEntries.length > 0) {
+      const readEntry = (entry, path = '') => new Promise((resolve) => {
         if (!entry) return resolve();
         if (entry.isFile) {
           entry.file((f) => {
+            const relPath = path ? ${path}/ : f.name;
+            Object.defineProperty(f, 'webkitRelativePath', {
+              value: relPath,
+              writable: true,
+              configurable: true
+            });
             files.push(f);
             resolve();
           }, () => resolve());
         } else if (entry.isDirectory) {
+          const dirPath = path ? ${path}/ : entry.name;
           const reader = entry.createReader();
           const readAll = () => {
             reader.readEntries(async (entries) => {
@@ -9821,7 +9886,7 @@ class BIMViewerApp {
                 resolve();
               } else {
                 for (const child of entries) {
-                  await readEntry(child);
+                  await readEntry(child, dirPath);
                 }
                 readAll();
               }
@@ -9833,12 +9898,13 @@ class BIMViewerApp {
         }
       });
 
-      for (const entry of queue) {
+      for (const entry of webkitEntries) {
         await readEntry(entry);
       }
       if (files.length > 0) return files;
     }
 
+    // 3. Fallback to standard DataTransfer.files
     return Array.from(dataTransfer.files || []);
   }
   handleContextMenu(e) {
@@ -18984,6 +19050,10 @@ class BIMViewerApp {
       }
     }
 
+    if (this.pointCloudManager) {
+      this.pointCloudManager.update(this.camera, this.renderer);
+    }
+
     const shouldRender =
       this.needsRender ||
       frameStart < (this._activeRenderUntil || 0) ||
@@ -18993,10 +19063,6 @@ class BIMViewerApp {
       this.isRightDragging ||
       this.isGizmoDragging ||
       this.isDraggingMeasurePoint;
-
-    if (this.pointCloudManager) {
-      this.pointCloudManager.update(this.camera, this.renderer);
-    }
 
     if (shouldRender) {
       this.needsRender = false;

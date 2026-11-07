@@ -11,13 +11,14 @@ class LocalFileRequestManager {
   }
 
   async getUrl(url) {
-    return url;
+    if (!url) return '/metadata.json';
+    return url.startsWith('/') ? url : ('/' + url);
   }
 
   async fetch(input, init = {}) {
     const urlStr = typeof input === 'string' ? input : (input && input.url ? input.url : '');
     const cleanUrl = urlStr.split('?')[0];
-    const fileName = cleanUrl.split('/').pop().toLowerCase();
+    const fileName = cleanUrl.split(/[/\\]/).pop().toLowerCase();
 
     const file = this.fileMap.get(fileName);
     if (!file) {
@@ -180,10 +181,10 @@ class BIMPointCloudManager {
 
     const fileMap = new Map();
     for (const f of fileList) {
-      const baseName = f.name.toLowerCase();
+      const baseName = (f.name || '').split(/[/\\]/).pop().toLowerCase();
       fileMap.set(baseName, f);
       if (f.webkitRelativePath) {
-        const relBase = f.webkitRelativePath.split('/').pop().toLowerCase();
+        const relBase = f.webkitRelativePath.split(/[/\\]/).pop().toLowerCase();
         fileMap.set(relBase, f);
       }
     }
@@ -205,7 +206,7 @@ class BIMPointCloudManager {
       }
 
       const reqManager = new LocalFileRequestManager(fileMap);
-      const pco = await this.potree.loadPointCloud('metadata.json', reqManager);
+      const pco = await this.potree.loadPointCloud('/metadata.json', reqManager);
 
       if (!pco) throw new Error('Null point cloud returned');
 
@@ -213,11 +214,20 @@ class BIMPointCloudManager {
       let pcName = 'Point Cloud';
       const folderFile = fileList.find(f => f.webkitRelativePath);
       if (folderFile) {
-        const rootFolder = folderFile.webkitRelativePath.split('/')[0];
-        if (rootFolder) pcName = rootFolder;
+        const rootFolder = folderFile.webkitRelativePath.split(/[/\\]/)[0];
+        if (rootFolder && rootFolder !== '.' && rootFolder !== '') pcName = rootFolder;
       } else if (fileList.length > 0) {
-        const first = fileList.find(f => f.name && !['metadata.json', 'octree.bin', 'hierarchy.bin'].includes(f.name.toLowerCase()));
-        if (first) pcName = first.name.replace(/\.[^/.]+$/, '');
+        const nonBin = fileList.find(f => {
+          const name = (f.name || '').toLowerCase();
+          return !name.endsWith('.bin') && 
+                 !name.endsWith('.json') && 
+                 !name.endsWith('.txt') && 
+                 !name.endsWith('.log') && 
+                 !name.startsWith('.');
+        });
+        if (nonBin) {
+          pcName = nonBin.name.replace(/\.[^/.]+$/, '');
+        }
       }
       if (pco.pcoGeometry && pco.pcoGeometry.loader && pco.pcoGeometry.loader.metadata && pco.pcoGeometry.loader.metadata.name) {
         pcName = pco.pcoGeometry.loader.metadata.name;
@@ -237,6 +247,12 @@ class BIMPointCloudManager {
   }
 
   onPointCloudLoaded(pco) {
+    // Standard Coordinate Conversion: ASPRS LAS/LAZ files use surveying coordinates (Z-up).
+    // In Three.js / BIM Scope (Y-up), rotate -90 deg on X so elevation becomes +Y (matching IFC & FBX).
+    pco.rotation.x = -Math.PI / 2;
+    pco.userData._isZUp = true;
+    pco.updateMatrixWorld(true);
+
     // Configure Point Cloud Material
     this.configureMaterial(pco);
 
@@ -266,8 +282,23 @@ class BIMPointCloudManager {
     }
 
     if (this.app._wakeRender) {
-      this.app._wakeRender(1000);
+      this.app._wakeRender(3500);
     }
+  }
+
+  toggleOrientation(pco = this.activePointCloud) {
+    if (!pco) return;
+    const isZUp = Boolean(pco.userData._isZUp);
+    pco.userData._isZUp = !isZUp;
+    if (pco.userData._isZUp) {
+      pco.rotation.x = -Math.PI / 2;
+    } else {
+      pco.rotation.x = 0;
+    }
+    pco.updateMatrixWorld(true);
+    this.fitPointCloudView(pco);
+    this.renderInspectorCard();
+    if (this.app._wakeRender) this.app._wakeRender(1000);
   }
 
   getPointCloudPointCount(pco = this.activePointCloud) {
@@ -316,8 +347,9 @@ class BIMPointCloudManager {
     if (!this.potree || this.pointClouds.length === 0) return;
     try {
       const res = this.potree.updatePointClouds(this.pointClouds, camera, renderer);
-      if ((res && res.nodeLoadPromises && res.nodeLoadPromises.length > 0) || (this.potree.numNodesLoading > 0)) {
-        if (this.app._wakeRender) this.app._wakeRender(250);
+      const hasLoading = (res && res.nodeLoadPromises && res.nodeLoadPromises.length > 0) || (this.potree.numNodesLoading > 0);
+      if (hasLoading) {
+        if (this.app._wakeRender) this.app._wakeRender(600);
       }
     } catch (e) {
       // Catch any frame-rate worker synchronization glitches silently
@@ -548,6 +580,7 @@ class BIMPointCloudManager {
     }
 
     const hasOriginalPos = Boolean(this.activePointCloud && this.activePointCloud.userData && this.activePointCloud.userData._originalPosition);
+    const isZUp = Boolean(this.activePointCloud && this.activePointCloud.userData && this.activePointCloud.userData._isZUp);
 
     card.innerHTML = `
       <div class="inspector-card-header" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
@@ -622,6 +655,19 @@ class BIMPointCloudManager {
         </div>
         <input type="range" id="pc-slider-opacity" min="0.1" max="1.0" step="0.05" value="${this.opacity}" style="width:100%;">
       </div>
+
+      <!-- Orientation (Up Axis) -->
+      <div class="pc-control-row" style="margin-bottom:12px;">
+        <div style="font-size:11.5px; margin-bottom:5px;">${isZh ? '高程轴向 (Up Axis)' : 'Elevation Up Axis'}</div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
+          <button type="button" id="btn-pc-axis-z" class="pc-axis-btn ${isZUp ? 'active' : ''}" style="padding:4px 6px; font-size:11px; border-radius:4px; cursor:pointer;">
+            ${isZh ? '🔼 Z-Up (测量标准)' : '🔼 Z-Up (Default)'}
+          </button>
+          <button type="button" id="btn-pc-axis-y" class="pc-axis-btn ${!isZUp ? 'active' : ''}" style="padding:4px 6px; font-size:11px; border-radius:4px; cursor:pointer;">
+            ${isZh ? '🔄 Y-Up (原始直立)' : '🔄 Y-Up'}
+          </button>
+        </div>
+      </div>
     `;
 
     // Hook events
@@ -678,6 +724,21 @@ class BIMPointCloudManager {
           this.restoreOriginalCoordinates();
         } else {
           this.centerToOrigin();
+        }
+      });
+    }
+
+    const btnAxisZ = card.querySelector('#btn-pc-axis-z');
+    const btnAxisY = card.querySelector('#btn-pc-axis-y');
+    if (btnAxisZ && btnAxisY && this.activePointCloud) {
+      btnAxisZ.addEventListener('click', () => {
+        if (!this.activePointCloud.userData._isZUp) {
+          this.toggleOrientation(this.activePointCloud);
+        }
+      });
+      btnAxisY.addEventListener('click', () => {
+        if (this.activePointCloud.userData._isZUp) {
+          this.toggleOrientation(this.activePointCloud);
         }
       });
     }

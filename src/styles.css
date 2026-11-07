@@ -7070,19 +7070,19 @@ mark.help-match-highlight {
   background: rgba(241, 245, 249, 0.75);
 }
 
-.pc-color-btn {
+.pc-color-btn, .pc-axis-btn {
   background: var(--bg-hover);
   border: 1px solid var(--border-color);
   color: var(--text-secondary);
   transition: all 0.2s ease;
 }
 
-.pc-color-btn:hover {
+.pc-color-btn:hover, .pc-axis-btn:hover {
   color: var(--text-primary);
   border-color: var(--accent);
 }
 
-.pc-color-btn.active {
+.pc-color-btn.active, .pc-axis-btn.active {
   background: var(--accent);
   border-color: var(--accent);
   color: #ffffff;
