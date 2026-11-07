@@ -316,6 +316,72 @@ class BIMPointCloudManager {
     return 0;
   }
 
+  computePercentileElevationRange(pco, lowerPct = 0.015, upperPct = 0.985) {
+    if (!pco) return null;
+
+    // 1. Collect local Z coordinates from loaded nodes (root node contains a uniform spatial subsample)
+    const zVals = [];
+    const nodes = [];
+    if (pco.pcoGeometry && pco.pcoGeometry.root && pco.pcoGeometry.root.geometry) {
+      nodes.push(pco.pcoGeometry.root);
+    }
+    if (Array.isArray(pco.visibleNodes) && pco.visibleNodes.length > 0) {
+      for (const vn of pco.visibleNodes) {
+        if (vn && vn.geometry && !nodes.includes(vn)) {
+          nodes.push(vn);
+        }
+      }
+    }
+
+    for (const node of nodes) {
+      const geo = node.geometry;
+      if (!geo || !geo.attributes || !geo.attributes.position) continue;
+      const pos = geo.attributes.position;
+      const count = pos.count || (pos.array ? Math.floor(pos.array.length / 3) : 0);
+      const arr = pos.array;
+      if (!arr) continue;
+
+      // Stride to sample up to ~30,000 points in milliseconds
+      const stride = count > 30000 ? Math.ceil(count / 30000) : 1;
+      for (let i = 0; i < count; i += stride) {
+        const z = arr[i * 3 + 2];
+        if (Number.isFinite(z)) {
+          zVals.push(z);
+        }
+      }
+    }
+
+    if (zVals.length >= 20) {
+      zVals.sort((a, b) => a - b);
+      const lowIdx = Math.floor(zVals.length * lowerPct);
+      const highIdx = Math.min(zVals.length - 1, Math.floor(zVals.length * upperPct));
+      let pLow = zVals[lowIdx];
+      let pHigh = zVals[highIdx];
+      if (pHigh <= pLow + 0.001) pHigh = pLow + 1.0;
+      return [pLow, pHigh];
+    }
+
+    // 2. Fallback: check position attribute in metadata (contains actual data extent, not cubic box)
+    if (pco.pcoGeometry && pco.pcoGeometry.loader && pco.pcoGeometry.loader.metadata) {
+      const attrs = pco.pcoGeometry.loader.metadata.attributes || [];
+      const posAttr = attrs.find(a => a.name === 'position');
+      if (posAttr && Array.isArray(posAttr.min) && Array.isArray(posAttr.max) && posAttr.min.length >= 3) {
+        let minZ = posAttr.min[2];
+        let maxZ = posAttr.max[2];
+        if (maxZ > minZ) return [minZ, maxZ];
+      }
+    }
+
+    // 3. Fallback: bounding box
+    if (pco.boundingBox) {
+      return [pco.boundingBox.min.z, pco.boundingBox.max.z];
+    } else if (pco.pcoGeometry && pco.pcoGeometry.boundingBox) {
+      return [pco.pcoGeometry.boundingBox.min.z, pco.pcoGeometry.boundingBox.max.z];
+    }
+
+    return [0, 100];
+  }
+
   configureMaterial(pco) {
     if (!pco || !pco.material) return;
     const mat = pco.material;
@@ -325,8 +391,17 @@ class BIMPointCloudManager {
     mat.transparent = this.opacity < 0.999;
 
     // Detect if RGB attribute exists
-    const hasRgb = pco.pcoGeometry && pco.pcoGeometry.pointAttributes && (
-      pco.pcoGeometry.pointAttributes.attributes.some(a => a.name === 'rgb' || a.name === 'COLOR_PACKED')
+    const hasRgb = (
+      (pco.pcoGeometry && pco.pcoGeometry.pointAttributes && pco.pcoGeometry.pointAttributes.attributes &&
+       pco.pcoGeometry.pointAttributes.attributes.some(a => {
+         const n = (a.name || '').toLowerCase();
+         return n === 'rgb' || n === 'rgba' || n === 'color' || n === 'color_packed';
+       })) ||
+      (pco.pcoGeometry && pco.pcoGeometry.loader && pco.pcoGeometry.loader.metadata && pco.pcoGeometry.loader.metadata.attributes &&
+       pco.pcoGeometry.loader.metadata.attributes.some(a => {
+         const n = (a.name || '').toLowerCase();
+         return n === 'rgb' || n === 'rgba' || n === 'color' || n === 'color_packed';
+       }))
     );
 
     if (hasRgb) {
@@ -337,11 +412,16 @@ class BIMPointCloudManager {
       this.pointColorType = mat.pointColorType;
     }
 
-    // Set elevation range for gradient mapping
-    if (pco.boundingBox) {
-      mat.elevationRange = [pco.boundingBox.min.z, pco.boundingBox.max.z];
-    } else if (pco.pcoGeometry && pco.pcoGeometry.boundingBox) {
-      mat.elevationRange = [pco.pcoGeometry.boundingBox.min.z, pco.pcoGeometry.boundingBox.max.z];
+    // Ensure RAINBOW visible spectrum gradient (Purple/Blue -> Cyan/Green/Yellow -> Orange/Red)
+    if (window.PotreeCore && window.PotreeCore.RAINBOW) {
+      mat.gradient = window.PotreeCore.RAINBOW;
+    }
+
+    // Set initial elevation range
+    const elevRange = this.computePercentileElevationRange(pco);
+    if (elevRange) {
+      mat.elevationRange = elevRange;
+      pco.userData._percentileElevationRange = elevRange;
     }
 
     // Set intensity range from metadata if available
@@ -362,6 +442,23 @@ class BIMPointCloudManager {
     if (!this.potree || this.pointClouds.length === 0) return;
     try {
       const res = this.potree.updatePointClouds(this.pointClouds, camera, renderer);
+
+      // Dynamically compute percentile elevation range as soon as node geometry is loaded
+      for (const pco of this.pointClouds) {
+        if (pco && !pco.userData._percentileComputed) {
+          if (pco.pcoGeometry && pco.pcoGeometry.root && pco.pcoGeometry.root.loaded && pco.pcoGeometry.root.geometry) {
+            const range = this.computePercentileElevationRange(pco);
+            if (range) {
+              pco.userData._percentileElevationRange = range;
+              pco.userData._percentileComputed = true;
+              if (pco.material) {
+                pco.material.elevationRange = range;
+              }
+            }
+          }
+        }
+      }
+
       const hasLoading = (res && res.nodeLoadPromises && res.nodeLoadPromises.length > 0) || (this.potree.numNodesLoading > 0);
       if (hasLoading) {
         if (this.app._wakeRender) this.app._wakeRender(600);
@@ -766,10 +863,25 @@ class BIMPointCloudManager {
       if (pco.material) {
         pco.material.size = this.pointSize;
         pco.material.pointColorType = this.pointColorType;
-        if (pco.boundingBox) {
-          pco.material.elevationRange = [pco.boundingBox.min.z, pco.boundingBox.max.z];
-        } else if (pco.pcoGeometry && pco.pcoGeometry.boundingBox) {
-          pco.material.elevationRange = [pco.pcoGeometry.boundingBox.min.z, pco.pcoGeometry.boundingBox.max.z];
+
+        // Ensure RAINBOW visible spectrum gradient
+        if (window.PotreeCore && window.PotreeCore.RAINBOW) {
+          pco.material.gradient = window.PotreeCore.RAINBOW;
+        }
+
+        // Apply 1.5% - 98.5% percentile elevation range
+        let elevRange = pco.userData._percentileElevationRange;
+        if (!elevRange || !pco.userData._percentileComputed) {
+          elevRange = this.computePercentileElevationRange(pco);
+          if (elevRange) {
+            pco.userData._percentileElevationRange = elevRange;
+            if (pco.pcoGeometry && pco.pcoGeometry.root && pco.pcoGeometry.root.geometry) {
+              pco.userData._percentileComputed = true;
+            }
+          }
+        }
+        if (elevRange) {
+          pco.material.elevationRange = elevRange;
         }
 
         let intMin = 0;
