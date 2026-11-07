@@ -342,7 +342,10 @@ class BIMPointCloudManager {
       this.app.clearSelection(true);
     }
 
-    // Link with existing clipping planes
+    // Update combined scene clipping bounds & link with existing clipping planes
+    if (this.app && typeof this.app.updateClippingBounds === 'function') {
+      this.app.updateClippingBounds(true);
+    }
     this.syncClippingWithApp();
 
     // Update Left Sidebar Model Hierarchy & Status Bar Stats
@@ -421,6 +424,10 @@ class BIMPointCloudManager {
       }
     }
 
+    if (this.app && typeof this.app.updateClippingBounds === 'function') {
+      this.app.updateClippingBounds(true);
+    }
+
     // Check if entire scene is empty
     if (this.app.checkEmptySceneState) {
       this.app.checkEmptySceneState();
@@ -467,6 +474,9 @@ class BIMPointCloudManager {
     pco.userData._percentileComputed = false;
     pco.userData._percentileElevationRange = null;
     this.applyMaterialSettings(pco);
+    if (this.app && typeof this.app.updateClippingBounds === 'function') {
+      this.app.updateClippingBounds(true);
+    }
     this.fitPointCloudView(pco);
     this.renderInspectorCard();
     if (this.app._wakeRender) this.app._wakeRender(1000);
@@ -730,6 +740,9 @@ class BIMPointCloudManager {
           }
           if (!pco.userData._tightBoxFromGeometry) {
             this.computeTightLocalBoundingBox(pco);
+            if (this.app && typeof this.app.updateClippingBounds === 'function') {
+              this.app.updateClippingBounds(true);
+            }
             if (pco.userData._pendingInitialFit) {
               pco.userData._pendingInitialFit = false;
               this.fitPointCloudView(pco, true);
@@ -755,17 +768,28 @@ class BIMPointCloudManager {
   }
 
   updateClipping(planes) {
-    const ClipMode = window.PotreeCore ? window.PotreeCore.ClipMode : { DISABLED: 0, CLIP_OUTSIDE: 1 };
+    const ClipMode = window.PotreeCore ? window.PotreeCore.ClipMode : { DISABLED: 0, CLIP_OUTSIDE: 1, HIGHLIGHT_INSIDE: 2 };
+    const activePlanes = (planes && planes.length > 0) ? planes.map(p => p.clone()) : [];
     for (const pco of this.pointClouds) {
       if (pco && pco.material) {
-        pco.material.clippingPlanes = planes || [];
-        if (typeof pco.material.clipMode !== 'undefined') {
-          pco.material.clipMode = (planes && planes.length > 0) ? ClipMode.CLIP_OUTSIDE : ClipMode.DISABLED;
+        pco.material.clippingPlanes = activePlanes;
+        if (typeof pco.material.syncClippingPlanes === 'function') {
+          pco.material.syncClippingPlanes();
         }
+        if (typeof pco.material.clipMode !== 'undefined') {
+          pco.material.clipMode = activePlanes.length > 0 ? ClipMode.CLIP_OUTSIDE : ClipMode.DISABLED;
+        }
+        if (typeof pco.material.syncClippingPlanes === 'function') {
+          pco.material.syncClippingPlanes();
+        }
+        pco.material.needsUpdate = true;
       }
     }
-    if (this.app && this.app._wakeRender) {
-      this.app._wakeRender();
+    if (this.app) {
+      this.app.needsRender = true;
+      if (this.app._wakeRender) {
+        this.app._wakeRender(300);
+      }
     }
   }
 
@@ -885,6 +909,9 @@ class BIMPointCloudManager {
     pco.userData._percentileComputed = false;
     pco.userData._percentileElevationRange = null;
     this.applyMaterialSettings();
+    if (this.app && typeof this.app.updateClippingBounds === 'function') {
+      this.app.updateClippingBounds(true);
+    }
 
     this.fitPointCloudView(pco);
     this.renderInspectorCard();
@@ -902,6 +929,9 @@ class BIMPointCloudManager {
     pco.userData._percentileComputed = false;
     pco.userData._percentileElevationRange = null;
     this.applyMaterialSettings();
+    if (this.app && typeof this.app.updateClippingBounds === 'function') {
+      this.app.updateClippingBounds(true);
+    }
 
     this.fitPointCloudView(pco);
     this.renderInspectorCard();
@@ -912,36 +942,154 @@ class BIMPointCloudManager {
     }
   }
 
+  isPointClipped(worldPt) {
+    if (!this.app || !this.app.clippingEngine || !this.app.clippingEngine.enabled) return false;
+    const planes = this.app.clippingEngine.clippingPlanes;
+    if (!planes || planes.length === 0) return false;
+    for (let i = 0; i < planes.length; i++) {
+      if (planes[i].distanceToPoint(worldPt) < -1e-3) return true;
+    }
+    return false;
+  }
+
   // --- SNAPPING & RAYCASTING ---
-  raycast(raycaster, screenThreshold = 15) {
-    if (!this.picker || this.pointClouds.length === 0 || !this.app.camera || !this.app.renderer) {
+  raycast(raycaster, screenThreshold = 15, allowBoxFallback = false) {
+    if (!raycaster || this.pointClouds.length === 0 || !this.app || !this.app.camera) {
       return null;
     }
 
-    try {
-      const visiblePcos = this.pointClouds.filter(p => p.visible);
-      if (visiblePcos.length === 0) return null;
+    const visiblePcos = this.pointClouds.filter(p => p && p.visible);
+    if (visiblePcos.length === 0) return null;
 
-      const hit = this.picker.pick(
-        this.app.renderer,
-        this.app.camera,
-        raycaster.ray,
-        visiblePcos,
-        { pickWindowSize: screenThreshold, pickClipped: false }
-      );
+    // 1. Try GPU octree picker first
+    if (this.picker && this.app.renderer) {
+      try {
+        const hit = this.picker.pick(
+          this.app.renderer,
+          this.app.camera,
+          raycaster.ray,
+          visiblePcos,
+          { pickWindowSize: screenThreshold, pickClipped: false }
+        );
 
-      if (hit && hit.position) {
+        if (hit && hit.position && !this.isPointClipped(hit.position)) {
+          return {
+            point: hit.position.clone(),
+            normal: (hit.normal && hit.normal.isVector3) ? hit.normal.clone() : new THREE.Vector3(0, 1, 0),
+            distance: this.app.camera.position.distanceTo(hit.position),
+            pointCloud: hit.pointCloud || hit.pointcloud || (visiblePcos.length === 1 ? visiblePcos[0] : null),
+            index: hit.pointIndex
+          };
+        }
+      } catch (e) {
+        // Fallback to CPU octree point raycast
+      }
+    }
+
+    // 2. Fast CPU ray-to-octree-points fallback (handles sparse gaps and headless WebGL reliably)
+    const camPos = this.app.camera.position;
+    let bestPt = null;
+    let bestPco = null;
+    let bestScore = Infinity;
+    const tmpLocal = new THREE.Vector3();
+    const tmpWorld = new THREE.Vector3();
+
+    for (const pco of visiblePcos) {
+      pco.updateMatrixWorld(true);
+      const rootNode = (pco.pcoGeometry && pco.pcoGeometry.root) || pco.root;
+      const candidateNodes = [];
+      if (Array.isArray(pco.visibleNodes) && pco.visibleNodes.length > 0) {
+        for (const vn of pco.visibleNodes) {
+          if (vn) candidateNodes.push(vn);
+        }
+      }
+      if (rootNode && !candidateNodes.includes(rootNode)) {
+        candidateNodes.push(rootNode);
+      }
+
+      for (const node of candidateNodes) {
+        const geo = node.geometry || (node.geometryNode && node.geometryNode.geometry);
+        if (!geo || !geo.attributes || !geo.attributes.position || !geo.attributes.position.array) continue;
+        const pos = geo.attributes.position;
+        const count = pos.count || Math.floor(pos.array.length / 3);
+        if (count <= 0) continue;
+        const arr = pos.array;
+        const nodeMin = (node.boundingBox && node.boundingBox.min) ? node.boundingBox.min : { x: 0, y: 0, z: 0 };
+        const stride = count > 4000 ? Math.ceil(count / 4000) : 1;
+
+        for (let i = 0; i < count; i += stride) {
+          tmpLocal.set(
+            arr[i * 3] + nodeMin.x,
+            arr[i * 3 + 1] + nodeMin.y,
+            arr[i * 3 + 2] + nodeMin.z
+          );
+          tmpWorld.copy(tmpLocal).applyMatrix4(pco.matrixWorld);
+          if (this.isPointClipped(tmpWorld)) continue;
+
+          const camDist = camPos.distanceTo(tmpWorld);
+          if (camDist <= 0.05) continue;
+          const perpSq = raycaster.ray.distanceSqToPoint(tmpWorld);
+          const maxPerp = Math.max(0.35, camDist * (allowBoxFallback ? 0.08 : 0.032));
+          if (perpSq <= maxPerp * maxPerp) {
+            const score = Math.sqrt(perpSq) + camDist * 0.002;
+            if (score < bestScore) {
+              bestScore = score;
+              bestPt = tmpWorld.clone();
+              bestPco = pco;
+            }
+          }
+        }
+      }
+    }
+
+    if (bestPt) {
+      return {
+        point: bestPt,
+        normal: new THREE.Vector3(0, 1, 0),
+        distance: camPos.distanceTo(bestPt),
+        pointCloud: bestPco,
+        index: -1
+      };
+    }
+
+    // 3. Bounding box intersection fallback when explicitly requested (e.g. right-click context menu on point cloud)
+    if (allowBoxFallback) {
+      let closestBoxHit = null;
+      let closestBoxDist = Infinity;
+      let closestBoxPco = null;
+      const hitTarget = new THREE.Vector3();
+      for (const pco of visiblePcos) {
+        const wBox = this.getWorldBoundingBox(pco);
+        if (!wBox || wBox.isEmpty()) continue;
+        const hitPt = wBox.containsPoint(raycaster.ray.origin)
+          ? wBox.getCenter(new THREE.Vector3())
+          : raycaster.ray.intersectBox(wBox, hitTarget);
+        if (hitPt) {
+          const candidate = hitPt.clone();
+          // Nudge slightly inside the box toward its center so it lies within the cloud
+          const boxCenter = wBox.getCenter(new THREE.Vector3());
+          candidate.lerp(boxCenter, 0.2);
+          if (!this.isPointClipped(candidate)) {
+            const d = camPos.distanceTo(candidate);
+            if (d < closestBoxDist) {
+              closestBoxDist = d;
+              closestBoxHit = candidate;
+              closestBoxPco = pco;
+            }
+          }
+        }
+      }
+      if (closestBoxHit) {
         return {
-          point: hit.position.clone(),
-          normal: (hit.normal && hit.normal.isVector3) ? hit.normal.clone() : new THREE.Vector3(0, 1, 0),
-          distance: this.app.camera.position.distanceTo(hit.position),
-          pointCloud: hit.pointCloud || hit.pointcloud || (visiblePcos.length === 1 ? visiblePcos[0] : null),
-          index: hit.pointIndex
+          point: closestBoxHit,
+          normal: new THREE.Vector3(0, 1, 0),
+          distance: closestBoxDist,
+          pointCloud: closestBoxPco,
+          index: -1
         };
       }
-    } catch (e) {
-      // Fallback
     }
+
     return null;
   }
 

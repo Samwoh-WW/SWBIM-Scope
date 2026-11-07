@@ -70,6 +70,11 @@ class ClippingEngine {
     
     this.onGizmoChange = null;
     this.onGizmoHover = null;
+    this.onClippingChange = null;
+    this._planeInitialized = false;
+    this._boxInitialized = false;
+    this.pinnedGizmoVisible = false;
+    this.defaultBoxFace = 'yPos';
     
     // Dynamic Section Capping & Bold Cut Contour State
     this.activeModel = null;
@@ -711,19 +716,25 @@ class ClippingEngine {
   }
 
   setModel(model) {
-    this.clearModel();
-    this.activeModel = model;
-    if (!model) return;
+    this.setModels(model ? [model] : []);
+  }
 
-    if (model.updateMatrixWorld) model.updateMatrixWorld(true);
+  setModels(models) {
+    this.clearModel();
+    const list = Array.isArray(models) ? models.filter(Boolean) : (models ? [models] : []);
+    this.activeModel = list[0] || null;
+    if (list.length === 0) return;
 
     const solidMeshes = [];
-    model.traverse(obj => {
-      if (obj.isMesh && obj.geometry && this.isSolidMesh(obj)) {
-        obj.userData = obj.userData || {};
-        obj.userData._cachedWorldBox = new THREE.Box3().setFromObject(obj);
-        solidMeshes.push(obj);
-      }
+    list.forEach(model => {
+      if (model.updateMatrixWorld) model.updateMatrixWorld(true);
+      model.traverse(obj => {
+        if (obj.isMesh && obj.geometry && this.isSolidMesh(obj)) {
+          obj.userData = obj.userData || {};
+          obj.userData._cachedWorldBox = new THREE.Box3().setFromObject(obj);
+          solidMeshes.push(obj);
+        }
+      });
     });
     this.solidMeshes = solidMeshes;
 
@@ -1156,14 +1167,18 @@ class ClippingEngine {
   // ----------------------------------------------------
   // BOUNDS & RESIZING
   // ----------------------------------------------------
-  setBounds(box3) {
+  setBounds(box3, preserveActive = false) {
+    if (!box3 || box3.isEmpty()) return;
     this.bounds.copy(box3);
     const size = new THREE.Vector3();
     this.bounds.getSize(size);
     const maxDim = Math.max(size.x, size.y, size.z, 50) * 1.5;
+    this._maxBoundDim = maxDim;
     
-    this.planeMesh.scale.set(maxDim, maxDim, 1);
-    this.planeEdges.scale.set(maxDim, maxDim, 1);
+    if (!preserveActive || !this._planeInitialized) {
+      this.planeMesh.scale.set(maxDim, maxDim, 1);
+      this.planeEdges.scale.set(maxDim, maxDim, 1);
+    }
     
     if (this.planeCapMesh) {
       this.planeCapMesh.scale.set(maxDim * 3, maxDim * 3, 1);
@@ -1172,13 +1187,110 @@ class ClippingEngine {
       this.boxCapMeshes.forEach(bm => bm.scale.set(maxDim * 3, maxDim * 3, 1));
     }
     
-    // Scale plane gizmo to exactly 1/3 of previous size
-    const gizmoScale = Math.max(0.35, maxDim * 0.017);
-    this.planeGizmoGroup.scale.setScalar(gizmoScale);
+    if (!preserveActive || !this._planeInitialized) {
+      const gizmoScale = Math.max(0.35, Math.min(25.0, maxDim * 0.017));
+      this.planeGizmoGroup.scale.setScalar(gizmoScale);
+    }
     
-    // Default box sizes matching current model bounds
-    this.setFromBoxRanges(this.boxRanges);
+    if (preserveActive && this._boxInitialized) {
+      this.computeBoxRangesFromState();
+      this.updateBoxPlanesAndHelpers();
+    } else {
+      this.setFromBoxRanges(this.boxRanges);
+    }
     this.update();
+  }
+
+  updateGizmoScaleForCamera(camera) {
+    if (!camera) return;
+    if (this.planeGroup && this.planeGizmoGroup) {
+      const dist = Math.max(1.0, camera.position.distanceTo(this.planeGroup.position));
+      let gizmoScale;
+      let planeVisSize;
+      if (camera.isPerspectiveCamera) {
+        gizmoScale = Math.max(0.35, Math.min(80.0, dist * 0.042));
+        planeVisSize = Math.max(8.0, dist * 1.25);
+      } else {
+        const orthoSpan = Math.abs(camera.top - camera.bottom) / (camera.zoom || 1);
+        gizmoScale = Math.max(0.35, Math.min(80.0, orthoSpan * 0.045));
+        planeVisSize = Math.max(8.0, orthoSpan * 1.25);
+      }
+      this.planeGizmoGroup.scale.setScalar(gizmoScale);
+      if (this._planeInitialized && this.planeMesh && this.planeEdges) {
+        const capMax = this._maxBoundDim || 150;
+        const visDim = Math.min(capMax, planeVisSize);
+        this.planeMesh.scale.set(visDim, visDim, 1);
+        this.planeEdges.scale.set(visDim, visDim, 1);
+      }
+    }
+    if (this.boxGroup && this.faceHandles) {
+      const minDim = Math.max(0.2, Math.min(this.boxHalfSizes.x, this.boxHalfSizes.y, this.boxHalfSizes.z));
+      const dist = Math.max(1.0, camera.position.distanceTo(this.boxCenter));
+      let camScale;
+      if (camera.isPerspectiveCamera) {
+        camScale = dist * 0.038;
+      } else {
+        const orthoSpan = Math.abs(camera.top - camera.bottom) / (camera.zoom || 1);
+        camScale = orthoSpan * 0.04;
+      }
+      const handleScale = Math.max(0.35, Math.min(40.0, Math.min(camScale, Math.max(0.7, minDim * 0.45))));
+      Object.values(this.faceHandles).forEach(h => {
+        h.scale.setScalar(handleScale);
+      });
+    }
+  }
+
+  pickBestVisibleBoxFace(camera) {
+    if (!camera) return 'yPos';
+    const hx = this.boxHalfSizes.x;
+    const hy = this.boxHalfSizes.y;
+    const hz = this.boxHalfSizes.z;
+    const candidates = [
+      { id: 'yPos', normalLoc: new THREE.Vector3(0, 1, 0), posLoc: new THREE.Vector3(0, hy, 0), bonus: 0.15 },
+      { id: 'xPos', normalLoc: new THREE.Vector3(1, 0, 0), posLoc: new THREE.Vector3(hx, 0, 0), bonus: 0.0 },
+      { id: 'xNeg', normalLoc: new THREE.Vector3(-1, 0, 0), posLoc: new THREE.Vector3(-hx, 0, 0), bonus: 0.0 },
+      { id: 'zPos', normalLoc: new THREE.Vector3(0, 0, 1), posLoc: new THREE.Vector3(0, 0, hz), bonus: 0.0 },
+      { id: 'zNeg', normalLoc: new THREE.Vector3(0, 0, -1), posLoc: new THREE.Vector3(0, 0, -hz), bonus: 0.0 },
+      { id: 'yNeg', normalLoc: new THREE.Vector3(0, -1, 0), posLoc: new THREE.Vector3(0, -hy, 0), bonus: -0.05 }
+    ];
+    let bestInViewId = null;
+    let bestInViewScore = -Infinity;
+    let bestAnyId = 'yPos';
+    let bestAnyScore = -Infinity;
+    for (const c of candidates) {
+      const worldNormal = c.normalLoc.clone().applyQuaternion(this.boxQuaternion).normalize();
+      const worldPos = c.posLoc.clone().applyQuaternion(this.boxQuaternion).add(this.boxCenter);
+      const toCam = new THREE.Vector3().subVectors(camera.position, worldPos).normalize();
+      const score = worldNormal.dot(toCam) + c.bonus;
+      if (score > bestAnyScore) {
+        bestAnyScore = score;
+        bestAnyId = c.id;
+      }
+      const ndc = worldPos.clone().project(camera);
+      if (Math.abs(ndc.x) <= 0.90 && Math.abs(ndc.y) <= 0.90 && ndc.z >= -1.0 && ndc.z <= 1.0) {
+        if (score > bestInViewScore) {
+          bestInViewScore = score;
+          bestInViewId = c.id;
+        }
+      }
+    }
+    return bestInViewId || bestAnyId;
+  }
+
+  ensureVisibleGizmo(camera) {
+    this.pinnedGizmoVisible = true;
+    if (camera) {
+      this.updateGizmoScaleForCamera(camera);
+      this.defaultBoxFace = this.pickBestVisibleBoxFace(camera);
+    }
+    if (!this.enabled || !this.helpersVisible) return;
+    if (this.mode === 'plane') {
+      if (this.planeGizmoGroup) this.planeGizmoGroup.visible = true;
+    } else {
+      const face = this.hoveredBoxFace || this.defaultBoxFace || 'yPos';
+      this.hoveredBoxFace = face;
+      this.showOnlyFaceGizmo(face);
+    }
   }
   
   setFromBoxRanges(ranges) {
@@ -1407,10 +1519,10 @@ class ClippingEngine {
       return false;
     }
 
-    // 4. Mouse is not hovering plane or gizmo -> return to ghostly state
+    // 4. Mouse is not hovering plane or gizmo -> return to ghostly state (keep gizmo visible if pinned)
     this.planeMat.opacity = 0.08;
     if (this.planeEdgesMat) this.planeEdgesMat.opacity = 1.0;
-    if (this.planeGizmoGroup) this.planeGizmoGroup.visible = false;
+    if (this.planeGizmoGroup) this.planeGizmoGroup.visible = Boolean(this.pinnedGizmoVisible && this.helpersVisible);
     this.clearHoverGizmo();
     return false;
   }
@@ -1477,12 +1589,19 @@ class ClippingEngine {
       }
     }
 
-    // 4. Mouse is not hovering box or face gizmo -> return to ghostly state
+    // 4. Mouse is not hovering box or face gizmo -> return to ghostly state (keep default face gizmo visible if pinned)
     this.boxFillMat.opacity = 0.025;
     if (this.boxWireframeMat) this.boxWireframeMat.opacity = 1.0;
-    this.showOnlyFaceGizmo(null);
-    this.updateBoxHoverFaceMesh(null);
-    this.hoveredBoxFace = null;
+    if (this.pinnedGizmoVisible && this.helpersVisible) {
+      const fallbackFace = this.defaultBoxFace || 'yPos';
+      this.hoveredBoxFace = fallbackFace;
+      this.showOnlyFaceGizmo(fallbackFace);
+      this.updateBoxHoverFaceMesh(null);
+    } else {
+      this.showOnlyFaceGizmo(null);
+      this.updateBoxHoverFaceMesh(null);
+      this.hoveredBoxFace = null;
+    }
     this.clearHoverGizmo();
     return false;
   }
@@ -1841,8 +1960,26 @@ class ClippingEngine {
     }
   }
 
+  movePlaneToPoint(point) {
+    if (!point) return;
+    this._planeInitialized = true;
+    this.planeGroup.position.copy(point);
+    this.updatePlaneFromState();
+    if (this.onGizmoChange) this.onGizmoChange();
+  }
+
+  moveBoxCenterToPoint(point) {
+    if (!point) return;
+    this._boxInitialized = true;
+    this.boxCenter.copy(point);
+    this.computeBoxRangesFromState();
+    this.updateBoxPlanesAndHelpers();
+    if (this.onGizmoChange) this.onGizmoChange();
+  }
+
   movePlaneToTarget(elemBox) {
     if (!elemBox || elemBox.isEmpty()) return;
+    this._planeInitialized = true;
 
     // Normal pointing into retained half-space
     const normal = new THREE.Vector3(0, 0, this.planeInvert ? -1 : 1).applyQuaternion(this.planeGroup.quaternion).normalize();
@@ -1868,8 +2005,32 @@ class ClippingEngine {
     this.updatePlaneFromState();
     if (this.onGizmoChange) this.onGizmoChange();
   }
+
+  setPlaneOffset(offset) {
+    this.planeOffset = Math.max(0, Math.min(1, offset));
+    const min = this.bounds.min;
+    const size = new THREE.Vector3().subVectors(this.bounds.max, min);
+    const center = new THREE.Vector3();
+    this.bounds.getCenter(center);
+
+    const curX = this._planeInitialized ? this.planeGroup.position.x : center.x;
+    const curY = this._planeInitialized ? this.planeGroup.position.y : center.y;
+    const curZ = this._planeInitialized ? this.planeGroup.position.z : center.z;
+
+    if (this.planeAxis === 'Z') {
+      const val = min.y + this.planeOffset * size.y;
+      this.planeGroup.position.set(curX, val, curZ);
+    } else if (this.planeAxis === 'X') {
+      const val = min.x + this.planeOffset * size.x;
+      this.planeGroup.position.set(val, curY, curZ);
+    } else {
+      const val = min.z + this.planeOffset * size.z;
+      this.planeGroup.position.set(curX, curY, val);
+    }
+    this.updatePlaneFromState();
+  }
   
-  setPlaneAxis(axis) {
+  setPlaneAxis(axis, keepPosition = false) {
     this.planeAxis = axis;
     if (this.enabled && this.mode === 'plane') {
       this.planeGroup.visible = this.helpersVisible;
@@ -1879,17 +2040,21 @@ class ClippingEngine {
     const center = new THREE.Vector3();
     this.bounds.getCenter(center);
     
+    const useCurPos = keepPosition || this._planeInitialized;
+    const pos = useCurPos ? this.planeGroup.position.clone() : new THREE.Vector3(
+      min.x + this.planeOffset * size.x,
+      min.y + this.planeOffset * size.y,
+      min.z + this.planeOffset * size.z
+    );
+
     if (axis === 'Z') { // Elevation Height cut (Three.js Y)
-      const val = min.y + this.planeOffset * size.y;
-      this.planeGroup.position.set(center.x, val, center.z);
+      if (!useCurPos) this.planeGroup.position.set(center.x, pos.y, center.z);
       this.planeGroup.rotation.set(Math.PI / 2, 0, 0);
     } else if (axis === 'X') { // Easting cut (Three.js X)
-      const val = min.x + this.planeOffset * size.x;
-      this.planeGroup.position.set(val, center.y, center.z);
+      if (!useCurPos) this.planeGroup.position.set(pos.x, center.y, center.z);
       this.planeGroup.rotation.set(0, Math.PI / 2, 0);
     } else { // Northing cut (Three.js Z)
-      const val = min.z + this.planeOffset * size.z;
-      this.planeGroup.position.set(center.x, center.y, val);
+      if (!useCurPos) this.planeGroup.position.set(center.x, center.y, pos.z);
       this.planeGroup.rotation.set(0, 0, 0);
     }
     
@@ -2114,7 +2279,14 @@ class ClippingEngine {
       if (this.planeCapMesh) this.planeCapMesh.visible = true;
       if (this.boxCapMeshes) this.boxCapMeshes.forEach(bm => bm.visible = false);
 
-      this.setPlaneAxis(this.planeAxis);
+      if (this._planeInitialized) {
+        this.updatePlaneFromState();
+      } else {
+        this.setPlaneAxis(this.planeAxis);
+      }
+      if (this.pinnedGizmoVisible && this.helpersVisible && this.planeGizmoGroup) {
+        this.planeGizmoGroup.visible = true;
+      }
     } else {
       this.planeGroup.visible = false;
       this.boxGroup.visible = this.helpersVisible;
@@ -2122,6 +2294,11 @@ class ClippingEngine {
       if (this.boxCapMeshes) this.boxCapMeshes.forEach(bm => bm.visible = true);
 
       this.updateBoxPlanesAndHelpers();
+      if (this.pinnedGizmoVisible && this.helpersVisible) {
+        const face = this.hoveredBoxFace || this.defaultBoxFace || 'yPos';
+        this.hoveredBoxFace = face;
+        this.showOnlyFaceGizmo(face);
+      }
     }
     this.syncStencilVisibility();
   }
@@ -2170,6 +2347,9 @@ class ClippingEngine {
         }
       }
     });
+    if (this.onClippingChange) {
+      this.onClippingChange(effectivePlanes);
+    }
   }
   
   clearPlanesFromMaterials() {
@@ -2206,10 +2386,16 @@ class ClippingEngine {
         }
       }
     });
+    if (this.onClippingChange) {
+      this.onClippingChange([]);
+    }
   }
   
   reset() {
     this.enabled = false;
+    this._planeInitialized = false;
+    this._boxInitialized = false;
+    this.pinnedGizmoVisible = false;
     this.helpersVisible = true;
     this.boxHelpersVisible = true;
     this.rotationSnap5Deg = true;

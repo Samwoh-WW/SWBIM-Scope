@@ -1264,6 +1264,14 @@ def generate_html(variant_cfg, sources):
             <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 7h4v4H7zm6 0h4v4h-4zm-6 6h4v4H7zm6 0h4v4h-4z"/></svg>
             <span data-i18n="menuSectionBox">Section Box</span>
           </div>
+          <div class="context-menu-item" id="menu-enable-sec-plane-here" style="display:none">
+            <svg viewBox="0 0 24 24"><path d="M3 11h18v2H3v-2zm9-7l-4 4h3v2h2V8h3l-4-4zm0 16l4-4h-3v-2h-2v2H8l4 4z"/></svg>
+            <span id="menu-enable-sec-plane-here-text" data-i18n="menuEnableSectionPlaneHere">Enable Section Plane Here</span>
+          </div>
+          <div class="context-menu-item" id="menu-enable-sec-box-here" style="display:none">
+            <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 7h4v4H7zm6 0h4v4h-4zm-6 6h4v4H7zm6 0h4v4h-4z"/></svg>
+            <span id="menu-enable-sec-box-here-text" data-i18n="menuEnableSectionBoxHere">Enable Section Box Here</span>
+          </div>
           <div class="context-menu-item" id="menu-move-sec-here" style="display:none">
             <svg viewBox="0 0 24 24"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg>
             <span id="menu-move-sec-here-text" data-i18n="menuMoveSectionPlaneToHere">Move Section Plane to Here</span>

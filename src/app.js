@@ -2425,6 +2425,11 @@ class BIMViewerApp {
     this.solarEngine = new SolarEngine(this.scene, this.renderer);
     this.clippingEngine = new ClippingEngine(this.scene, this.renderer);
     this.isGizmoDragging = false;
+    this.clippingEngine.onClippingChange = (planes) => {
+      if (this.pointCloudManager) {
+        this.pointCloudManager.updateClipping(planes);
+      }
+    };
     this.clippingEngine.onGizmoChange = () => {
       this.syncSectionUI();
       if (this.pointCloudManager) {
@@ -2518,6 +2523,7 @@ class BIMViewerApp {
     this.draggingMeasureMarker = null;
     this.contextMenuMeasureMarker = null;
     this.contextMenuMeasureSurfaceHit = null;
+    this.contextMenuHitPoint = null;
     
     this.activeModel = null;
     this.loadedModels = [];
@@ -3495,6 +3501,7 @@ class BIMViewerApp {
 
     if (this.clippingEngine) {
       this.clippingEngine.clearModel();
+      this.resetSectionState();
     }
     this.categoryStates.clear();
     const container = document.querySelector('.legend-container');
@@ -3784,8 +3791,7 @@ class BIMViewerApp {
     // Compute total bounds and bounding sphere
     const box = new THREE.Box3().setFromObject(this.activeModel);
     if (!box.isEmpty()) {
-      this.clippingEngine.setBounds(box);
-      this.clippingEngine.setModel(this.activeModel);
+      this.updateClippingBounds(Boolean(isAppend));
       
       const center = new THREE.Vector3();
       box.getCenter(center);
@@ -3925,6 +3931,7 @@ class BIMViewerApp {
     }
 
     this.clearSelection();
+    this.updateClippingBounds(true);
     this.buildHierarchyTree();
     this.updateStats();
     this.renderModelInfoInspector();
@@ -3976,7 +3983,61 @@ class BIMViewerApp {
       if (this.virtualElemTree) this.virtualElemTree.setGroups([]);
       this.virtualLevelsData = [];
       this.virtualElemData = [];
+
+      if (this.clippingEngine) {
+        this.resetSectionState();
+      }
     }
+  }
+
+  resetSectionState() {
+    if (!this.clippingEngine) return;
+    this.clippingEngine.reset();
+    const secActive = document.getElementById('sec-active-chk');
+    if (secActive) secActive.checked = false;
+    const secOffset = document.getElementById('sec-offset-slider');
+    if (secOffset) secOffset.value = 0.5;
+    ['sec-box-minx', 'sec-box-miny', 'sec-box-minz'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = 0;
+    });
+    ['sec-box-maxx', 'sec-box-maxy', 'sec-box-maxz'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = 1;
+    });
+    if (this.pointCloudManager) {
+      this.pointCloudManager.updateClipping([]);
+    }
+    this.syncSectionUI();
+  }
+
+  updateClippingBounds(preserveActive = true) {
+    if (!this.clippingEngine) return;
+    const combinedBox = new THREE.Box3();
+    const models = (this.loadedModels && this.loadedModels.length > 0)
+      ? this.loadedModels
+      : (this.activeModel ? [this.activeModel] : []);
+
+    models.forEach(m => {
+      if (m) {
+        const b = new THREE.Box3().setFromObject(m);
+        if (!b.isEmpty()) combinedBox.union(b);
+      }
+    });
+
+    if (this.pointCloudManager && this.pointCloudManager.pointClouds) {
+      for (const pco of this.pointCloudManager.pointClouds) {
+        if (pco) {
+          const pb = this.pointCloudManager.getWorldBoundingBox(pco);
+          if (pb && !pb.isEmpty()) combinedBox.union(pb);
+        }
+      }
+    }
+
+    if (!combinedBox.isEmpty()) {
+      this.clippingEngine.setBounds(combinedBox, preserveActive);
+    }
+    this.clippingEngine.setModels(models);
   }
 
   // Fit View / Camera Framing
@@ -8996,8 +9057,7 @@ class BIMViewerApp {
     this.activeModel.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(this.activeModel);
     if (!box.isEmpty()) {
-      this.clippingEngine.setBounds(box);
-      this.clippingEngine.setModel(this.activeModel);
+      this.updateClippingBounds(false);
       const center = new THREE.Vector3();
       box.getCenter(center);
       const sphere = new THREE.Sphere();
@@ -10134,14 +10194,16 @@ class BIMViewerApp {
     // If no element is selected, it displays the root/global context menu.
     this.clearHoverOverlay();
 
-    // Detect if right-clicking on a measurement point marker or on a model surface in Point Measure mode
+    // Detect if right-clicking on a measurement point marker or on a model / point cloud surface
     this.contextMenuMeasureMarker = null;
     this.contextMenuMeasureSurfaceHit = null;
+    this.contextMenuHitPoint = null;
     if (this.canvas && this.camera) {
       const rect = this.canvas.getBoundingClientRect();
       this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       this.raycaster.setFromCamera(this.mouse, this.camera);
+      this.contextMenuHitPoint = this.pick3DPointAtRay(this.raycaster);
 
       if (this.measureMarkers && this.measureMarkers.length > 0) {
         const markerHits = this.intersectMeasureMarkers(this.raycaster);
@@ -10229,6 +10291,10 @@ class BIMViewerApp {
     const itemIsolate = document.getElementById('menu-isolate');
     const itemZoomTo = document.getElementById('menu-zoom-to');
     const itemSectionBox = document.getElementById('menu-section-box');
+    const itemEnableSecPlaneHere = document.getElementById('menu-enable-sec-plane-here');
+    const itemEnableSecPlaneHereText = document.getElementById('menu-enable-sec-plane-here-text');
+    const itemEnableSecBoxHere = document.getElementById('menu-enable-sec-box-here');
+    const itemEnableSecBoxHereText = document.getElementById('menu-enable-sec-box-here-text');
     const itemMoveSecHere = document.getElementById('menu-move-sec-here');
     const itemMoveSecHereText = document.getElementById('menu-move-sec-here-text');
     const itemDivider = document.getElementById('menu-selected-divider');
@@ -10240,8 +10306,12 @@ class BIMViewerApp {
       if (el) el.style.display = 'none';
     });
 
-    const isSecEnabled = this.clippingEngine && this.clippingEngine.enabled;
+    const isSecEnabled = Boolean(this.clippingEngine && this.clippingEngine.enabled);
     const isSecBox = isSecEnabled && this.clippingEngine.mode === 'box';
+    const hasHitPoint = Boolean(this.contextMenuHitPoint);
+
+    if (itemEnableSecPlaneHereText) itemEnableSecPlaneHereText.textContent = I18N.t('menuEnableSectionPlaneHere');
+    if (itemEnableSecBoxHereText) itemEnableSecBoxHereText.textContent = I18N.t('menuEnableSectionBoxHere');
 
     if (hasSelection) {
       if (itemShowAll) itemShowAll.style.display = 'none';
@@ -10255,6 +10325,8 @@ class BIMViewerApp {
 
       if (isSecEnabled) {
         if (itemSectionBox) itemSectionBox.style.display = 'none';
+        if (itemEnableSecPlaneHere) itemEnableSecPlaneHere.style.display = 'none';
+        if (itemEnableSecBoxHere) itemEnableSecBoxHere.style.display = 'none';
         if (itemMoveSecHere) {
           itemMoveSecHere.style.display = 'flex';
           if (itemMoveSecHereText) {
@@ -10264,19 +10336,48 @@ class BIMViewerApp {
         }
       } else {
         if (itemMoveSecHere) itemMoveSecHere.style.display = 'none';
-        if (itemSectionBox) itemSectionBox.style.display = 'flex';
+        if (hasHitPoint) {
+          if (itemEnableSecPlaneHere) itemEnableSecPlaneHere.style.display = 'flex';
+          if (itemEnableSecBoxHere) itemEnableSecBoxHere.style.display = 'flex';
+          if (itemSectionBox) itemSectionBox.style.display = 'flex';
+        } else {
+          if (itemEnableSecPlaneHere) itemEnableSecPlaneHere.style.display = 'none';
+          if (itemEnableSecBoxHere) itemEnableSecBoxHere.style.display = 'none';
+          if (itemSectionBox) itemSectionBox.style.display = 'flex';
+        }
       }
     } else {
       if (itemShowAll) itemShowAll.style.display = 'flex';
       if (itemZoomGlobal) itemZoomGlobal.style.display = 'flex';
       if (itemResetView) itemResetView.style.display = 'flex';
-      if (itemDivider) itemDivider.style.display = 'none';
 
       if (itemHide) itemHide.style.display = 'none';
       if (itemIsolate) itemIsolate.style.display = 'none';
       if (itemZoomTo) itemZoomTo.style.display = 'none';
       if (itemSectionBox) itemSectionBox.style.display = 'none';
-      if (itemMoveSecHere) itemMoveSecHere.style.display = 'none';
+
+      if (isSecEnabled && hasHitPoint) {
+        if (itemDivider) itemDivider.style.display = 'block';
+        if (itemEnableSecPlaneHere) itemEnableSecPlaneHere.style.display = 'none';
+        if (itemEnableSecBoxHere) itemEnableSecBoxHere.style.display = 'none';
+        if (itemMoveSecHere) {
+          itemMoveSecHere.style.display = 'flex';
+          if (itemMoveSecHereText) {
+            itemMoveSecHereText.textContent = isSecBox ? 
+              I18N.t('menuMoveSectionBoxToHere') : I18N.t('menuMoveSectionPlaneToHere');
+          }
+        }
+      } else if (!isSecEnabled && hasHitPoint) {
+        if (itemDivider) itemDivider.style.display = 'block';
+        if (itemMoveSecHere) itemMoveSecHere.style.display = 'none';
+        if (itemEnableSecPlaneHere) itemEnableSecPlaneHere.style.display = 'flex';
+        if (itemEnableSecBoxHere) itemEnableSecBoxHere.style.display = 'flex';
+      } else {
+        if (itemDivider) itemDivider.style.display = 'none';
+        if (itemMoveSecHere) itemMoveSecHere.style.display = 'none';
+        if (itemEnableSecPlaneHere) itemEnableSecPlaneHere.style.display = 'none';
+        if (itemEnableSecBoxHere) itemEnableSecBoxHere.style.display = 'none';
+      }
     }
 
     // Sectioning Context Menu Items
@@ -10375,7 +10476,7 @@ class BIMViewerApp {
     // Hide all element / group / section / measure items
     const allOtherIds = [
       'menu-show-all', 'menu-zoom-global', 'menu-reset-view', 'menu-selected-divider', 'menu-hide', 'menu-isolate', 'menu-zoom-to', 'menu-section-box',
-      'menu-move-sec-here', 'menu-group-isolate', 'menu-group-hide', 'menu-group-zoom', 'menu-group-sec-box',
+      'menu-enable-sec-plane-here', 'menu-enable-sec-box-here', 'menu-move-sec-here', 'menu-group-isolate', 'menu-group-hide', 'menu-group-zoom', 'menu-group-sec-box',
       'menu-sectioning-divider', 'menu-toggle-section-box', 'menu-reset-sec-rot',
       'menu-measure-divider', 'menu-measure-create-point', 'menu-measure-delete-point', 'menu-measure-delete-measurement',
       'menu-measure-insert-point', 'menu-measure-prepend-point', 'menu-measure-append-point', 'menu-measure-break-closure'
@@ -10430,7 +10531,7 @@ class BIMViewerApp {
     });
 
     // Hide single-element and root empty selection items
-    ['menu-show-all', 'menu-zoom-global', 'menu-reset-view', 'menu-selected-divider', 'menu-hide', 'menu-isolate', 'menu-zoom-to', 'menu-section-box'].forEach(id => {
+    ['menu-show-all', 'menu-zoom-global', 'menu-reset-view', 'menu-selected-divider', 'menu-hide', 'menu-isolate', 'menu-zoom-to', 'menu-section-box', 'menu-enable-sec-plane-here', 'menu-enable-sec-box-here'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = 'none';
     });
@@ -10617,10 +10718,34 @@ class BIMViewerApp {
       };
     }
 
+    const btnEnableSecPlaneHere = document.getElementById('menu-enable-sec-plane-here');
+    if (btnEnableSecPlaneHere) {
+      btnEnableSecPlaneHere.onclick = () => {
+        this.hideContextMenu();
+        if (this.contextMenuHitPoint) {
+          this.enableSectionPlaneAtPoint(this.contextMenuHitPoint);
+        }
+      };
+    }
+
+    const btnEnableSecBoxHere = document.getElementById('menu-enable-sec-box-here');
+    if (btnEnableSecBoxHere) {
+      btnEnableSecBoxHere.onclick = () => {
+        this.hideContextMenu();
+        if (this.contextMenuHitPoint) {
+          this.enableSectionBoxAtPoint(this.contextMenuHitPoint);
+        }
+      };
+    }
+
     const btnMoveSecHere = document.getElementById('menu-move-sec-here');
     if (btnMoveSecHere) {
       btnMoveSecHere.onclick = () => {
         this.hideContextMenu();
+        if (this.contextMenuHitPoint) {
+          this.moveSectionToPoint(this.contextMenuHitPoint);
+          return;
+        }
         const target = (this.selectedMeshes && this.selectedMeshes.length > 1) ? 
           this.selectedMeshes : 
           (this.selectedMesh || this.contextGroupMeshes);
@@ -11167,13 +11292,16 @@ class BIMViewerApp {
   toggleSectionPlane() {
     if (!this.clippingEngine) return;
     this.openFloatingTools('tab-section-content');
+    this.updateClippingBounds(true);
     const secActive = document.getElementById('sec-active-chk');
     if (!this.clippingEngine.enabled) {
       this.clippingEngine.enabled = true;
       if (secActive) secActive.checked = true;
     }
     this.clippingEngine.mode = 'plane';
+    this.ensureSectionInCurrentView('plane', false);
     this.clippingEngine.update();
+    this.clippingEngine.ensureVisibleGizmo(this.camera);
     this.syncSectionUI();
     this.requestRender(100);
   }
@@ -11181,13 +11309,16 @@ class BIMViewerApp {
   toggleSectionBox() {
     if (!this.clippingEngine) return;
     this.openFloatingTools('tab-section-content');
+    this.updateClippingBounds(true);
     const secActive = document.getElementById('sec-active-chk');
     if (!this.clippingEngine.enabled) {
       this.clippingEngine.enabled = true;
       if (secActive) secActive.checked = true;
     }
     this.clippingEngine.mode = 'box';
+    this.ensureSectionInCurrentView('box', false);
     this.clippingEngine.update();
+    this.clippingEngine.ensureVisibleGizmo(this.camera);
     this.syncSectionUI();
     this.requestRender(100);
   }
@@ -11737,6 +11868,338 @@ class BIMViewerApp {
     showToast(I18N.t('menuHideGroup'), 'info');
   }
 
+  pick3DPointAtRay(raycaster) {
+    if (!raycaster || !this.camera) return null;
+    let bestPt = null;
+    let bestDist = Infinity;
+
+    // 1. Check visible mesh models
+    const searchRoots = (this.loadedModels && this.loadedModels.length > 0)
+      ? this.loadedModels.filter(m => m && m.visible !== false)
+      : (this.activeModel && this.activeModel.visible !== false ? [this.activeModel] : []);
+
+    if (searchRoots.length > 0) {
+      const intersects = raycaster.intersectObjects(searchRoots, true);
+      const valid = intersects.filter(hit => this.isPickableElement(hit.object));
+      if (valid.length > 0) {
+        bestPt = valid[0].point.clone();
+        bestDist = valid[0].distance;
+      }
+    }
+
+    // 2. Check visible point clouds (with CPU & box fallback so right-clicking anywhere on a point cloud succeeds)
+    if (this.pointCloudManager && this.pointCloudManager.pointClouds && this.pointCloudManager.pointClouds.length > 0) {
+      const pcHit = this.pointCloudManager.raycast(raycaster, 25, true);
+      if (pcHit && pcHit.point && pcHit.distance < bestDist) {
+        bestPt = pcHit.point.clone();
+        bestDist = pcHit.distance;
+      }
+    }
+
+    return bestPt;
+  }
+
+  isPointInViewport(pt, ndcMargin = 0.84) {
+    if (!pt || !this.camera) return false;
+    this.camera.updateMatrixWorld(true);
+    const ndc = pt.clone().project(this.camera);
+    return (
+      Number.isFinite(ndc.x) &&
+      Number.isFinite(ndc.y) &&
+      Number.isFinite(ndc.z) &&
+      Math.abs(ndc.x) <= ndcMargin &&
+      Math.abs(ndc.y) <= ndcMargin &&
+      ndc.z >= -1.0 &&
+      ndc.z <= 1.0
+    );
+  }
+
+  isAnyBoxGizmoInViewport(ndcMargin = 0.86) {
+    if (!this.clippingEngine || !this.camera) return false;
+    const ce = this.clippingEngine;
+    const hx = ce.boxHalfSizes.x;
+    const hy = ce.boxHalfSizes.y;
+    const hz = ce.boxHalfSizes.z;
+    const faceOffsets = [
+      new THREE.Vector3(hx, 0, 0),
+      new THREE.Vector3(-hx, 0, 0),
+      new THREE.Vector3(0, hy, 0),
+      new THREE.Vector3(0, -hy, 0),
+      new THREE.Vector3(0, 0, hz),
+      new THREE.Vector3(0, 0, -hz)
+    ];
+    for (const off of faceOffsets) {
+      const worldPos = off.clone().applyQuaternion(ce.boxQuaternion).add(ce.boxCenter);
+      if (this.isPointInViewport(worldPos, ndcMargin)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  getVisibleViewBounds(ndcLimit = 0.72) {
+    this.updateClippingBounds(true);
+    const fullBounds = (this.clippingEngine && this.clippingEngine.bounds && !this.clippingEngine.bounds.isEmpty())
+      ? this.clippingEngine.bounds.clone()
+      : new THREE.Box3(new THREE.Vector3(-25, -5, -25), new THREE.Vector3(25, 25, 25));
+
+    if (!this.camera) return fullBounds;
+    this.camera.updateMatrixWorld(true);
+
+    const visibleBox = new THREE.Box3();
+    const tmpPt = new THREE.Vector3();
+    const tmpLocal = new THREE.Vector3();
+
+    // A. Sample visible mesh bounding boxes / vertices inside current camera NDC
+    const models = (this.loadedModels && this.loadedModels.length > 0)
+      ? this.loadedModels.filter(m => m && m.visible !== false)
+      : (this.activeModel && this.activeModel.visible !== false ? [this.activeModel] : []);
+
+    models.forEach(model => {
+      model.traverse(obj => {
+        if (!obj.isMesh || !obj.visible) return;
+        const mBox = (obj.userData && obj.userData._cachedWorldBox) || new THREE.Box3().setFromObject(obj);
+        if (!mBox || mBox.isEmpty()) return;
+        mBox.getCenter(tmpPt);
+        if (this.isPointInViewport(tmpPt, ndcLimit)) {
+          visibleBox.expandByPoint(tmpPt);
+        }
+        const corners = [
+          new THREE.Vector3(mBox.min.x, mBox.min.y, mBox.min.z),
+          new THREE.Vector3(mBox.max.x, mBox.min.y, mBox.min.z),
+          new THREE.Vector3(mBox.min.x, mBox.max.y, mBox.min.z),
+          new THREE.Vector3(mBox.max.x, mBox.max.y, mBox.min.z),
+          new THREE.Vector3(mBox.min.x, mBox.min.y, mBox.max.z),
+          new THREE.Vector3(mBox.max.x, mBox.min.y, mBox.max.z),
+          new THREE.Vector3(mBox.min.x, mBox.max.y, mBox.max.z),
+          new THREE.Vector3(mBox.max.x, mBox.max.y, mBox.max.z)
+        ];
+        for (const c of corners) {
+          if (this.isPointInViewport(c, ndcLimit)) {
+            visibleBox.expandByPoint(c);
+          }
+        }
+      });
+    });
+
+    // B. Sample visible point cloud octree points inside current camera NDC
+    if (this.pointCloudManager && this.pointCloudManager.pointClouds) {
+      for (const pco of this.pointCloudManager.pointClouds) {
+        if (!pco || !pco.visible) continue;
+        pco.updateMatrixWorld(true);
+        const rootNode = (pco.pcoGeometry && pco.pcoGeometry.root) || pco.root;
+        const nodes = [];
+        if (Array.isArray(pco.visibleNodes) && pco.visibleNodes.length > 0) {
+          for (const vn of pco.visibleNodes) {
+            if (vn) nodes.push(vn);
+          }
+        }
+        if (rootNode && !nodes.includes(rootNode)) nodes.push(rootNode);
+
+        for (const node of nodes) {
+          const geo = node.geometry || (node.geometryNode && node.geometryNode.geometry);
+          if (!geo || !geo.attributes || !geo.attributes.position || !geo.attributes.position.array) continue;
+          const pos = geo.attributes.position;
+          const count = pos.count || Math.floor(pos.array.length / 3);
+          if (count <= 0) continue;
+          const arr = pos.array;
+          const nodeMin = (node.boundingBox && node.boundingBox.min) ? node.boundingBox.min : { x: 0, y: 0, z: 0 };
+          const stride = count > 800 ? Math.ceil(count / 800) : 1;
+          for (let i = 0; i < count; i += stride) {
+            tmpLocal.set(
+              arr[i * 3] + nodeMin.x,
+              arr[i * 3 + 1] + nodeMin.y,
+              arr[i * 3 + 2] + nodeMin.z
+            );
+            tmpPt.copy(tmpLocal).applyMatrix4(pco.matrixWorld);
+            if (this.isPointInViewport(tmpPt, ndcLimit)) {
+              visibleBox.expandByPoint(tmpPt);
+            }
+          }
+        }
+      }
+    }
+
+    // C. Fallback if zoomed super close where only a surface/target is in view
+    if (visibleBox.isEmpty()) {
+      const centerRay = new THREE.Raycaster();
+      centerRay.setFromCamera(new THREE.Vector2(0, 0), this.camera);
+      const centerHit = this.pick3DPointAtRay(centerRay);
+      const refCenter = centerHit
+        || (this.controls && this.controls.target && this.isPointInViewport(this.controls.target, 0.85) ? this.controls.target.clone() : null)
+        || fullBounds.getCenter(new THREE.Vector3());
+      fullBounds.clampPoint(refCenter, tmpPt);
+      const dist = Math.max(2.0, this.camera.position.distanceTo(tmpPt));
+      const span = Math.max(1.0, dist * 0.32);
+      visibleBox.setFromCenterAndSize(tmpPt, new THREE.Vector3(span * 2, span * 2, span * 2));
+      visibleBox.intersect(fullBounds);
+      if (visibleBox.isEmpty()) {
+        visibleBox.setFromCenterAndSize(tmpPt, new THREE.Vector3(span * 2, span * 2, span * 2));
+      }
+    }
+
+    // Ensure non-zero thickness along all 3 axes
+    const vSize = new THREE.Vector3();
+    visibleBox.getSize(vSize);
+    const vCenter = new THREE.Vector3();
+    visibleBox.getCenter(vCenter);
+    const minThickness = Math.max(0.6, Math.max(vSize.x, vSize.y, vSize.z) * 0.08);
+    if (vSize.x < minThickness || vSize.y < minThickness || vSize.z < minThickness) {
+      visibleBox.setFromCenterAndSize(
+        vCenter,
+        new THREE.Vector3(
+          Math.max(vSize.x, minThickness),
+          Math.max(vSize.y, minThickness),
+          Math.max(vSize.z, minThickness)
+        )
+      );
+    }
+    return visibleBox;
+  }
+
+  computeVisibleBoxHalfSizesAtPoint(centerPt, refViewBox = null) {
+    const viewBox = refViewBox || this.getVisibleViewBounds(0.68);
+    const viewSize = new THREE.Vector3();
+    viewBox.getSize(viewSize);
+
+    let maxHalfSpan = 15.0;
+    if (this.camera) {
+      this.camera.updateMatrixWorld(true);
+      const dist = Math.max(1.5, this.camera.position.distanceTo(centerPt));
+      let halfH;
+      let halfW;
+      if (this.camera.isPerspectiveCamera) {
+        halfH = dist * Math.tan(THREE.MathUtils.degToRad((this.camera.fov || 45) * 0.5));
+        halfW = halfH * (this.camera.aspect || 1.0);
+      } else {
+        const zoom = this.camera.zoom || 1.0;
+        halfH = Math.abs(this.camera.top - this.camera.bottom) * 0.5 / zoom;
+        halfW = Math.abs(this.camera.right - this.camera.left) * 0.5 / zoom;
+      }
+      const ndc = centerPt.clone().project(this.camera);
+      const marginX = Math.max(0.28, 0.88 - Math.min(0.60, Math.abs(ndc.x)));
+      const marginY = Math.max(0.28, 0.88 - Math.min(0.60, Math.abs(ndc.y)));
+      const availSpan = Math.min(halfW * marginX, halfH * marginY);
+      // Divide by sqrt(3) (~1.75) so all 8 corners of an axis-aligned box stay inside the current viewport
+      maxHalfSpan = Math.max(0.5, availSpan / 1.75);
+    }
+
+    const hx = Math.max(0.4, Math.min(maxHalfSpan, (viewSize.x * 0.36) || maxHalfSpan));
+    const hy = Math.max(0.4, Math.min(maxHalfSpan, (viewSize.y * 0.36) || maxHalfSpan));
+    const hz = Math.max(0.4, Math.min(maxHalfSpan, (viewSize.z * 0.36) || maxHalfSpan));
+    return new THREE.Vector3(hx, hy, hz);
+  }
+
+  ensureSectionInCurrentView(mode = (this.clippingEngine ? this.clippingEngine.mode : 'plane'), forceInit = false) {
+    if (!this.clippingEngine) return;
+    const ce = this.clippingEngine;
+    this.updateClippingBounds(true);
+
+    if (mode === 'plane') {
+      const needsInit = forceInit || !ce._planeInitialized || !this.isPointInViewport(ce.planeGroup.position, 0.82);
+      if (needsInit) {
+        const viewBox = this.getVisibleViewBounds(0.70);
+        const targetCenter = new THREE.Vector3();
+        viewBox.getCenter(targetCenter);
+        // Prefer direct surface hit at screen center if it lies within the visible viewBox
+        const centerRay = new THREE.Raycaster();
+        if (this.camera) {
+          centerRay.setFromCamera(new THREE.Vector2(0, 0), this.camera);
+          const centerHit = this.pick3DPointAtRay(centerRay);
+          if (centerHit && this.isPointInViewport(centerHit, 0.75)) {
+            targetCenter.copy(centerHit);
+          }
+        }
+        ce._planeInitialized = true;
+        ce.planeGroup.position.copy(targetCenter);
+        ce.setPlaneAxis(ce.planeAxis || 'Z', true);
+      }
+      ce.ensureVisibleGizmo(this.camera);
+    } else if (mode === 'box') {
+      const needsInit = forceInit || !ce._boxInitialized || !this.isAnyBoxGizmoInViewport(0.86);
+      if (needsInit) {
+        const viewBox = this.getVisibleViewBounds(0.68);
+        const targetCenter = new THREE.Vector3();
+        viewBox.getCenter(targetCenter);
+        const halfSizes = this.computeVisibleBoxHalfSizesAtPoint(targetCenter, viewBox);
+        ce._boxInitialized = true;
+        ce.boxQuaternion.identity();
+        ce.boxCenter.copy(targetCenter);
+        ce.boxHalfSizes.copy(halfSizes);
+        ce.computeBoxRangesFromState();
+        ce.updateBoxPlanesAndHelpers();
+      }
+      ce.ensureVisibleGizmo(this.camera);
+    }
+  }
+
+  moveSectionToPoint(point) {
+    if (!this.clippingEngine || !point) return;
+    this.updateClippingBounds(true);
+    const ce = this.clippingEngine;
+    if (!ce.enabled) {
+      ce.enabled = true;
+      const secActive = document.getElementById('sec-active-chk');
+      if (secActive) secActive.checked = true;
+    }
+    if (ce.mode === 'plane') {
+      ce.movePlaneToPoint(point);
+    } else {
+      ce.moveBoxCenterToPoint(point);
+    }
+    ce.update();
+    ce.ensureVisibleGizmo(this.camera);
+    this.syncSectionUI();
+    this.requestRender(200);
+  }
+
+  enableSectionPlaneAtPoint(point) {
+    if (!this.clippingEngine || !point) return;
+    this.updateClippingBounds(true);
+    const ce = this.clippingEngine;
+    ce.enabled = true;
+    ce.mode = 'plane';
+    ce.helpersVisible = true;
+    ce.boxHelpersVisible = true;
+    ce.planeAxis = 'Z';
+    ce.planeInvert = false;
+    ce._planeInitialized = true;
+    ce.planeGroup.position.copy(point);
+    ce.planeGroup.rotation.set(Math.PI / 2, 0, 0);
+    ce.update();
+    ce.ensureVisibleGizmo(this.camera);
+
+    const secActive = document.getElementById('sec-active-chk');
+    if (secActive) secActive.checked = true;
+    this.syncSectionUI();
+    this.requestRender(200);
+  }
+
+  enableSectionBoxAtPoint(point) {
+    if (!this.clippingEngine || !point) return;
+    this.updateClippingBounds(true);
+    const ce = this.clippingEngine;
+    const viewBox = this.getVisibleViewBounds(0.68);
+    const halfSizes = this.computeVisibleBoxHalfSizesAtPoint(point, viewBox);
+
+    ce.enabled = true;
+    ce.mode = 'box';
+    ce.helpersVisible = true;
+    ce.boxHelpersVisible = true;
+    ce._boxInitialized = true;
+    ce.boxQuaternion.identity();
+    ce.boxCenter.copy(point);
+    ce.boxHalfSizes.copy(halfSizes);
+    ce.computeBoxRangesFromState();
+    ce.update();
+    ce.ensureVisibleGizmo(this.camera);
+
+    const secActive = document.getElementById('sec-active-chk');
+    if (secActive) secActive.checked = true;
+    this.syncSectionUI();
+    this.requestRender(200);
+  }
+
   moveSectionToTarget(target) {
     if (!this.clippingEngine || !this.clippingEngine.enabled) return;
     const box = this.computeBoundsFromTarget(target);
@@ -11745,8 +12208,11 @@ class BIMViewerApp {
     if (this.clippingEngine.mode === 'plane') {
       this.clippingEngine.movePlaneToTarget(box);
     } else {
-      this.clippingEngine.setBoxFromBounds(box, 0.08);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      this.clippingEngine.moveBoxCenterToPoint(center);
     }
+    this.clippingEngine.ensureVisibleGizmo(this.camera);
 
     if (!this.isBoxInFrustum(box)) {
       this.zoomToBox(box);
@@ -18503,8 +18969,13 @@ class BIMViewerApp {
     const secActive = document.getElementById('sec-active-chk');
     secActive.onchange = () => {
       this.clippingEngine.enabled = secActive.checked;
+      if (this.clippingEngine.enabled) {
+        this.ensureSectionInCurrentView(this.clippingEngine.mode, false);
+      }
       this.clippingEngine.update();
-      if (!this.clippingEngine.enabled) {
+      if (this.clippingEngine.enabled) {
+        this.clippingEngine.ensureVisibleGizmo(this.camera);
+      } else {
         if (this.selectedMeshes && this.selectedMeshes.length > 0) {
           const remaining = this.selectedMeshes.filter(m => this.isPickableElement(m));
           if (remaining.length === 0) this.clearSelection();
@@ -18519,7 +18990,9 @@ class BIMViewerApp {
     const ensureSectioningActive = () => {
       if (!this.clippingEngine.enabled) {
         this.clippingEngine.enabled = true;
+        this.ensureSectionInCurrentView(this.clippingEngine.mode, false);
         this.clippingEngine.update();
+        this.clippingEngine.ensureVisibleGizmo(this.camera);
         if (secActive) secActive.checked = true;
       }
     };
@@ -18543,9 +19016,14 @@ class BIMViewerApp {
     }
     
     const setClippingMode = (mode) => {
-      ensureSectioningActive();
       this.clippingEngine.mode = mode;
+      if (!this.clippingEngine.enabled) {
+        this.clippingEngine.enabled = true;
+        if (secActive) secActive.checked = true;
+      }
+      this.ensureSectionInCurrentView(mode, false);
       this.clippingEngine.update();
+      this.clippingEngine.ensureVisibleGizmo(this.camera);
       if (this.selectedMeshes && this.selectedMeshes.length > 0) {
         const remaining = this.selectedMeshes.filter(m => this.isPickableElement(m));
         if (remaining.length === 0) this.clearSelection();
@@ -18588,17 +19066,9 @@ class BIMViewerApp {
     if (boxResetBtn) {
       boxResetBtn.onclick = () => {
         ensureSectioningActive();
-        this.clippingEngine.boxQuaternion.identity();
-        this.clippingEngine.boxRanges = { minX: 0, maxX: 1, minY: 0, maxY: 1, minZ: 0, maxZ: 1 };
-        ['sec-box-minx', 'sec-box-miny', 'sec-box-minz'].forEach(id => {
-          const el = document.getElementById(id);
-          if (el) el.value = 0;
-        });
-        ['sec-box-maxx', 'sec-box-maxy', 'sec-box-maxz'].forEach(id => {
-          const el = document.getElementById(id);
-          if (el) el.value = 1;
-        });
-        this.clippingEngine.setFromBoxRanges(this.clippingEngine.boxRanges);
+        this.ensureSectionInCurrentView('box', true);
+        this.clippingEngine.update();
+        this.clippingEngine.ensureVisibleGizmo(this.camera);
         this.syncSectionUI();
       };
     }
@@ -18703,8 +19173,7 @@ class BIMViewerApp {
     if (secOffset) {
       secOffset.oninput = () => {
         ensureSectioningActive();
-        this.clippingEngine.planeOffset = parseFloat(secOffset.value);
-        this.clippingEngine.setPlaneAxis(this.clippingEngine.planeAxis);
+        this.clippingEngine.setPlaneOffset(parseFloat(secOffset.value));
         this.syncSectionUI();
       };
     }
@@ -19507,6 +19976,9 @@ class BIMViewerApp {
 
         if (this.solarEngine && this.solarEngine.setCamera) {
           this.solarEngine.setCamera(this.camera, this.controls ? this.controls.target : null);
+        }
+        if (this.clippingEngine && this.clippingEngine.enabled && this.clippingEngine.updateGizmoScaleForCamera) {
+          this.clippingEngine.updateGizmoScaleForCamera(this.camera);
         }
 
         if ((this.measureMarkers && this.measureMarkers.length > 0) || (this.radiusMeasurements && this.radiusMeasurements.length > 0) || (this.angleMeasurements && this.angleMeasurements.length > 0) || (this.distanceMeasurements && this.distanceMeasurements.length > 0)) {
