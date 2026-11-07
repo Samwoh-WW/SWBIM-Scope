@@ -13068,7 +13068,7 @@ class BIMViewerApp {
     const xLabel = isZh ? 'Δ东 (ΔX)' : 'ΔEasting (ΔX)';
     const yLabel = isZh ? 'Δ北 (ΔY)' : 'ΔNorthing (ΔY)';
     const zLabel = isZh ? 'Δ高差 (ΔZ/RL)' : 'ΔHeight (ΔZ/RL)';
-    distRec.calloutEl.title = ${I18N.t('measureDist')}:  \n:  \n:  \n:  \n: \nClick to copy, Shift+Click to delete;
+    distRec.calloutEl.title = `${I18N.t('measureDist')}: ${dVal} ${unit}\n${xLabel}: ${dxVal} ${unit}\n${yLabel}: ${dyVal} ${unit}\n${zLabel}: ${dzVal} ${unit}\n${slopeLabel}: ${slopeStr}\nClick to copy, Shift+Click to delete`;
   }
 
   deleteDistanceMeasurement(id) {
