@@ -209,6 +209,21 @@ class BIMPointCloudManager {
 
       if (!pco) throw new Error('Null point cloud returned');
 
+      // Derive friendly name
+      let pcName = 'Point Cloud';
+      const folderFile = fileList.find(f => f.webkitRelativePath);
+      if (folderFile) {
+        const rootFolder = folderFile.webkitRelativePath.split('/')[0];
+        if (rootFolder) pcName = rootFolder;
+      } else if (fileList.length > 0) {
+        const first = fileList.find(f => f.name && !['metadata.json', 'octree.bin', 'hierarchy.bin'].includes(f.name.toLowerCase()));
+        if (first) pcName = first.name.replace(/\.[^/.]+$/, '');
+      }
+      if (pco.pcoGeometry && pco.pcoGeometry.loader && pco.pcoGeometry.loader.metadata && pco.pcoGeometry.loader.metadata.name) {
+        pcName = pco.pcoGeometry.loader.metadata.name;
+      }
+      pco.name = pcName;
+
       this.onPointCloudLoaded(pco);
       return pco;
     } catch (err) {
@@ -471,75 +486,25 @@ class BIMPointCloudManager {
 
   // --- LEFT SIDEBAR MODEL HIERARCHY TREE ---
   updateModelHierarchyTree() {
-    const structTree = document.getElementById('tree-structures');
-    const tabStruct = document.getElementById('tab-struct-content');
-    const targetParent = structTree ? structTree.parentNode : tabStruct;
-    if (!targetParent) return;
+    // Remove legacy DOM element if present
+    const legacyEl = document.getElementById('tree-group-pointcloud');
+    if (legacyEl) legacyEl.remove();
 
-    let pcTreeGroup = document.getElementById('tree-group-pointcloud');
-    if (!pcTreeGroup) {
-      pcTreeGroup = document.createElement('div');
-      pcTreeGroup.id = 'tree-group-pointcloud';
-      pcTreeGroup.className = 'tree-node-group pointcloud-group';
-      if (structTree) {
-        targetParent.insertBefore(pcTreeGroup, structTree);
-      } else {
-        targetParent.prepend(pcTreeGroup);
-      }
+    // Rebuild or re-render unified VirtualBimTree
+    if (this.app && this.app.buildHierarchyTree) {
+      this.app.buildHierarchyTree();
     }
+  }
 
-    const isZh = (window.I18N ? window.I18N.currentLang : 'zh') === 'zh';
-    const totalPoints = this.pointClouds.reduce((sum, p) => sum + this.getPointCloudPointCount(p), 0);
-    const isSelected = this.isPointCloudSelected;
-
-    pcTreeGroup.innerHTML = `
-      <div class="tree-node-row pc-tree-item ${isSelected ? 'selected' : ''}" style="display:flex; align-items:center; justify-content:space-between; padding:8px 10px; background:${isSelected ? 'rgba(56,189,248,0.22)' : 'rgba(56,189,248,0.09)'}; border-radius:6px; margin:6px 0; border:1px solid ${isSelected ? 'var(--accent)' : 'rgba(56,189,248,0.35)'}; cursor:pointer; transition:all 0.15s ease;">
-        <div class="pc-tree-info" style="display:flex; align-items:center; gap:8px; min-width:0; flex:1;">
-          <span style="font-size:16px;">☁️</span>
-          <div style="display:flex; flex-direction:column; min-width:0;">
-            <span style="font-size:12px; font-weight:700; color:var(--accent); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${isZh ? '点云图层 (Point Cloud)' : 'Point Cloud Layer'}</span>
-            <span style="font-size:10px; color:var(--text-muted); font-family:var(--font-mono);">${((totalPoints || 0)).toLocaleString()} pts · ${isZh ? '双击聚焦' : 'DblClick Focus'}</span>
-          </div>
-        </div>
-        <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
-          <button type="button" class="small-btn pc-tree-focus-btn" id="btn-pc-tree-focus" title="${isZh ? '聚焦到点云' : 'Zoom to Point Cloud'}" style="padding:2px 7px; font-size:11px; background:rgba(56,189,248,0.18); border:1px solid rgba(56,189,248,0.4); color:var(--accent); border-radius:4px; cursor:pointer;">🎯 ${isZh ? '聚焦' : 'Focus'}</button>
-          <button type="button" class="pc-tree-vis-btn" id="btn-pc-toggle-vis" title="${isZh ? '显示/隐藏点云' : 'Toggle Visibility'}" style="background:none; border:none; color:var(--accent); cursor:pointer; font-size:15px; padding:2px 4px;">
-            ${this.activePointCloud && this.activePointCloud.visible ? '👁️' : '👁️‍🗨️'}
-          </button>
-        </div>
-      </div>
-    `;
-
-    const row = pcTreeGroup.querySelector('.pc-tree-item');
-    if (row) {
-      row.onclick = (e) => {
-        if (e.target.closest('#btn-pc-tree-focus') || e.target.closest('#btn-pc-toggle-vis')) return;
-        this.isPointCloudSelected = true;
-        this.updateModelHierarchyTree();
-        this.renderInspectorCard();
-      };
-      row.ondblclick = (e) => {
-        if (e.target.closest('#btn-pc-toggle-vis')) return;
-        this.fitPointCloudView();
-      };
-    }
-
-    const focusBtn = pcTreeGroup.querySelector('#btn-pc-tree-focus');
-    if (focusBtn) {
-      focusBtn.onclick = (e) => {
-        e.stopPropagation();
-        this.fitPointCloudView();
-      };
-    }
-
-    const visBtn = pcTreeGroup.querySelector('#btn-pc-toggle-vis');
-    if (visBtn) {
-      visBtn.onclick = (e) => {
-        e.stopPropagation();
-        this.toggleVisibility();
-        visBtn.textContent = this.activePointCloud && this.activePointCloud.visible ? '👁️' : '👁️‍🗨️';
-      };
-    }
+  getColorModeLabel(pco = this.activePointCloud) {
+    if (!pco || !pco.material) return 'RGB';
+    const PointColorType = window.PotreeCore ? window.PotreeCore.PointColorType : { RGB: 0, COLOR: 1, DEPTH: 2, HEIGHT: 3, ELEVATION: 3, INTENSITY: 4, CLASSIFICATION: 5 };
+    const pct = pco.material.pointColorType;
+    if (pct === PointColorType.RGB || pct === 0) return 'RGB';
+    if (pct === PointColorType.HEIGHT || pct === PointColorType.ELEVATION || pct === 3) return 'Elevation';
+    if (pct === PointColorType.INTENSITY || pct === 4) return 'Intensity';
+    if (pct === PointColorType.CLASSIFICATION || pct === 5) return 'Classification';
+    return 'RGB';
   }
 
   toggleVisibility() {

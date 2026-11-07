@@ -1644,6 +1644,65 @@ svg.help-btn-svg {
   pointer-events: auto;
 }
 
+.virtual-file-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--bg-panel-header);
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  height: 34px;
+  box-sizing: border-box;
+  margin-bottom: 2px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.virtual-file-header:hover {
+  background: var(--bg-hover);
+}
+
+.virtual-file-header.selected {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: var(--accent);
+}
+
+.virtual-file-header .file-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.virtual-file-header .file-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.virtual-file-header .file-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.virtual-file-header .file-count {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 6px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
 .virtual-group-header {
   display: flex;
   align-items: center;

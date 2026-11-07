@@ -1669,6 +1669,65 @@ svg.help-btn-svg {
   pointer-events: auto;
 }
 
+.virtual-file-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--bg-panel-header);
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  height: 34px;
+  box-sizing: border-box;
+  margin-bottom: 2px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.virtual-file-header:hover {
+  background: var(--bg-hover);
+}
+
+.virtual-file-header.selected {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: var(--accent);
+}
+
+.virtual-file-header .file-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.virtual-file-header .file-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.virtual-file-header .file-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.virtual-file-header .file-count {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 6px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
 .virtual-group-header {
   display: flex;
   align-items: center;
@@ -28139,6 +28198,21 @@ class BIMPointCloudManager {
 
       if (!pco) throw new Error('Null point cloud returned');
 
+      // Derive friendly name
+      let pcName = 'Point Cloud';
+      const folderFile = fileList.find(f => f.webkitRelativePath);
+      if (folderFile) {
+        const rootFolder = folderFile.webkitRelativePath.split('/')[0];
+        if (rootFolder) pcName = rootFolder;
+      } else if (fileList.length > 0) {
+        const first = fileList.find(f => f.name && !['metadata.json', 'octree.bin', 'hierarchy.bin'].includes(f.name.toLowerCase()));
+        if (first) pcName = first.name.replace(/\.[^/.]+$/, '');
+      }
+      if (pco.pcoGeometry && pco.pcoGeometry.loader && pco.pcoGeometry.loader.metadata && pco.pcoGeometry.loader.metadata.name) {
+        pcName = pco.pcoGeometry.loader.metadata.name;
+      }
+      pco.name = pcName;
+
       this.onPointCloudLoaded(pco);
       return pco;
     } catch (err) {
@@ -28401,75 +28475,25 @@ class BIMPointCloudManager {
 
   // --- LEFT SIDEBAR MODEL HIERARCHY TREE ---
   updateModelHierarchyTree() {
-    const structTree = document.getElementById('tree-structures');
-    const tabStruct = document.getElementById('tab-struct-content');
-    const targetParent = structTree ? structTree.parentNode : tabStruct;
-    if (!targetParent) return;
+    // Remove legacy DOM element if present
+    const legacyEl = document.getElementById('tree-group-pointcloud');
+    if (legacyEl) legacyEl.remove();
 
-    let pcTreeGroup = document.getElementById('tree-group-pointcloud');
-    if (!pcTreeGroup) {
-      pcTreeGroup = document.createElement('div');
-      pcTreeGroup.id = 'tree-group-pointcloud';
-      pcTreeGroup.className = 'tree-node-group pointcloud-group';
-      if (structTree) {
-        targetParent.insertBefore(pcTreeGroup, structTree);
-      } else {
-        targetParent.prepend(pcTreeGroup);
-      }
+    // Rebuild or re-render unified VirtualBimTree
+    if (this.app && this.app.buildHierarchyTree) {
+      this.app.buildHierarchyTree();
     }
+  }
 
-    const isZh = (window.I18N ? window.I18N.currentLang : 'zh') === 'zh';
-    const totalPoints = this.pointClouds.reduce((sum, p) => sum + this.getPointCloudPointCount(p), 0);
-    const isSelected = this.isPointCloudSelected;
-
-    pcTreeGroup.innerHTML = `
-      <div class="tree-node-row pc-tree-item ${isSelected ? 'selected' : ''}" style="display:flex; align-items:center; justify-content:space-between; padding:8px 10px; background:${isSelected ? 'rgba(56,189,248,0.22)' : 'rgba(56,189,248,0.09)'}; border-radius:6px; margin:6px 0; border:1px solid ${isSelected ? 'var(--accent)' : 'rgba(56,189,248,0.35)'}; cursor:pointer; transition:all 0.15s ease;">
-        <div class="pc-tree-info" style="display:flex; align-items:center; gap:8px; min-width:0; flex:1;">
-          <span style="font-size:16px;">☁️</span>
-          <div style="display:flex; flex-direction:column; min-width:0;">
-            <span style="font-size:12px; font-weight:700; color:var(--accent); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${isZh ? '点云图层 (Point Cloud)' : 'Point Cloud Layer'}</span>
-            <span style="font-size:10px; color:var(--text-muted); font-family:var(--font-mono);">${((totalPoints || 0)).toLocaleString()} pts · ${isZh ? '双击聚焦' : 'DblClick Focus'}</span>
-          </div>
-        </div>
-        <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
-          <button type="button" class="small-btn pc-tree-focus-btn" id="btn-pc-tree-focus" title="${isZh ? '聚焦到点云' : 'Zoom to Point Cloud'}" style="padding:2px 7px; font-size:11px; background:rgba(56,189,248,0.18); border:1px solid rgba(56,189,248,0.4); color:var(--accent); border-radius:4px; cursor:pointer;">🎯 ${isZh ? '聚焦' : 'Focus'}</button>
-          <button type="button" class="pc-tree-vis-btn" id="btn-pc-toggle-vis" title="${isZh ? '显示/隐藏点云' : 'Toggle Visibility'}" style="background:none; border:none; color:var(--accent); cursor:pointer; font-size:15px; padding:2px 4px;">
-            ${this.activePointCloud && this.activePointCloud.visible ? '👁️' : '👁️‍🗨️'}
-          </button>
-        </div>
-      </div>
-    `;
-
-    const row = pcTreeGroup.querySelector('.pc-tree-item');
-    if (row) {
-      row.onclick = (e) => {
-        if (e.target.closest('#btn-pc-tree-focus') || e.target.closest('#btn-pc-toggle-vis')) return;
-        this.isPointCloudSelected = true;
-        this.updateModelHierarchyTree();
-        this.renderInspectorCard();
-      };
-      row.ondblclick = (e) => {
-        if (e.target.closest('#btn-pc-toggle-vis')) return;
-        this.fitPointCloudView();
-      };
-    }
-
-    const focusBtn = pcTreeGroup.querySelector('#btn-pc-tree-focus');
-    if (focusBtn) {
-      focusBtn.onclick = (e) => {
-        e.stopPropagation();
-        this.fitPointCloudView();
-      };
-    }
-
-    const visBtn = pcTreeGroup.querySelector('#btn-pc-toggle-vis');
-    if (visBtn) {
-      visBtn.onclick = (e) => {
-        e.stopPropagation();
-        this.toggleVisibility();
-        visBtn.textContent = this.activePointCloud && this.activePointCloud.visible ? '👁️' : '👁️‍🗨️';
-      };
-    }
+  getColorModeLabel(pco = this.activePointCloud) {
+    if (!pco || !pco.material) return 'RGB';
+    const PointColorType = window.PotreeCore ? window.PotreeCore.PointColorType : { RGB: 0, COLOR: 1, DEPTH: 2, HEIGHT: 3, ELEVATION: 3, INTENSITY: 4, CLASSIFICATION: 5 };
+    const pct = pco.material.pointColorType;
+    if (pct === PointColorType.RGB || pct === 0) return 'RGB';
+    if (pct === PointColorType.HEIGHT || pct === PointColorType.ELEVATION || pct === 3) return 'Elevation';
+    if (pct === PointColorType.INTENSITY || pct === 4) return 'Intensity';
+    if (pct === PointColorType.CLASSIFICATION || pct === 5) return 'Classification';
+    return 'RGB';
   }
 
   toggleVisibility() {
@@ -37731,6 +37755,7 @@ class True3DCompass {
 }
 
 // High-Performance Virtual Scroller for Left Sidebar BIM Hierarchy Tree
+// High-Performance Virtual Scroller for Left Sidebar BIM Hierarchy Tree
 class VirtualBimTree {
   constructor(options) {
     this.app = options.app;
@@ -37745,6 +37770,7 @@ class VirtualBimTree {
     this.buffer = 8;
     this.rafId = null;
 
+    this.HEIGHT_FILE = 34;
     this.HEIGHT_GROUP = 32;
     this.HEIGHT_OPACITY = 24;
     this.HEIGHT_LEAF = 26;
@@ -37797,35 +37823,76 @@ class VirtualBimTree {
   }
 
   expandAll() {
-    this.groups.forEach(g => { g.collapsed = false; });
+    this.groups.forEach(g => {
+      g.collapsed = false;
+      if (g.subGroups) {
+        g.subGroups.forEach(sg => { sg.collapsed = false; });
+      }
+    });
     this.computeVisibleRows();
     this.render();
   }
 
   collapseAll() {
-    this.groups.forEach(g => { g.collapsed = true; });
+    this.groups.forEach(g => {
+      if (g.subGroups) {
+        g.subGroups.forEach(sg => { sg.collapsed = true; });
+      }
+      g.collapsed = true;
+    });
     this.computeVisibleRows();
     this.render();
   }
 
   showAll() {
     this.groups.forEach(g => {
-      g.meshes.forEach(m => { m.visible = true; });
+      g.visible = true;
+      if (g.fileType === 'pointcloud' && g.pco) {
+        g.pco.visible = true;
+      }
+      if (g.subGroups) {
+        g.subGroups.forEach(sg => {
+          if (sg.meshes) sg.meshes.forEach(m => { m.visible = true; });
+        });
+      } else if (g.meshes) {
+        g.meshes.forEach(m => { m.visible = true; });
+      }
     });
+    if (this.app._wakeRender) this.app._wakeRender(200);
     this.render();
   }
 
   hideAll() {
     this.groups.forEach(g => {
-      g.meshes.forEach(m => { m.visible = false; });
+      g.visible = false;
+      if (g.fileType === 'pointcloud' && g.pco) {
+        g.pco.visible = false;
+      }
+      if (g.subGroups) {
+        g.subGroups.forEach(sg => {
+          if (sg.meshes) sg.meshes.forEach(m => { m.visible = false; });
+        });
+      } else if (g.meshes) {
+        g.meshes.forEach(m => { m.visible = false; });
+      }
     });
+    if (this.app._wakeRender) this.app._wakeRender(200);
     this.render();
   }
 
   resetOpacity() {
     this.groups.forEach(g => {
       g.opacity = 1.0;
-      g.meshes.forEach(m => {
+      const allMeshes = [];
+      if (g.subGroups) {
+        g.subGroups.forEach(sg => {
+          sg.opacity = 1.0;
+          if (sg.meshes) allMeshes.push(...sg.meshes);
+        });
+      } else if (g.meshes) {
+        allMeshes.push(...g.meshes);
+      }
+      allMeshes.forEach(m => {
         if (m.material) {
           if (Array.isArray(m.material)) {
             m.material.forEach(mat => {
@@ -37841,6 +37908,7 @@ class VirtualBimTree {
         }
       });
     });
+    if (this.app._wakeRender) this.app._wakeRender(200);
     this.render();
   }
 
@@ -37850,62 +37918,166 @@ class VirtualBimTree {
     let currentOffset = 0;
     const q = this.filterQuery.toLowerCase().trim();
 
-    for (let gIdx = 0; gIdx < this.groups.length; gIdx++) {
-      const g = this.groups[gIdx];
-      const gNameMatches = q === '' || g.name.toLowerCase().includes(q) || (g.localizedName && g.localizedName.toLowerCase().includes(q));
+    for (let fIdx = 0; fIdx < this.groups.length; fIdx++) {
+      const item = this.groups[fIdx];
 
-      let matchingLeaves = g.leaves;
-      if (q !== '') {
-        matchingLeaves = g.leaves.filter(leaf => {
-          return leaf.name.toLowerCase().includes(q) || gNameMatches;
-        });
-      }
+      if (item.type === 'file') {
+        const file = item;
+        const fileMatches = q === '' || file.name.toLowerCase().includes(q);
 
-      if (q !== '' && !gNameMatches && matchingLeaves.length === 0) {
-        continue;
-      }
+        const visibleSubGroups = [];
+        for (const sg of (file.subGroups || [])) {
+          const sgNameMatches = q === '' || fileMatches ||
+            sg.name.toLowerCase().includes(q) ||
+            (sg.localizedName && sg.localizedName.toLowerCase().includes(q));
 
-      const isCollapsed = g.collapsed && q === '';
-      const groupRow = {
-        type: 'group',
-        group: g,
-        isCollapsed: isCollapsed,
-        isOnlyHeader: isCollapsed || matchingLeaves.length === 0,
-        height: isCollapsed ? (this.HEIGHT_GROUP + this.SPACING_BRANCH) : this.HEIGHT_GROUP
-      };
-      this.rowOffsets.push(currentOffset);
-      this.flattenedRows.push(groupRow);
-      currentOffset += groupRow.height;
+          let matchingLeaves = sg.leaves || [];
+          if (q !== '') {
+            matchingLeaves = (sg.leaves || []).filter(leaf => {
+              return leaf.name.toLowerCase().includes(q) || sgNameMatches;
+            });
+          }
 
-      if (!isCollapsed) {
-        if (g.hasOpacitySlider) {
-          const isLast = matchingLeaves.length === 0;
-          const opHeight = isLast ? (this.HEIGHT_OPACITY + this.SPACING_BRANCH) : this.HEIGHT_OPACITY;
-          const opRow = {
-            type: 'opacity',
-            group: g,
-            isLast: isLast,
-            height: opHeight
-          };
-          this.rowOffsets.push(currentOffset);
-          this.flattenedRows.push(opRow);
-          currentOffset += opHeight;
+          if (q === '' || sgNameMatches || matchingLeaves.length > 0) {
+            visibleSubGroups.push({
+              subGroup: sg,
+              matchingLeaves: matchingLeaves,
+              sgNameMatches: sgNameMatches
+            });
+          }
         }
 
-        for (let lIdx = 0; lIdx < matchingLeaves.length; lIdx++) {
-          const leaf = matchingLeaves[lIdx];
-          const isLast = (lIdx === matchingLeaves.length - 1);
-          const leafHeight = isLast ? (this.HEIGHT_LEAF + this.SPACING_BRANCH) : this.HEIGHT_LEAF;
-          const leafRow = {
-            type: 'leaf',
-            group: g,
-            leaf: leaf,
-            isLast: isLast,
-            height: leafHeight
-          };
-          this.rowOffsets.push(currentOffset);
-          this.flattenedRows.push(leafRow);
-          currentOffset += leafHeight;
+        if (q !== '' && !fileMatches && visibleSubGroups.length === 0) {
+          continue;
+        }
+
+        // When searching, auto-expand file node; otherwise follow file.collapsed
+        const isFileCollapsed = (q === '') ? file.collapsed : false;
+
+        const fileRow = {
+          type: 'file',
+          file: file,
+          isCollapsed: isFileCollapsed,
+          height: this.HEIGHT_FILE
+        };
+        this.rowOffsets.push(currentOffset);
+        this.flattenedRows.push(fileRow);
+        currentOffset += fileRow.height;
+
+        if (!isFileCollapsed) {
+          for (let sIdx = 0; sIdx < visibleSubGroups.length; sIdx++) {
+            const itemSg = visibleSubGroups[sIdx];
+            const sg = itemSg.subGroup;
+            const matchingLeaves = itemSg.matchingLeaves;
+
+            // When searching, auto-expand sub-group if leaves match; otherwise follow sg.collapsed
+            const isSgCollapsed = (q === '') ? sg.collapsed : false;
+
+            const groupRow = {
+              type: 'group',
+              file: file,
+              group: sg,
+              isCollapsed: isSgCollapsed,
+              isOnlyHeader: isSgCollapsed || matchingLeaves.length === 0,
+              height: isSgCollapsed ? (this.HEIGHT_GROUP + this.SPACING_BRANCH) : this.HEIGHT_GROUP
+            };
+            this.rowOffsets.push(currentOffset);
+            this.flattenedRows.push(groupRow);
+            currentOffset += groupRow.height;
+
+            if (!isSgCollapsed) {
+              if (sg.hasOpacitySlider) {
+                const isLast = matchingLeaves.length === 0;
+                const opHeight = isLast ? (this.HEIGHT_OPACITY + this.SPACING_BRANCH) : this.HEIGHT_OPACITY;
+                const opRow = {
+                  type: 'opacity',
+                  file: file,
+                  group: sg,
+                  isLast: isLast,
+                  height: opHeight
+                };
+                this.rowOffsets.push(currentOffset);
+                this.flattenedRows.push(opRow);
+                currentOffset += opHeight;
+              }
+
+              for (let lIdx = 0; lIdx < matchingLeaves.length; lIdx++) {
+                const leaf = matchingLeaves[lIdx];
+                const isLast = (lIdx === matchingLeaves.length - 1);
+                const leafHeight = isLast ? (this.HEIGHT_LEAF + this.SPACING_BRANCH) : this.HEIGHT_LEAF;
+                const leafRow = {
+                  type: 'leaf',
+                  file: file,
+                  group: sg,
+                  leaf: leaf,
+                  isLast: isLast,
+                  height: leafHeight
+                };
+                this.rowOffsets.push(currentOffset);
+                this.flattenedRows.push(leafRow);
+                currentOffset += leafHeight;
+              }
+            }
+          }
+        }
+      } else {
+        // Fallback for legacy flat group
+        const g = item;
+        const gNameMatches = q === '' || g.name.toLowerCase().includes(q) || (g.localizedName && g.localizedName.toLowerCase().includes(q));
+
+        let matchingLeaves = g.leaves || [];
+        if (q !== '') {
+          matchingLeaves = (g.leaves || []).filter(leaf => {
+            return leaf.name.toLowerCase().includes(q) || gNameMatches;
+          });
+        }
+
+        if (q !== '' && !gNameMatches && matchingLeaves.length === 0) {
+          continue;
+        }
+
+        const isCollapsed = g.collapsed && q === '';
+        const groupRow = {
+          type: 'group',
+          group: g,
+          isCollapsed: isCollapsed,
+          isOnlyHeader: isCollapsed || matchingLeaves.length === 0,
+          height: isCollapsed ? (this.HEIGHT_GROUP + this.SPACING_BRANCH) : this.HEIGHT_GROUP
+        };
+        this.rowOffsets.push(currentOffset);
+        this.flattenedRows.push(groupRow);
+        currentOffset += groupRow.height;
+
+        if (!isCollapsed) {
+          if (g.hasOpacitySlider) {
+            const isLast = matchingLeaves.length === 0;
+            const opHeight = isLast ? (this.HEIGHT_OPACITY + this.SPACING_BRANCH) : this.HEIGHT_OPACITY;
+            const opRow = {
+              type: 'opacity',
+              group: g,
+              isLast: isLast,
+              height: opHeight
+            };
+            this.rowOffsets.push(currentOffset);
+            this.flattenedRows.push(opRow);
+            currentOffset += opHeight;
+          }
+
+          for (let lIdx = 0; lIdx < matchingLeaves.length; lIdx++) {
+            const leaf = matchingLeaves[lIdx];
+            const isLast = (lIdx === matchingLeaves.length - 1);
+            const leafHeight = isLast ? (this.HEIGHT_LEAF + this.SPACING_BRANCH) : this.HEIGHT_LEAF;
+            const leafRow = {
+              type: 'leaf',
+              group: g,
+              leaf: leaf,
+              isLast: isLast,
+              height: leafHeight
+            };
+            this.rowOffsets.push(currentOffset);
+            this.flattenedRows.push(leafRow);
+            currentOffset += leafHeight;
+          }
         }
       }
     }
@@ -37961,7 +38133,38 @@ class VirtualBimTree {
     const el = document.createElement('div');
     el.className = 'virtual-tree-slot';
 
-    // 1. Group Header Element
+    // 0. File Header Element (Top-level Model or Point Cloud File)
+    const fileEl = document.createElement('div');
+    fileEl.className = 'tree-file-header virtual-file-header';
+
+    const fileLeft = document.createElement('div');
+    fileLeft.className = 'file-left';
+
+    const fileExpander = document.createElement('span');
+    fileExpander.className = 'tree-expander';
+    fileExpander.innerHTML = '&#9660;';
+
+    const fileIcon = document.createElement('span');
+    fileIcon.className = 'file-icon';
+    fileIcon.textContent = '📁';
+
+    const fileTitle = document.createElement('span');
+    fileTitle.className = 'file-name';
+
+    const fileCount = document.createElement('span');
+    fileCount.className = 'file-count';
+
+    fileLeft.appendChild(fileExpander);
+    fileLeft.appendChild(fileIcon);
+    fileLeft.appendChild(fileTitle);
+    fileLeft.appendChild(fileCount);
+
+    const fileToggle = this.createToggleSwitch();
+
+    fileEl.appendChild(fileLeft);
+    fileEl.appendChild(fileToggle.label);
+
+    // 1. Group Header Element (Structure / Level / Category)
     const groupEl = document.createElement('div');
     groupEl.className = 'tree-branch-header virtual-group-header';
 
@@ -38030,6 +38233,7 @@ class VirtualBimTree {
     leafEl.appendChild(leafLeft);
     leafEl.appendChild(leafToggle.label);
 
+    el.appendChild(fileEl);
     el.appendChild(groupEl);
     el.appendChild(opacityEl);
     el.appendChild(leafEl);
@@ -38038,6 +38242,13 @@ class VirtualBimTree {
 
     const slot = {
       el,
+      fileEl,
+      fileLeft,
+      fileExpander,
+      fileIcon,
+      fileTitle,
+      fileCount,
+      fileToggle,
       groupEl,
       groupLeft,
       expander,
@@ -38055,6 +38266,61 @@ class VirtualBimTree {
       row: null
     };
 
+    // Events for fileEl
+    fileEl.addEventListener('click', (e) => {
+      if (e.target.closest('.toggle-switch') || e.target.closest('input')) return;
+      if (!slot.row || slot.row.type !== 'file') return;
+      const f = slot.row.file;
+      if (f.fileType === 'pointcloud' && f.pco) {
+        if (this.app.pointCloudManager) {
+          this.app.pointCloudManager.activePointCloud = f.pco;
+          this.app.pointCloudManager.isPointCloudSelected = true;
+          this.app.clearSelection();
+          this.app.pointCloudManager.renderInspectorCard();
+        }
+      } else {
+        if (this.app.pointCloudManager) {
+          this.app.pointCloudManager.isPointCloudSelected = false;
+        }
+        this.app.renderModelInfoInspector();
+      }
+      f.collapsed = !f.collapsed;
+      this.computeVisibleRows();
+      this.render();
+    });
+
+    fileEl.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      if (!slot.row || slot.row.type !== 'file') return;
+      const f = slot.row.file;
+      if (f.fileType === 'pointcloud' && f.pco) {
+        if (this.app.pointCloudManager) {
+          this.app.pointCloudManager.fitPointCloudView(f.pco);
+        }
+      } else {
+        this.app.fitView();
+      }
+    });
+
+    fileToggle.chk.addEventListener('change', (e) => {
+      e.stopPropagation();
+      if (!slot.row || slot.row.type !== 'file') return;
+      const f = slot.row.file;
+      const checked = fileToggle.chk.checked;
+      f.visible = checked;
+      if (f.fileType === 'pointcloud' && f.pco) {
+        f.pco.visible = checked;
+      } else if (f.model) {
+        f.model.traverse(obj => {
+          if (this.app.isModelElementMesh(obj)) {
+            obj.visible = checked;
+          }
+        });
+      }
+      if (this.app._wakeRender) this.app._wakeRender(200);
+      this.render();
+    });
+
     groupEl.addEventListener('click', (e) => {
       if (e.target.closest('.toggle-switch') || e.target.closest('input')) return;
       if (!slot.row || slot.row.type !== 'group') return;
@@ -38068,6 +38334,7 @@ class VirtualBimTree {
       e.stopPropagation();
       if (!slot.row || slot.row.type !== 'group') return;
       const g = slot.row.group;
+      if (g.isPointCloudNode) return;
       this.app.showGroupContextMenu(e.clientX, e.clientY, g.localizedName || g.name, g.meshes);
     });
 
@@ -38076,11 +38343,14 @@ class VirtualBimTree {
       if (!slot.row || slot.row.type !== 'group') return;
       const g = slot.row.group;
       const checked = groupToggle.chk.checked;
-      if (this.type === 'elements') {
+      if (g.isPointCloudNode) {
+        if (g.pco) g.pco.visible = checked;
+      } else if (this.type === 'elements') {
         this.app.toggleCategory(g.catName, checked);
       } else {
         g.meshes.forEach(m => m.visible = checked);
       }
+      if (this.app._wakeRender) this.app._wakeRender(200);
       this.render();
     });
 
@@ -38104,12 +38374,21 @@ class VirtualBimTree {
           }
         }
       });
+      if (this.app._wakeRender) this.app._wakeRender(200);
     });
 
     leafLeft.addEventListener('click', (e) => {
       e.stopPropagation();
       if (!slot.row || slot.row.type !== 'leaf') return;
+      if (slot.row.leaf.isInfo) {
+        if (this.app.pointCloudManager && slot.row.leaf.pco) {
+          this.app.pointCloudManager.isPointCloudSelected = true;
+          this.app.pointCloudManager.renderInspectorCard();
+        }
+        return;
+      }
       const mesh = slot.row.leaf.mesh;
+      if (!mesh) return;
       const isCtrl = e.ctrlKey || e.metaKey;
       const isShift = e.shiftKey;
       const current = (this.app.selectedMeshes && this.app.selectedMeshes.length > 0) ?
@@ -38141,6 +38420,7 @@ class VirtualBimTree {
       e.stopPropagation();
       if (!slot.row || slot.row.type !== 'leaf') return;
       const mesh = slot.row.leaf.mesh;
+      if (!mesh) return;
       const current = this.app.selectedMeshes || (this.app.selectedMesh ? [this.app.selectedMesh] : []);
       if (!current.includes(mesh)) {
         this.app.selectElement(mesh);
@@ -38151,12 +38431,21 @@ class VirtualBimTree {
     leafEl.addEventListener('dblclick', (e) => {
       e.stopPropagation();
       if (!slot.row || slot.row.type !== 'leaf') return;
-      this.app.zoomToElement(slot.row.leaf.mesh);
+      if (slot.row.leaf.isInfo) {
+        if (this.app.pointCloudManager && slot.row.leaf.pco) {
+          this.app.pointCloudManager.fitPointCloudView(slot.row.leaf.pco);
+        }
+        return;
+      }
+      if (slot.row.leaf.mesh) {
+        this.app.zoomToElement(slot.row.leaf.mesh);
+      }
     });
 
     leafEl.addEventListener('pointerenter', () => {
       if (!slot.row || slot.row.type !== 'leaf') return;
       const mesh = slot.row.leaf.mesh;
+      if (!mesh) return;
       const isSelected = (this.app.selectedMesh === mesh) || (this.app.selectedMeshes && this.app.selectedMeshes.includes(mesh));
       if (mesh && mesh.visible && !isSelected) {
         this.app.setHoveredElement(mesh);
@@ -38174,14 +38463,16 @@ class VirtualBimTree {
       e.stopPropagation();
       if (!slot.row || slot.row.type !== 'leaf') return;
       const mesh = slot.row.leaf.mesh;
+      if (!mesh) return;
       mesh.visible = leafToggle.chk.checked;
-      if (this.type === 'elements') {
+      if (this.type === 'elements' && slot.row.group.catName) {
         const catState = this.app.categoryStates.get(slot.row.group.catName);
         if (catState && catState.chipEl) {
           const anyVis = slot.row.group.meshes.some(m => m.visible);
           catState.chipEl.classList.toggle('cat-hidden', !anyVis);
         }
       }
+      if (this.app._wakeRender) this.app._wakeRender(200);
       this.render();
     });
 
@@ -38191,10 +38482,31 @@ class VirtualBimTree {
   bindSlot(slot, row, selectedSet) {
     slot.row = row;
 
-    if (row.type === 'group') {
+    if (row.type === 'file') {
+      slot.fileEl.style.display = 'flex';
+      slot.groupEl.style.display = 'none';
+      slot.opacityEl.style.display = 'none';
+      slot.leafEl.style.display = 'none';
+
+      const f = row.file;
+      slot.fileExpander.innerHTML = row.isCollapsed ? '&#9654;' : '&#9660;';
+      slot.fileExpander.classList.toggle('collapsed', row.isCollapsed);
+      slot.fileIcon.textContent = f.icon || (f.fileType === 'pointcloud' ? '☁️' : '📁');
+      slot.fileTitle.textContent = f.name;
+      slot.fileTitle.title = f.name;
+      slot.fileCount.textContent = f.countText || '';
+      slot.fileToggle.chk.checked = f.visible !== false;
+
+      const isPcSelected = f.fileType === 'pointcloud' && this.app.pointCloudManager && this.app.pointCloudManager.isPointCloudSelected && (this.app.pointCloudManager.activePointCloud === f.pco);
+      slot.fileEl.classList.toggle('selected', Boolean(f.selected || isPcSelected));
+    } else if (row.type === 'group') {
+      slot.fileEl.style.display = 'none';
       slot.groupEl.style.display = 'flex';
       slot.opacityEl.style.display = 'none';
       slot.leafEl.style.display = 'none';
+
+      // Visual indentation for subgroup under file
+      slot.groupEl.style.paddingLeft = row.file ? '24px' : '10px';
 
       const g = row.group;
       slot.expander.innerHTML = row.isCollapsed ? '&#9654;' : '&#9660;';
@@ -38210,36 +38522,52 @@ class VirtualBimTree {
       slot.groupTitle.textContent = g.localizedName || g.name;
       slot.groupTitle.title = g.name;
 
-      if (this.type === 'structures') {
+      if (g.isPointCloudNode) {
+        slot.groupCount.textContent = '';
+      } else if (this.type === 'structures') {
         slot.groupCount.textContent = `${g.meshes.length} items`;
       } else {
         slot.groupCount.textContent = `${g.meshes.length}`;
       }
 
-      const anyVisible = g.meshes.some(m => m.visible);
+      const anyVisible = g.isPointCloudNode ? (g.pco ? g.pco.visible : true) : (g.meshes ? g.meshes.some(m => m.visible) : true);
       slot.groupToggle.chk.checked = anyVisible;
-
       slot.groupEl.classList.toggle('is-only-header', row.isOnlyHeader);
     } else if (row.type === 'opacity') {
+      slot.fileEl.style.display = 'none';
       slot.groupEl.style.display = 'none';
       slot.opacityEl.style.display = 'flex';
       slot.leafEl.style.display = 'none';
 
+      slot.opacityEl.style.paddingLeft = row.file ? '36px' : '17px';
       slot.opSlider.value = String(row.group.opacity !== undefined ? row.group.opacity : 1.0);
       slot.opacityEl.classList.toggle('is-last-row', row.isLast);
     } else if (row.type === 'leaf') {
+      slot.fileEl.style.display = 'none';
       slot.groupEl.style.display = 'none';
       slot.opacityEl.style.display = 'none';
       slot.leafEl.style.display = 'flex';
 
+      slot.leafEl.style.paddingLeft = row.file ? '36px' : '20px';
       const leaf = row.leaf;
       slot.leafEl._mesh = leaf.mesh;
-      slot.leafDot.style.backgroundColor = leaf.colorHex;
+      if (leaf.colorHex) {
+        slot.leafDot.style.display = 'block';
+        slot.leafDot.style.backgroundColor = leaf.colorHex;
+      } else {
+        slot.leafDot.style.display = 'none';
+      }
       slot.leafTitle.textContent = leaf.name;
       slot.leafTitle.title = leaf.name;
-      slot.leafToggle.chk.checked = leaf.mesh.visible;
 
-      const isSel = selectedSet.has(leaf.mesh);
+      if (leaf.isInfo) {
+        slot.leafToggle.label.style.display = 'none';
+      } else {
+        slot.leafToggle.label.style.display = 'inline-block';
+        slot.leafToggle.chk.checked = leaf.mesh ? leaf.mesh.visible : true;
+      }
+
+      const isSel = leaf.mesh ? selectedSet.has(leaf.mesh) : false;
       slot.leafEl.classList.toggle('selected', isSel);
       slot.leafEl.classList.toggle('is-last-row', row.isLast);
     }
@@ -38272,17 +38600,13 @@ class VirtualBimTree {
     for (let rIdx = startIdx; rIdx <= endIdx; rIdx++) {
       const row = this.flattenedRows[rIdx];
       const slot = this.pool[slotIdx++];
-      const y = this.rowOffsets[rIdx];
-
       slot.el.style.display = 'block';
-      slot.el.style.transform = `translate3d(0, ${y}px, 0)`;
-      slot.el.style.height = `${row.height}px`;
-
+      slot.el.style.transform = `translate3d(0, ${this.rowOffsets[rIdx]}px, 0)`;
       this.bindSlot(slot, row, selectedSet);
     }
 
-    while (slotIdx < this.pool.length) {
-      this.pool[slotIdx++].el.style.display = 'none';
+    for (; slotIdx < this.pool.length; slotIdx++) {
+      this.pool[slotIdx].el.style.display = 'none';
     }
   }
 
@@ -38298,8 +38622,6 @@ class VirtualBimTree {
   }
 }
 
-// =========================================================================
-// 3D GEOMETRIC OBJECT SNAPPING ENGINE (ENDPOINT, MIDPOINT, CIRCLE/ARC CENTER)
 // =========================================================================
 class BimSnapEngine {
   constructor(app) {
@@ -41317,75 +41639,166 @@ class BIMViewerApp {
   }
   
   // Build High-Performance Virtual Hierarchy Tree in Left Sidebar
+  // Build High-Performance Virtual Hierarchy Tree in Left Sidebar
   buildHierarchyTree() {
-    if (!this.activeModel) return;
+    const hasModel = Boolean(this.activeModel);
+    const hasPointCloud = Boolean(this.pointCloudManager && this.pointCloudManager.pointClouds.length > 0);
+    if (!hasModel && !hasPointCloud) return;
 
-    // Group by structures, categories, and levels
-    const structureMap = new Map();
-    const categoryMap = new Map();
-    const levelMap = new Map();
+    const isZh = (typeof I18N !== 'undefined' ? I18N.currentLang : 'zh') === 'zh';
 
-    this.activeModel.traverse(obj => {
-      if (this.isModelElementMesh(obj) && obj.userData) {
-        const sName = obj.userData.structure || "Model Structure";
-        if (!structureMap.has(sName)) structureMap.set(sName, []);
-        structureMap.get(sName).push(obj);
+    // 1. Prepare BIM Model Groups (if model is loaded)
+    let structSubGroups = [];
+    let levelsSubGroups = [];
+    let elemSubGroups = [];
+    let modelName = 'Model';
+    let totalModelElements = 0;
 
-        const cat = obj.userData.rawCategory || obj.userData.category || "Component";
-        if (!categoryMap.has(cat)) categoryMap.set(cat, []);
-        categoryMap.get(cat).push(obj);
+    if (hasModel) {
+      const titleEl = document.getElementById('project-title-text');
+      modelName = (this.activeModel.name && this.activeModel.name !== 'Scene') ?
+        this.activeModel.name :
+        (titleEl && titleEl.textContent && titleEl.textContent !== 'BIM Scope' ? titleEl.textContent : 'BIM Model');
 
-        const lvl = obj.userData.level || "Ground Level";
-        if (!levelMap.has(lvl)) levelMap.set(lvl, []);
-        levelMap.get(lvl).push(obj);
-      }
-    });
+      const structureMap = new Map();
+      const categoryMap = new Map();
+      const levelMap = new Map();
 
-    const createGroupData = (map, hasOpacitySlider = false, defaultCollapsed = false, isCategory = false) => {
-      const groups = [];
-      let gId = 0;
-      map.forEach((meshes, name) => {
-        const firstMat = meshes[0] && meshes[0].material;
-        const colObj = Array.isArray(firstMat) ? (firstMat[0] && firstMat[0].color) : (firstMat && firstMat.color);
-        const colorHex = colObj ? '#' + colObj.getHexString() : '#38bdf8';
-        const localizedName = isCategory && typeof I18N !== 'undefined' ? I18N.getCategoryName(name) : name;
+      this.activeModel.traverse(obj => {
+        if (this.isModelElementMesh(obj) && obj.userData) {
+          totalModelElements++;
+          const sName = obj.userData.structure || "Model Structure";
+          if (!structureMap.has(sName)) structureMap.set(sName, []);
+          structureMap.get(sName).push(obj);
 
-        const leaves = meshes.map(mesh => {
-          const mMat = mesh.material;
-          const mCol = Array.isArray(mMat) ? (mMat[0] && mMat[0].color) : (mMat && mMat.color);
-          const mColorHex = mCol ? '#' + mCol.getHexString() : colorHex;
-          const elemName = mesh.userData.element || mesh.name || "Element";
-          return {
-            mesh,
-            name: elemName,
-            colorHex: mColorHex
-          };
+          const cat = obj.userData.rawCategory || obj.userData.category || "Component";
+          if (!categoryMap.has(cat)) categoryMap.set(cat, []);
+          categoryMap.get(cat).push(obj);
+
+          const lvl = obj.userData.level || "Ground Level";
+          if (!levelMap.has(lvl)) levelMap.set(lvl, []);
+          levelMap.get(lvl).push(obj);
+        }
+      });
+
+      const createSubGroupData = (map, hasOpacitySlider = false, isCategory = false) => {
+        const groups = [];
+        let gId = 0;
+        map.forEach((meshes, name) => {
+          const firstMat = meshes[0] && meshes[0].material;
+          const colObj = Array.isArray(firstMat) ? (firstMat[0] && firstMat[0].color) : (firstMat && firstMat.color);
+          const colorHex = colObj ? '#' + colObj.getHexString() : '#38bdf8';
+          const localizedName = isCategory && typeof I18N !== 'undefined' ? I18N.getCategoryName(name) : name;
+
+          const leaves = meshes.map(mesh => {
+            const mMat = mesh.material;
+            const mCol = Array.isArray(mMat) ? (mMat[0] && mMat[0].color) : (mMat && mMat.color);
+            const mColorHex = mCol ? '#' + mCol.getHexString() : colorHex;
+            const elemName = mesh.userData.element || mesh.name || "Element";
+            return {
+              mesh,
+              name: elemName,
+              colorHex: mColorHex
+            };
+          });
+
+          // RULE: "默认收起子层级" -> sub-levels collapsed: true by default!
+          groups.push({
+            id: `group-${gId++}`,
+            name: name,
+            localizedName: localizedName,
+            catName: isCategory ? name : null,
+            meshes: meshes,
+            colorHex: colorHex,
+            collapsed: true, // DEFAULT COLLAPSED!
+            hasOpacitySlider: hasOpacitySlider,
+            opacity: 1.0,
+            leaves: leaves
+          });
         });
+        return groups;
+      };
 
-        groups.push({
-          id: `group-${gId++}`,
-          name: name,
-          localizedName: localizedName,
-          catName: isCategory ? name : null,
-          meshes: meshes,
-          colorHex: colorHex,
-          collapsed: defaultCollapsed,
-          hasOpacitySlider: hasOpacitySlider,
-          opacity: 1.0,
-          leaves: leaves
+      structSubGroups = createSubGroupData(structureMap, true, false);
+      levelsSubGroups = createSubGroupData(levelMap, false, false);
+      elemSubGroups = createSubGroupData(categoryMap, false, true);
+    }
+
+    // 2. Prepare Point Cloud File Nodes (if any point clouds loaded)
+    const pcFileNodes = [];
+    if (hasPointCloud) {
+      this.pointCloudManager.pointClouds.forEach((pco, pIdx) => {
+        const pointCount = this.pointCloudManager.getPointCloudPointCount(pco);
+        const countStr = (pointCount || 0).toLocaleString();
+        const pcName = pco.name || (pco.pcoGeometry && pco.pcoGeometry.loader && pco.pcoGeometry.loader.metadata && pco.pcoGeometry.loader.metadata.name) || `Point Cloud ${pIdx + 1}`;
+
+        const colorModeLabel = this.pointCloudManager.getColorModeLabel ? this.pointCloudManager.getColorModeLabel(pco) : 'RGB';
+        const pSize = (pco.material && typeof pco.material.size === 'number') ? pco.material.size.toFixed(1) : '1.0';
+
+        pcFileNodes.push({
+          type: 'file',
+          id: `file-pc-${pIdx}`,
+          name: pcName,
+          icon: '☁️',
+          fileType: 'pointcloud',
+          pco: pco,
+          countText: `${countStr} pts`,
+          count: pointCount,
+          visible: pco.visible !== false,
+          collapsed: true, // "默认收起子层级"
+          subGroups: [
+            {
+              id: `pc-sub-info-${pIdx}`,
+              name: 'Properties',
+              localizedName: isZh ? '点云属性与着色' : 'Properties & Shading',
+              collapsed: true,
+              isPointCloudNode: true,
+              pco: pco,
+              colorHex: '#38bdf8',
+              meshes: [],
+              leaves: [
+                { name: `${isZh ? '点数' : 'Points'}: ${countStr}`, isInfo: true, pco: pco },
+                { name: `${isZh ? '着色模式' : 'Color'}: ${colorModeLabel}`, isInfo: true, pco: pco },
+                { name: `${isZh ? '点大小' : 'Point Size'}: ${pSize} px`, isInfo: true, pco: pco }
+              ]
+            }
+          ]
         });
       });
+    }
+
+    // 3. Assemble Top-Level File Groups for each tab
+    const buildTabFileGroups = (subGroups) => {
+      const groups = [];
+      if (hasModel) {
+        groups.push({
+          type: 'file',
+          id: 'file-model-primary',
+          name: modelName,
+          icon: '📁',
+          fileType: 'model',
+          model: this.activeModel,
+          countText: `${totalModelElements} items`,
+          count: totalModelElements,
+          visible: true,
+          collapsed: false, // File node itself is open so user sees the sub-levels
+          subGroups: subGroups
+        });
+      }
+      if (pcFileNodes.length > 0) {
+        groups.push(...pcFileNodes);
+      }
       return groups;
     };
 
-    const structGroups = createGroupData(structureMap, true, false, false);
-    const levelsGroups = createGroupData(levelMap, false, true, false);
-    const elemGroups = createGroupData(categoryMap, false, false, true);
+    const structGroups = buildTabFileGroups(structSubGroups);
+    const levelsGroups = buildTabFileGroups(levelsSubGroups);
+    const elemGroups = buildTabFileGroups(elemSubGroups);
 
     this.virtualLevelsData = levelsGroups;
     this.virtualElemData = elemGroups;
 
-    // 1. Structures tree is initialized immediately (active tab)
+    // 4. Update or Instantiate Virtual Trees
     if (this.virtualStructTree) {
       this.virtualStructTree.setGroups(structGroups);
     } else {
@@ -41397,7 +41810,6 @@ class BIMViewerApp {
       });
     }
 
-    // 2. If other tabs were already initialized in DOM, update their data
     if (this.virtualLevelsTree) {
       this.virtualLevelsTree.setGroups(levelsGroups);
     }
@@ -41405,7 +41817,6 @@ class BIMViewerApp {
       this.virtualElemTree.setGroups(elemGroups);
     }
   }
-
   isModelElementMesh(obj) {
     if (!obj || !obj.isMesh) return false;
     if (obj === this.grid || obj === this.highlightBox) return false;
@@ -43863,6 +44274,7 @@ class BIMViewerApp {
   }
   
   // Performance Safeguard & File Handling
+  // Performance Safeguard & File Handling
   handleFileInput(fileOrFiles) {
     if (!fileOrFiles) return;
     const fileList = (fileOrFiles instanceof FileList || Array.isArray(fileOrFiles)) ? 
@@ -43890,11 +44302,32 @@ class BIMViewerApp {
       return;
     }
 
+    // Check if orphaned .bin files dropped without metadata.json
+    const hasBin = fileList.some(f => f.name.toLowerCase() === 'octree.bin' || f.name.toLowerCase() === 'hierarchy.bin');
+    if (hasBin && !metadataFile) {
+      if (this.pointCloudManager) {
+        this.pointCloudManager.showMissingBinModal();
+      }
+      return;
+    }
+
     // Find primary model file (.ifc, .glb, .gltf, .fbx, .dae, .obj)
     const primaryFile = fileList.find(f => {
       const ext = f.name.split('.').pop().toLowerCase();
       return ext === 'ifc' || ext === 'glb' || ext === 'gltf' || ext === 'fbx' || ext === 'dae' || ext === 'obj';
     }) || fileList[0];
+
+    if (!primaryFile) return;
+
+    const ext = primaryFile.name.split('.').pop().toLowerCase();
+    const isModelExt = ['ifc', 'glb', 'gltf', 'fbx', 'dae', 'obj'].includes(ext);
+    if (!isModelExt && fileList.length === 1) {
+      const isZh = (typeof I18N !== 'undefined' ? I18N.currentLang : 'zh') === 'zh';
+      if (this.showToast) {
+        this.showToast(isZh ? `不支持的文件格式: ${primaryFile.name}` : `Unsupported file format: ${primaryFile.name}`, 3500);
+      }
+      return;
+    }
 
     const sizeMB = (primaryFile.size / (1024 * 1024)).toFixed(1);
     
@@ -43907,7 +44340,6 @@ class BIMViewerApp {
       this.processFiles(primaryFile, fileList);
     }
   }
-  
   showSafetyWarning(primaryFile, sizeMB, level, allFiles = []) {
     const modal = document.getElementById('safety-modal');
     const msgEl = document.getElementById('safety-modal-msg');
@@ -46636,6 +47068,10 @@ class BIMViewerApp {
           return;
         }
 
+        if (e.dataTransfer) {
+          e.dataTransfer.dropEffect = 'copy';
+        }
+
         if (dropzone) dropzone.classList.add('active');
       });
     });
@@ -46659,9 +47095,16 @@ class BIMViewerApp {
       if (texModal && texModal.classList.contains('active')) return;
 
       if (e.dataTransfer) {
-        const files = await this.extractFilesFromDataTransfer(e.dataTransfer);
-        if (files && files.length > 0) {
-          this.handleFileInput(files);
+        const rawFiles = Array.from(e.dataTransfer.files || []);
+        let extractedFiles = [];
+        try {
+          extractedFiles = await this.extractFilesFromDataTransfer(e.dataTransfer);
+        } catch (err) {
+          console.warn('[BIMScope] Directory extraction failed, falling back to files:', err);
+        }
+        const finalFiles = (extractedFiles && extractedFiles.length > 0) ? extractedFiles : rawFiles;
+        if (finalFiles && finalFiles.length > 0) {
+          this.handleFileInput(finalFiles);
         }
       }
     });
@@ -46716,7 +47159,6 @@ class BIMViewerApp {
 
     return Array.from(dataTransfer.files || []);
   }
-
   handleContextMenu(e) {
     // Right click does not alter or change element selection:
     // It strictly preserves the existing selection (if any), ensuring actions
