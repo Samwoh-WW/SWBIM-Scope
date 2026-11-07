@@ -296,6 +296,9 @@ class BIMPointCloudManager {
       pco.rotation.x = 0;
     }
     pco.updateMatrixWorld(true);
+    pco.userData._percentileComputed = false;
+    pco.userData._percentileElevationRange = null;
+    this.applyMaterialSettings();
     this.fitPointCloudView(pco);
     this.renderInspectorCard();
     if (this.app._wakeRender) this.app._wakeRender(1000);
@@ -319,64 +322,70 @@ class BIMPointCloudManager {
   computePercentileElevationRange(pco, lowerPct = 0.015, upperPct = 0.985) {
     if (!pco) return null;
 
-    // 1. Collect local Z coordinates from loaded nodes (root node contains a uniform spatial subsample)
-    const zVals = [];
+    pco.updateMatrixWorld(true);
+
+    // 1. Collect world Y coordinates from loaded nodes (root node contains a uniform spatial subsample)
+    const yVals = [];
     const nodes = [];
-    if (pco.pcoGeometry && pco.pcoGeometry.root && pco.pcoGeometry.root.geometry) {
+    if (pco.root) {
+      nodes.push(pco.root);
+    } else if (pco.pcoGeometry && pco.pcoGeometry.root && pco.pcoGeometry.root.geometry) {
       nodes.push(pco.pcoGeometry.root);
     }
     if (Array.isArray(pco.visibleNodes) && pco.visibleNodes.length > 0) {
       for (const vn of pco.visibleNodes) {
-        if (vn && vn.geometry && !nodes.includes(vn)) {
+        if (vn && !nodes.includes(vn)) {
           nodes.push(vn);
         }
       }
     }
 
     for (const node of nodes) {
-      const geo = node.geometry;
+      const geo = node.geometry || (node.geometryNode && node.geometryNode.geometry);
       if (!geo || !geo.attributes || !geo.attributes.position) continue;
       const pos = geo.attributes.position;
       const count = pos.count || (pos.array ? Math.floor(pos.array.length / 3) : 0);
       const arr = pos.array;
       if (!arr) continue;
 
+      let m = null;
+      const sceneNode = node.sceneNode || (pco.root && pco.root.sceneNode);
+      if (sceneNode) {
+        sceneNode.updateMatrixWorld(true);
+        m = sceneNode.matrixWorld.elements;
+      } else {
+        m = pco.matrixWorld.elements;
+      }
+
       // Stride to sample up to ~30,000 points in milliseconds
       const stride = count > 30000 ? Math.ceil(count / 30000) : 1;
       for (let i = 0; i < count; i += stride) {
+        const x = arr[i * 3];
+        const y = arr[i * 3 + 1];
         const z = arr[i * 3 + 2];
-        if (Number.isFinite(z)) {
-          zVals.push(z);
+        const worldY = m[1] * x + m[5] * y + m[9] * z + m[13];
+        if (Number.isFinite(worldY)) {
+          yVals.push(worldY);
         }
       }
     }
 
-    if (zVals.length >= 20) {
-      zVals.sort((a, b) => a - b);
-      const lowIdx = Math.floor(zVals.length * lowerPct);
-      const highIdx = Math.min(zVals.length - 1, Math.floor(zVals.length * upperPct));
-      let pLow = zVals[lowIdx];
-      let pHigh = zVals[highIdx];
+    if (yVals.length >= 20) {
+      yVals.sort((a, b) => a - b);
+      const lowIdx = Math.floor(yVals.length * lowerPct);
+      const highIdx = Math.min(yVals.length - 1, Math.floor(yVals.length * upperPct));
+      let pLow = yVals[lowIdx];
+      let pHigh = yVals[highIdx];
       if (pHigh <= pLow + 0.001) pHigh = pLow + 1.0;
       return [pLow, pHigh];
     }
 
-    // 2. Fallback: check position attribute in metadata (contains actual data extent, not cubic box)
-    if (pco.pcoGeometry && pco.pcoGeometry.loader && pco.pcoGeometry.loader.metadata) {
-      const attrs = pco.pcoGeometry.loader.metadata.attributes || [];
-      const posAttr = attrs.find(a => a.name === 'position');
-      if (posAttr && Array.isArray(posAttr.min) && Array.isArray(posAttr.max) && posAttr.min.length >= 3) {
-        let minZ = posAttr.min[2];
-        let maxZ = posAttr.max[2];
-        if (maxZ > minZ) return [minZ, maxZ];
-      }
-    }
-
-    // 3. Fallback: bounding box
-    if (pco.boundingBox) {
-      return [pco.boundingBox.min.z, pco.boundingBox.max.z];
-    } else if (pco.pcoGeometry && pco.pcoGeometry.boundingBox) {
-      return [pco.pcoGeometry.boundingBox.min.z, pco.pcoGeometry.boundingBox.max.z];
+    // 2. Fallback: world bounding box
+    const worldBox = this.getWorldBoundingBox(pco);
+    if (worldBox) {
+      let minY = worldBox.min.y;
+      let maxY = worldBox.max.y;
+      if (maxY > minY) return [minY, maxY];
     }
 
     return [0, 100];
@@ -574,6 +583,9 @@ class BIMPointCloudManager {
 
     pco.position.sub(center);
     pco.updateMatrixWorld(true);
+    pco.userData._percentileComputed = false;
+    pco.userData._percentileElevationRange = null;
+    this.applyMaterialSettings();
 
     this.fitPointCloudView(pco);
     this.renderInspectorCard();
@@ -588,6 +600,9 @@ class BIMPointCloudManager {
     if (!pco || !pco.userData._originalPosition) return;
     pco.position.copy(pco.userData._originalPosition);
     pco.updateMatrixWorld(true);
+    pco.userData._percentileComputed = false;
+    pco.userData._percentileElevationRange = null;
+    this.applyMaterialSettings();
 
     this.fitPointCloudView(pco);
     this.renderInspectorCard();
