@@ -51,6 +51,11 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   if (!event.request.url.startsWith('http')) return;
 
+  // Bypass Service Worker for Range requests, point clouds (.bin, metadata.json), and cross-origin streams
+  if (event.request.headers.has('range') || event.request.url.endsWith('.bin') || event.request.url.includes('metadata.json')) {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       // Network fetch with offline cache fallback

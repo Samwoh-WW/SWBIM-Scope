@@ -232,8 +232,8 @@ class BIMPointCloudManager {
       this.fitPointCloudView(pco);
     }
 
-    const pointCount = pco.pcoGeometry && pco.pcoGeometry.numPoints ? pco.pcoGeometry.numPoints : (pco.numPoints || 0);
-    const countStr = Number(pointCount).toLocaleString();
+    const pointCount = this.getPointCloudPointCount(pco);
+    const countStr = (pointCount || 0).toLocaleString();
     if (this.app.showToast) {
       const msg = window.I18N ? window.I18N.t('pointCloudLoaded', { count: countStr }) : `Point cloud loaded: ${countStr} points`;
       this.app.showToast(msg, 3500);
@@ -242,6 +242,21 @@ class BIMPointCloudManager {
     if (this.app._wakeRender) {
       this.app._wakeRender();
     }
+  }
+
+  getPointCloudPointCount(pco = this.activePointCloud) {
+    if (!pco) return 0;
+    if (typeof pco.numPoints === 'number' && !isNaN(pco.numPoints)) return pco.numPoints;
+    if (pco.pcoGeometry) {
+      if (typeof pco.pcoGeometry.numPoints === 'number' && !isNaN(pco.pcoGeometry.numPoints)) return pco.pcoGeometry.numPoints;
+      if (typeof pco.pcoGeometry.points === 'number' && !isNaN(pco.pcoGeometry.points)) return pco.pcoGeometry.points;
+      if (pco.pcoGeometry.loader && pco.pcoGeometry.loader.metadata) {
+        const meta = pco.pcoGeometry.loader.metadata;
+        if (typeof meta.points === 'number') return meta.points;
+        if (typeof meta.numPoints === 'number') return meta.numPoints;
+      }
+    }
+    return 0;
   }
 
   configureMaterial(pco) {
@@ -289,9 +304,11 @@ class BIMPointCloudManager {
   updateClipping(planes) {
     const ClipMode = window.PotreeCore ? window.PotreeCore.ClipMode : { DISABLED: 0, CLIP_OUTSIDE: 1 };
     for (const pco of this.pointClouds) {
-      if (pco.material) {
-        pco.material.setClipPlanes(planes);
-        pco.material.clipMode = (planes && planes.length > 0) ? ClipMode.CLIP_OUTSIDE : ClipMode.DISABLED;
+      if (pco && pco.material) {
+        pco.material.clippingPlanes = planes || [];
+        if (typeof pco.material.clipMode !== 'undefined') {
+          pco.material.clipMode = (planes && planes.length > 0) ? ClipMode.CLIP_OUTSIDE : ClipMode.DISABLED;
+        }
       }
     }
     if (this.app && this.app._wakeRender) {
@@ -300,8 +317,10 @@ class BIMPointCloudManager {
   }
 
   fitPointCloudView(pco = this.activePointCloud) {
-    if (!pco || !pco.boundingBox || !this.app || !this.app.camera) return;
-    const box = pco.boundingBox.clone();
+    if (!pco || !this.app || !this.app.camera) return;
+    const srcBox = (pco.pcoGeometry && pco.pcoGeometry.boundingBox) ? pco.pcoGeometry.boundingBox : pco.boundingBox;
+    if (!srcBox) return;
+    const box = srcBox.clone();
     box.applyMatrix4(pco.matrixWorld);
 
     const center = box.getCenter(new THREE.Vector3());
@@ -370,14 +389,14 @@ class BIMPointCloudManager {
     }
 
     const isZh = (window.I18N ? window.I18N.currentLang : 'zh') === 'zh';
-    const totalPoints = this.pointClouds.reduce((sum, p) => sum + (p.pcoGeometry ? p.pcoGeometry.numPoints : 0), 0);
+    const totalPoints = this.pointClouds.reduce((sum, p) => sum + this.getPointCloudPointCount(p), 0);
 
     pcTreeGroup.innerHTML = `
       <div class="tree-node-row" style="display:flex; align-items:center; justify-content:space-between; padding:6px 8px; background:rgba(56,189,248,0.08); border-radius:6px; margin-bottom:6px; border:1px solid rgba(56,189,248,0.25);">
         <div style="display:flex; align-items:center; gap:8px;">
           <span style="font-size:15px;">☁️</span>
           <span style="font-size:12.5px; font-weight:700; color:var(--accent);">${isZh ? '点云图层 (Point Cloud)' : 'Point Cloud Layer'}</span>
-          <span style="font-size:11px; color:var(--text-secondary); font-family:var(--font-mono);">(${totalPoints.toLocaleString()} pts)</span>
+          <span style="font-size:11px; color:var(--text-secondary); font-family:var(--font-mono);">(${((totalPoints || 0)).toLocaleString()} pts)</span>
         </div>
         <div style="display:flex; align-items:center; gap:10px;">
           <button type="button" class="pc-tree-vis-btn" id="btn-pc-toggle-vis" title="Toggle Visibility" style="background:none; border:none; color:var(--accent); cursor:pointer; font-size:14px; padding:2px;">
@@ -423,7 +442,7 @@ class BIMPointCloudManager {
     }
 
     const isZh = (window.I18N ? window.I18N.currentLang : 'zh') === 'zh';
-    const numPoints = this.activePointCloud && this.activePointCloud.pcoGeometry ? this.activePointCloud.pcoGeometry.numPoints : 0;
+    const numPoints = this.getPointCloudPointCount(this.activePointCloud);
 
     card.innerHTML = `
       <div class="inspector-card-header" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
@@ -431,7 +450,7 @@ class BIMPointCloudManager {
           <span style="font-size:15px;">☁️</span>
           <span style="font-weight:700; font-size:13px; color:var(--accent); text-transform:uppercase; letter-spacing:0.5px;">${isZh ? '点云属性与渲染控制' : 'Point Cloud Properties'}</span>
         </div>
-        <span style="font-size:11px; color:var(--text-secondary); font-family:var(--font-mono);">${numPoints.toLocaleString()} pts</span>
+        <span style="font-size:11px; color:var(--text-secondary); font-family:var(--font-mono);">${((numPoints || 0)).toLocaleString()} pts</span>
       </div>
 
       <!-- Point Size Slider -->
