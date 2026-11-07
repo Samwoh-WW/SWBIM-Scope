@@ -3719,8 +3719,8 @@ class BIMViewerApp {
     if (slider) slider.value = Math.round(opacity * 100);
   }
   
-  setModel(modelGroup) {
-    const isAppend = Boolean(this._isAppendNextFile);
+  setModel(modelGroup, isAppendOverride = null) {
+    const isAppend = isAppendOverride !== null ? Boolean(isAppendOverride) : Boolean(this._isAppendNextFile);
     this._isAppendNextFile = false;
 
     if (!isAppend) {
@@ -3735,12 +3735,14 @@ class BIMViewerApp {
 
     if (!this.modelInfoMap) this.modelInfoMap = new Map();
     if (!this.modelInfoMap.has(modelGroup)) {
-      const fileName = (modelGroup.userData && modelGroup.userData.fileName) || (this.currentModelInfo && this.currentModelInfo.fileName) || "Model";
-      this.modelInfoMap.set(modelGroup, this.currentModelInfo || {
+      const fileName = (modelGroup.userData && modelGroup.userData.fileName) || modelGroup.name || "Model";
+      const info = {
         fileName,
         elementCount: 0,
         timestamp: Date.now()
-      });
+      };
+      this.modelInfoMap.set(modelGroup, info);
+      this.currentModelInfo = info;
     }
 
     this.scene.add(this.activeModel);
@@ -17577,7 +17579,7 @@ class BIMViewerApp {
     const btnOpenFile = document.getElementById('btn-open-file');
     const btnOpenDropdown = document.getElementById('btn-open-dropdown');
     const openMenu = document.getElementById('open-file-dropdown');
-    const menuAppend = document.getElementById('menu-item-append-file');
+    const menuAppend = document.getElementById('menu-append-file') || document.getElementById('menu-item-append-file');
 
     if (btnOpenFile) {
       btnOpenFile.addEventListener('click', () => {
