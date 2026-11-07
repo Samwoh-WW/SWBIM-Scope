@@ -7339,14 +7339,15 @@ mark.help-match-highlight {
 /* ---------------------------------------------------------
    OFF-SCREEN SELECTION DIRECTION & DISTANCE INDICATOR
    High-contrast engineering HUD radar style matching reference
+   Anchor is the circular target with orbiting directional pointer
    --------------------------------------------------------- */
 .offscreen-indicator {
   position: absolute;
   display: none;
-  align-items: center;
-  gap: 8px;
   pointer-events: none;
   z-index: 1050;
+  width: 36px;
+  height: 36px;
   transform: translate(-50%, -50%);
   user-select: none;
   filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.75));
@@ -7355,28 +7356,14 @@ mark.help-match-highlight {
 }
 
 .offscreen-indicator.visible {
-  display: flex !important;
+  display: block !important;
   opacity: 1;
 }
 
-.offscreen-pointer {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transform-origin: center center;
-  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.9));
-}
-
-.offscreen-pointer svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
 .offscreen-target {
+  position: absolute;
+  left: 0;
+  top: 0;
   width: 36px;
   height: 36px;
   border-radius: 50%;
@@ -7386,7 +7373,6 @@ mark.help-match-highlight {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
 }
 
 .offscreen-target-core {
@@ -7397,7 +7383,32 @@ mark.help-match-highlight {
   box-shadow: 0 0 0 2px #000000;
 }
 
+.offscreen-pointer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 36px;
+  height: 36px;
+  transform-origin: center center;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.9));
+}
+
+.offscreen-pointer-svg {
+  position: absolute;
+  left: calc(100% + 2px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  display: block;
+  overflow: visible;
+}
+
 .offscreen-dist {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: 20px;
   font-weight: 900;
@@ -7410,4 +7421,5 @@ mark.help-match-highlight {
     -2px  2px 0 #000000, 
      2px  2px 0 #000000,
      0  2px 4px rgba(0, 0, 0, 0.95);
+  pointer-events: none;
 }

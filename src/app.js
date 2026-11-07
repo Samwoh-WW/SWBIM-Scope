@@ -2981,13 +2981,13 @@ class BIMViewerApp {
       el.id = 'offscreen-indicator';
       el.className = 'offscreen-indicator';
       el.innerHTML = `
-        <div class="offscreen-pointer" id="offscreen-pointer">
-          <svg viewBox="0 0 28 28" width="28" height="28" style="overflow:visible">
-            <path d="M 7 4 L 23 14 L 7 24 L 12 14 Z" fill="#e2e8f0" stroke="#000000" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <div class="offscreen-target">
+        <div class="offscreen-target" id="offscreen-target">
           <div class="offscreen-target-core"></div>
+          <div class="offscreen-pointer" id="offscreen-pointer">
+            <svg class="offscreen-pointer-svg" viewBox="0 0 28 28">
+              <path d="M 4 4 L 20 14 L 4 24 L 9 14 Z" fill="#e2e8f0" stroke="#000000" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+            </svg>
+          </div>
         </div>
         <div class="offscreen-dist" id="offscreen-dist">0.0m</div>
       `;
@@ -3105,13 +3105,14 @@ class BIMViewerApp {
       dirY /= dirLen;
     }
 
-    // 5. Clamping to container boundary with safe perimeter padding
+    // 5. Clamping circle center to container boundary with safe perimeter padding
     const cw = this.container.clientWidth;
     const ch = this.container.clientHeight;
     if (cw <= 0 || ch <= 0) return;
 
-    const padX = 75;
-    const padY = 45;
+    // Keep circle center safely away from viewport edges to leave room for the orbiting arrow
+    const padX = 70;
+    const padY = 60;
     const cx = cw / 2;
     const cy = ch / 2;
     const hw = Math.max(10, cx - padX);
@@ -3124,16 +3125,24 @@ class BIMViewerApp {
     const px = Math.round(cx + dirX * s);
     const py = Math.round(cy + dirY * s);
 
-    // 6. Pointer rotation angle (0 deg points right)
+    // 6. Pointer rotation angle around circle center (0 deg points right)
     const angleDeg = Math.atan2(dirY, dirX) * (180 / Math.PI);
     if (this.offscreenPointerEl) {
       this.offscreenPointerEl.style.transform = `rotate(${angleDeg}deg)`;
     }
 
-    // 7. Dynamic flex orientation:
-    // If indicator is on right half, put pointer on right (flex-direction: row-reverse)
-    // If on left half, put pointer on left (flex-direction: row)
-    this.offscreenIndicatorEl.style.flexDirection = dirX > 0.1 ? 'row-reverse' : 'row';
+    // 7. Distance label placement:
+    // Place on the inner side of the viewport so it never overflows
+    if (this.offscreenDistEl) {
+      if (px > cx) {
+        this.offscreenDistEl.style.left = 'auto';
+        this.offscreenDistEl.style.right = 'calc(100% + 12px)';
+      } else {
+        this.offscreenDistEl.style.right = 'auto';
+        this.offscreenDistEl.style.left = 'calc(100% + 12px)';
+      }
+    }
+
     this.offscreenIndicatorEl.style.left = `${px}px`;
     this.offscreenIndicatorEl.style.top = `${py}px`;
 
@@ -3142,7 +3151,7 @@ class BIMViewerApp {
 
   showOffscreenIndicator() {
     if (this.offscreenIndicatorEl && !this.offscreenIndicatorEl.classList.contains('visible')) {
-      this.offscreenIndicatorEl.style.display = 'flex';
+      this.offscreenIndicatorEl.style.display = 'block';
       this.offscreenIndicatorEl.classList.add('visible');
     }
   }
