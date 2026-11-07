@@ -388,7 +388,7 @@ class ClippingEngine {
       coneMesh.userData = { isGizmo: true, type: 'box', part: partName, parentGroup: group, _origColor: colorHex };
 
       // Invisible hit cylinder for comfortable picking
-      const hitCylGeo = new THREE.CylinderGeometry(0.24, 0.24, 1.9, 8);
+      const hitCylGeo = new THREE.CylinderGeometry(0.14, 0.14, 1.8, 8);
       hitCylGeo.translate(0, 0.95, 0);
       const hitMat = new THREE.MeshBasicMaterial({ visible: false, clippingPlanes: [] });
       const hitMesh = new THREE.Mesh(hitCylGeo, hitMat);
@@ -462,29 +462,22 @@ class ClippingEngine {
       });
       const edgeLines = new THREE.LineSegments(edgeGeo, edgeMat);
       edgeLines.renderOrder = 10000;
-      edgeLines.userData = { isGizmo: true, type: 'box', part: partName, parentGroup: group };
-
-      // Invisible hit plane for picking
-      const hitGeo = sqGeo.clone();
-      const hitMat = new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide, clippingPlanes: [] });
-      const hitMesh = new THREE.Mesh(hitGeo, hitMat);
-      hitMesh.userData = { isGizmo: true, type: 'box', part: partName, parentGroup: group };
+      edgeLines.raycast = () => {}; // Visual only, prevent line threshold ghost hits
 
       group.add(sqMesh);
       group.add(edgeLines);
-      group.add(hitMesh);
       return group;
     };
 
     // Blue Square: Horizontal plane (XY in prompt, between Red +X and Green +Z in Three.js, normal is +Y)
     this.boxCenterPlaneXY = createPlaneSquare('boxCenterPlaneXY', new THREE.Vector3(0, 1, 0), 0x0088ff, (geo) => {
-      geo.rotateX(-Math.PI / 2);
+      geo.rotateX(Math.PI / 2);
     });
     this.boxCentralGizmoGroup.add(this.boxCenterPlaneXY);
 
     // Red Square: Vertical plane (YZ in prompt, between Green +Z and Blue +Y in Three.js, normal is +X)
     this.boxCenterPlaneYZ = createPlaneSquare('boxCenterPlaneYZ', new THREE.Vector3(1, 0, 0), 0xff2222, (geo) => {
-      geo.rotateY(Math.PI / 2);
+      geo.rotateY(-Math.PI / 2);
     });
     this.boxCentralGizmoGroup.add(this.boxCenterPlaneYZ);
 
@@ -527,7 +520,7 @@ class ClippingEngine {
     rotMesh.userData = { isGizmo: true, type: 'box', part: 'boxCenterRotZ', parentGroup: rotGroup, _origColor: 0x0088ff };
 
     // Invisible thicker hit torus for easy grabbing
-    const hitRotGeo = new THREE.TorusGeometry(arcRadius, 0.18, 8, 36, arcSpan);
+    const hitRotGeo = new THREE.TorusGeometry(arcRadius, 0.08, 8, 36, arcSpan);
     hitRotGeo.rotateZ(startPhi);
     hitRotGeo.rotateX(Math.PI / 2);
     const hitRotMat = new THREE.MeshBasicMaterial({ visible: false, clippingPlanes: [] });
