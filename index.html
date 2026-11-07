@@ -30296,7 +30296,7 @@ class BIMPointCloudManager {
       <!-- Cut Edge Red Line Slider -->
       <div class="pc-control-row" style="margin-bottom:10px;">
         <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:4px;">
-          <span>${isZh ? '剖切截面红线 (Cut Edge)' : 'Cut Edge Red Line'}</span>
+          <span>${isZh ? '剖切断面红线 (Cut Edge)' : 'Cut Edge Red Line'}</span>
           <span id="pc-val-cutedge" style="font-family:var(--font-mono); color:#ff3333; font-weight:700;">${this.clipEdgeThreshold > 0 ? (this.clipEdgeThreshold * 100).toFixed(1) + ' cm' : (isZh ? '关闭' : 'Off')}</span>
         </div>
         <input type="range" id="pc-slider-cutedge" min="0" max="0.10" step="0.005" value="${this.clipEdgeThreshold}" style="width:100%;">
