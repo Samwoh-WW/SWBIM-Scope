@@ -3771,18 +3771,20 @@ class BIMViewerApp {
         this.updateDistanceUI(this.camera.far);
       }
 
-      // Reposition Grid under the model's footprint
-      if (this.grid) {
-        this.grid.position.set(center.x, box.min.y - 0.05, center.z);
-      }
+      if (!isAppend) {
+        // Reposition Grid under the model's footprint
+        if (this.grid) {
+          this.grid.position.set(center.x, box.min.y - 0.05, center.z);
+        }
 
-      // Update Orbit Pivot to the center of the newly loaded model
-      this.pivotPoint.copy(center);
-      this.controls.target.copy(center);
+        // Update Orbit Pivot to the center of the newly loaded model
+        this.pivotPoint.copy(center);
+        this.controls.target.copy(center);
 
-      // Update solar lighting center
-      if (this.solarEngine) {
-        this.solarEngine.setCenter(center, box);
+        // Update solar lighting center
+        if (this.solarEngine) {
+          this.solarEngine.setCenter(center, box);
+        }
       }
     }
     
@@ -6435,7 +6437,7 @@ class BIMViewerApp {
     showToast(`Isolated ${structureName}`, 'warning');
   }
   
-  clearSelection() {
+  clearSelection(keepPointCloud = false) {
     this.selectedMesh = null;
     this.selectedMeshes = [];
     this.lastClickPoint = null;
@@ -6445,8 +6447,13 @@ class BIMViewerApp {
     if (this.compareEngine) {
       this.compareEngine.onSelectionCleared();
     }
+    if (!keepPointCloud && this.pointCloudManager && this.pointCloudManager.isPointCloudSelected) {
+      this.pointCloudManager.isPointCloudSelected = false;
+    }
     this.syncTreeSelection();
-    this.renderModelInfoInspector();
+    if (!keepPointCloud) {
+      this.renderModelInfoInspector();
+    }
   }
 
   calculateModelStats(rootObject) {
@@ -7056,28 +7063,91 @@ class BIMViewerApp {
   async extractFilesFromDataTransfer(dataTransfer) {
     if (!dataTransfer) return [];
     const files = [];
+    const rawFiles = Array.from(dataTransfer.files || []).filter(f => !(f.name || '').toLowerCase().endsWith('log.txt'));
 
-    if (dataTransfer.items && dataTransfer.items.length > 0 && typeof dataTransfer.items[0].webkitGetAsEntry === 'function') {
-      const queue = [];
-      for (let i = 0; i < dataTransfer.items.length; i++) {
-        const item = dataTransfer.items[i];
-        if (item.kind === 'file') {
-          const entry = item.webkitGetAsEntry();
-          if (entry) queue.push(entry);
+    // CRITICAL: Synchronously capture handles and entries from dataTransfer.items
+    // BEFORE any async await, because browsers purge dataTransfer.items & dataTransfer.files after synchronous event dispatch!
+    const items = dataTransfer.items ? Array.from(dataTransfer.items) : [];
+    const handlePromises = [];
+    const webkitEntries = [];
+
+    for (const item of items) {
+      if (item.kind === 'file') {
+        if (typeof item.getAsFileSystemHandle === 'function') {
+          try {
+            handlePromises.push(item.getAsFileSystemHandle());
+          } catch (e) {}
+        }
+        if (typeof item.webkitGetAsEntry === 'function') {
+          try {
+            const entry = item.webkitGetAsEntry();
+            if (entry) webkitEntries.push(entry);
+          } catch (e) {}
         }
       }
+    }
 
-      const readEntry = (entry) => new Promise((resolve) => {
+    // 1. Try modern File System Access API (works on file:// in Chrome/Edge for both folders & files)
+    if (handlePromises.length > 0) {
+      try {
+        const handles = await Promise.all(handlePromises);
+        const validHandles = handles.filter(Boolean);
+        if (validHandles.length > 0) {
+          const readHandle = async (handle, path = '') => {
+            if (!handle) return;
+            if (handle.kind === 'file') {
+              const file = await handle.getFile();
+              if ((file.name || '').toLowerCase().endsWith('log.txt')) return;
+              if (path) {
+                try {
+                  Object.defineProperty(file, 'webkitRelativePath', {
+                    value: path + '/' + file.name,
+                    writable: true,
+                    configurable: true
+                  });
+                } catch (e) {}
+              }
+              files.push(file);
+            } else if (handle.kind === 'directory') {
+              const dirPath = path ? (path + '/' + handle.name) : handle.name;
+              for await (const entry of handle.values()) {
+                await readHandle(entry, dirPath);
+              }
+            }
+          };
+
+          for (const handle of validHandles) {
+            await readHandle(handle);
+          }
+
+          if (files.length > 0) return files;
+        }
+      } catch (err) {
+        console.warn('[BIMScope] getAsFileSystemHandle traversal failed, falling back:', err);
+      }
+    }
+
+    // 2. Fallback to webkitGetAsEntry
+    if (webkitEntries.length > 0) {
+      const readEntry = (entry, path = '') => new Promise((resolve) => {
         if (!entry) return resolve();
         if (entry.isFile) {
           entry.file((f) => {
-            // Ignore non-essential log files like log.txt
-            if (!f.name.toLowerCase().endsWith('log.txt')) {
+            if (!(f.name || '').toLowerCase().endsWith('log.txt')) {
+              const relPath = path ? (path + '/' + f.name) : f.name;
+              try {
+                Object.defineProperty(f, 'webkitRelativePath', {
+                  value: relPath,
+                  writable: true,
+                  configurable: true
+                });
+              } catch (e) {}
               files.push(f);
             }
             resolve();
           }, () => resolve());
         } else if (entry.isDirectory) {
+          const dirPath = path ? (path + '/' + entry.name) : entry.name;
           const reader = entry.createReader();
           const readAll = () => {
             reader.readEntries(async (entries) => {
@@ -7085,7 +7155,7 @@ class BIMViewerApp {
                 resolve();
               } else {
                 for (const child of entries) {
-                  await readEntry(child);
+                  await readEntry(child, dirPath);
                 }
                 readAll();
               }
@@ -7097,25 +7167,31 @@ class BIMViewerApp {
         }
       });
 
-      for (const entry of queue) {
+      for (const entry of webkitEntries) {
         await readEntry(entry);
       }
       if (files.length > 0) return files;
+      if (webkitEntries.some(e => e && e.isDirectory)) {
+        dataTransfer._blockedDirectoryDrop = true;
+        return [];
+      }
     }
 
-    return Array.from(dataTransfer.files || []).filter(f => !f.name.toLowerCase().endsWith('log.txt'));
+    // 3. Fallback to pre-captured standard DataTransfer.files
+    return rawFiles;
   }
 
   // Performance Safeguard & File Handling
   handleFileInput(fileOrFiles, isAppend = false) {
     if (!fileOrFiles) return;
-    const fileList = (fileOrFiles instanceof FileList || Array.isArray(fileOrFiles)) ? 
+    const rawList = (fileOrFiles instanceof FileList || Array.isArray(fileOrFiles)) ? 
       Array.from(fileOrFiles) : [fileOrFiles];
+    const fileList = rawList.filter(f => !(f.name || '').toLowerCase().endsWith('log.txt'));
     if (fileList.length === 0) return;
 
     // Check if raw point cloud (.las, .laz) dropped
     const lasFile = fileList.find(f => {
-      const ext = f.name.split('.').pop().toLowerCase();
+      const ext = (f.name || '').split('.').pop().toLowerCase();
       return ext === 'las' || ext === 'laz';
     });
     if (lasFile) {
@@ -7125,12 +7201,12 @@ class BIMViewerApp {
       return;
     }
 
-    // Check if converted Potree folder/files (metadata.json or _potree)
-    const metadataFile = fileList.find(f => {
+    // Check if converted Potree folder/files (metadata.json, octree.bin, or hierarchy.bin)
+    const isPointCloudInput = fileList.some(f => {
       const name = (f.name || '').split('/').pop().split('\\').pop().toLowerCase();
-      return name === 'metadata.json';
+      return name === 'metadata.json' || name === 'octree.bin' || name === 'hierarchy.bin';
     });
-    if (metadataFile) {
+    if (isPointCloudInput) {
       if (this.pointCloudManager) {
         this.pointCloudManager.loadFromLocalFiles(fileList, isAppend);
       }
@@ -7807,11 +7883,13 @@ class BIMViewerApp {
         
         loader.parse(arrayBuffer, '', (gltf) => {
           this.updateProgress(I18N.t('stageMeshing'), 80);
-          this.clearModel();
+          if (!isAppend) this.clearModel();
           registerPendingBlobs();
           
           const model = gltf.scene;
           model.name = mainFile.name;
+          model.userData = model.userData || {};
+          model.userData.fileName = mainFile.name;
           
           this.classifySceneGraphNodes(model, mainFile.name, {
             formatFlag: 'isGLTF',
@@ -7820,7 +7898,7 @@ class BIMViewerApp {
           });
           
           document.getElementById('project-title-text').textContent = mainFile.name;
-          this.setModel(model);
+          this.setModel(model, isAppend);
 
           const stats = this.calculateModelStats(model);
           const sizeStr = mainFile.size > 1048576 ? 
@@ -7845,6 +7923,7 @@ class BIMViewerApp {
             originalSoftware: gltfSoftware,
             stats: stats
           };
+          if (this.modelInfoMap) this.modelInfoMap.set(model, this.currentModelInfo);
           this.updateModelSubtitle();
           this.renderModelInfoInspector();
 
@@ -7886,12 +7965,15 @@ class BIMViewerApp {
             return;
           }
           
-          this.clearModel();
+          if (!isAppend) this.clearModel();
+          rootGroup.name = mainFile.name;
+          rootGroup.userData = rootGroup.userData || {};
+          rootGroup.userData.fileName = mainFile.name;
           const titleEl = document.getElementById('project-title-text');
           titleEl.textContent = mainFile.name;
           titleEl.title = mainFile.name;
           
-          this.setModel(rootGroup);
+          this.setModel(rootGroup, isAppend);
 
           const stats = this.calculateModelStats(rootGroup);
           const meta = this.ifcParser.fileMetadata || {};
@@ -7938,6 +8020,7 @@ class BIMViewerApp {
             projectPhase: meta.projectPhase || null,
             stats: stats
           };
+          if (this.modelInfoMap) this.modelInfoMap.set(rootGroup, this.currentModelInfo);
           this.updateModelSubtitle();
           this.renderModelInfoInspector();
 
@@ -7983,14 +8066,14 @@ class BIMViewerApp {
             this.showTextureModal(fbxInfo, blobMap, (skipTextures) => {
               this.showProgressModal(true, I18N.t('stageMeshing'), 60);
               setTimeout(() => {
-                this.loadFBXModel(arrayBuffer, fbxInfo, manager, mainFile.name, blobMap, skipTextures, mainFile);
+                this.loadFBXModel(arrayBuffer, fbxInfo, manager, mainFile.name, blobMap, skipTextures, mainFile, isAppend);
               }, 40);
             });
           } else {
             // All textures are embedded or already provided in blobMap
             this.updateProgress(I18N.t('stageMeshing'), 60);
             setTimeout(() => {
-              this.loadFBXModel(arrayBuffer, fbxInfo, manager, mainFile.name, blobMap, false, mainFile);
+              this.loadFBXModel(arrayBuffer, fbxInfo, manager, mainFile.name, blobMap, false, mainFile, isAppend);
             }, 40);
           }
         } catch (err) {
@@ -8030,14 +8113,14 @@ class BIMViewerApp {
             this.showTextureModal({ textures: missingTextures }, blobMap, (skipTextures) => {
               this.showProgressModal(true, I18N.t('stageMeshing'), 60);
               setTimeout(() => {
-                this.loadDAEModel(daeText, daeInfo, manager, mainFile.name, blobMap, skipTextures, mainFile);
+                this.loadDAEModel(daeText, daeInfo, manager, mainFile.name, blobMap, skipTextures, mainFile, isAppend);
               }, 40);
             });
           } else {
             // All textures are provided or no external textures required
             this.updateProgress(I18N.t('stageMeshing'), 60);
             setTimeout(() => {
-              this.loadDAEModel(daeText, daeInfo, manager, mainFile.name, blobMap, false, mainFile);
+              this.loadDAEModel(daeText, daeInfo, manager, mainFile.name, blobMap, false, mainFile, isAppend);
             }, 40);
           }
         } catch (err) {
@@ -8064,7 +8147,7 @@ class BIMViewerApp {
             const objText = oe.target.result;
             this.updateProgress(I18N.t('stageMeshing'), 60);
             setTimeout(() => {
-              this.loadOBJModel(objText, mtlText, manager, mainFile.name, blobMap, false, mainFile);
+              this.loadOBJModel(objText, mtlText, manager, mainFile.name, blobMap, false, mainFile, isAppend);
             }, 40);
           };
           reader.onerror = (err) => {
@@ -8077,7 +8160,7 @@ class BIMViewerApp {
           console.warn("MTL read error, continuing with standalone OBJ:", err);
           reader.onload = (oe) => {
             const objText = oe.target.result;
-            this.loadOBJModel(objText, null, manager, mainFile.name, blobMap, false, mainFile);
+            this.loadOBJModel(objText, null, manager, mainFile.name, blobMap, false, mainFile, isAppend);
           };
           reader.readAsText(mainFile);
         };
@@ -8087,7 +8170,7 @@ class BIMViewerApp {
           const objText = e.target.result;
           this.updateProgress(I18N.t('stageMeshing'), 60);
           setTimeout(() => {
-            this.loadOBJModel(objText, null, manager, mainFile.name, blobMap, false, mainFile);
+            this.loadOBJModel(objText, null, manager, mainFile.name, blobMap, false, mainFile, isAppend);
           }, 40);
         };
         reader.onerror = (err) => {
@@ -8099,7 +8182,7 @@ class BIMViewerApp {
 
     } else {
       this.showProgressModal(false);
-      showToast("Unsupported file format. Please choose .IFC, .GLB, .FBX, .DAE, or .OBJ", "danger");
+      showToast("Unsupported file format. Please choose .IFC, .GLB, .FBX, .DAE, .OBJ, or Point Cloud (metadata.json + octree.bin)", "danger");
     }
   }
 
@@ -8323,7 +8406,7 @@ class BIMViewerApp {
     renderChecklist();
   }
 
-  loadFBXModel(arrayBuffer, fbxInfo, manager, modelName, blobMap, skipTextures = false, primaryFile = null) {
+  loadFBXModel(arrayBuffer, fbxInfo, manager, modelName, blobMap, skipTextures = false, primaryFile = null, isAppend = false) {
     try {
       const loader = new THREE.FBXLoader(manager);
       loader.skipTextures = skipTextures;
@@ -8380,12 +8463,14 @@ class BIMViewerApp {
         hasBIMKeywords
       });
 
-      this.clearModel();
+      if (!isAppend) this.clearModel();
+      model.userData = model.userData || {};
+      model.userData.fileName = modelName;
       if (blobMap && this._activeBlobUrls) {
         blobMap.forEach(url => this._activeBlobUrls.add(url));
       }
       document.getElementById('project-title-text').textContent = modelName;
-      this.setModel(model);
+      this.setModel(model, isAppend);
 
       const stats = this.calculateModelStats(model);
       const fileObj = primaryFile || (fbxInfo && fbxInfo.file) || null;
@@ -8413,6 +8498,8 @@ class BIMViewerApp {
         originalSoftware: fbxCreator,
         stats: stats
       };
+      if (this.modelInfoMap) this.modelInfoMap.set(model, this.currentModelInfo);
+      if (this.modelInfoMap) this.modelInfoMap.set(model, this.currentModelInfo);
       this.updateModelSubtitle();
       this.renderModelInfoInspector();
 
@@ -8523,7 +8610,7 @@ class BIMViewerApp {
     };
   }
 
-  loadDAEModel(daeText, daeInfo, manager, modelName, blobMap, skipTextures = false, primaryFile = null) {
+  loadDAEModel(daeText, daeInfo, manager, modelName, blobMap, skipTextures = false, primaryFile = null, isAppend = false) {
     try {
       this.updateProgress(I18N.t('stageMeshing'), 70);
       const loader = new THREE.ColladaLoader(manager);
@@ -8571,12 +8658,14 @@ class BIMViewerApp {
         skipTextures
       });
 
-      this.clearModel();
+      if (!isAppend) this.clearModel();
+      model.userData = model.userData || {};
+      model.userData.fileName = modelName;
       if (blobMap && this._activeBlobUrls) {
         blobMap.forEach(url => this._activeBlobUrls.add(url));
       }
       document.getElementById('project-title-text').textContent = modelName;
-      this.setModel(model);
+      this.setModel(model, isAppend);
 
       const stats = this.calculateModelStats(model);
       const sizeStr = primaryFile && primaryFile.size > 1048576 ? 
@@ -8637,7 +8726,7 @@ class BIMViewerApp {
     }
   }
 
-  loadOBJModel(objText, mtlText, manager, modelName, blobMap, skipTextures = false, primaryFile = null) {
+  loadOBJModel(objText, mtlText, manager, modelName, blobMap, skipTextures = false, primaryFile = null, isAppend = false) {
     try {
       this.updateProgress(I18N.t('stageMeshing'), 60);
       let materialsCreator = null;
@@ -8739,12 +8828,14 @@ class BIMViewerApp {
         hasBIMKeywords
       });
 
-      this.clearModel();
+      if (!isAppend) this.clearModel();
+      model.userData = model.userData || {};
+      model.userData.fileName = modelName;
       if (blobMap && this._activeBlobUrls) {
         blobMap.forEach(url => this._activeBlobUrls.add(url));
       }
       document.getElementById('project-title-text').textContent = modelName;
-      this.setModel(model);
+      this.setModel(model, isAppend);
 
       const stats = this.calculateModelStats(model);
       const sizeStr = primaryFile && primaryFile.size > 1048576 ? 
@@ -8767,6 +8858,7 @@ class BIMViewerApp {
         isOBJ: true
       };
 
+      if (this.modelInfoMap) this.modelInfoMap.set(model, this.currentModelInfo);
       this.initOBJTuningState(model);
       this.updateModelSubtitle();
       this.renderModelInfoInspector();
@@ -9509,11 +9601,20 @@ class BIMViewerApp {
         this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
         this.raycaster.setFromCamera(this.mouse, this.camera);
         let hitPoint = null;
-        if (this.activeModel) {
-          const intersects = this.raycaster.intersectObjects(this.activeModel.children, true);
+        let hitDist = Infinity;
+        const searchRoots = (this.loadedModels && this.loadedModels.length > 0) ? this.loadedModels : (this.activeModel ? [this.activeModel] : []);
+        if (searchRoots.length > 0) {
+          const intersects = this.raycaster.intersectObjects(searchRoots, true);
           const valid = intersects.filter(h => this.isPickableElement(h.object));
           if (valid.length > 0) {
             hitPoint = valid[0].point;
+            hitDist = valid[0].distance;
+          }
+        }
+        if (this.pointCloudManager && this.pointCloudManager.pointClouds.length > 0) {
+          const pcHit = this.pointCloudManager.raycast(this.raycaster, 25);
+          if (pcHit && pcHit.point && pcHit.distance < hitDist) {
+            hitPoint = pcHit.point;
           }
         }
         if (hitPoint) {
@@ -9905,6 +10006,10 @@ class BIMViewerApp {
           return;
         }
 
+        if (e.dataTransfer) {
+          e.dataTransfer.dropEffect = 'copy';
+        }
+
         if (!dropzone) return;
 
         const hasContent = (this.loadedModels && this.loadedModels.length > 0) || 
@@ -9918,7 +10023,8 @@ class BIMViewerApp {
           dropSingle.style.display = 'none';
           dropSplit.style.display = 'flex';
 
-          const midY = window.innerHeight / 2;
+          const rect = dropzone.getBoundingClientRect();
+          const midY = (rect && rect.height > 0) ? (rect.top + rect.height / 2) : (window.innerHeight / 2);
           if (e.clientY < midY) {
             if (zoneTop) zoneTop.classList.add('active-zone');
             if (zoneBottom) zoneBottom.classList.remove('active-zone');
@@ -9947,6 +10053,14 @@ class BIMViewerApp {
     window.addEventListener('drop', async (e) => {
       e.preventDefault();
       e.stopPropagation();
+
+      const rect = dropzone ? dropzone.getBoundingClientRect() : null;
+      const midY = (rect && rect.height > 0) ? (rect.top + rect.height / 2) : (window.innerHeight / 2);
+      const hasContent = (this.loadedModels && this.loadedModels.length > 0) || 
+                         (this.pointCloudManager && this.pointCloudManager.pointClouds && this.pointCloudManager.pointClouds.length > 0) ||
+                         Boolean(this.activeModel);
+      const isAppend = Boolean((isSplitDropMode || hasContent) && (e.clientY >= midY));
+
       if (dropzone) dropzone.classList.remove('active');
       if (zoneTop) zoneTop.classList.remove('active-zone');
       if (zoneBottom) zoneBottom.classList.remove('active-zone');
@@ -9956,12 +10070,22 @@ class BIMViewerApp {
       const texModal = document.getElementById('texture-modal');
       if (texModal && texModal.classList.contains('active')) return;
 
-      const isAppend = isSplitDropMode && (e.clientY >= (window.innerHeight / 2));
-
       if (e.dataTransfer) {
-        const files = await this.extractFilesFromDataTransfer(e.dataTransfer);
-        if (files && files.length > 0) {
-          this.handleFileInput(files, isAppend);
+        // Synchronously snapshot dataTransfer.files BEFORE any await!
+        const rawFiles = Array.from(e.dataTransfer.files || []).filter(f => !(f.name || '').toLowerCase().endsWith('log.txt'));
+        let extractedFiles = [];
+        try {
+          extractedFiles = await this.extractFilesFromDataTransfer(e.dataTransfer);
+        } catch (err) {
+          console.warn('[BIMScope] Directory extraction failed, falling back to files:', err);
+        }
+        if (e.dataTransfer._blockedDirectoryDrop) {
+          if (this.pointCloudManager) this.pointCloudManager.showMissingBinModal(isAppend);
+          return;
+        }
+        const finalFiles = (extractedFiles && extractedFiles.length > 0) ? extractedFiles : rawFiles;
+        if (finalFiles && finalFiles.length > 0) {
+          this.handleFileInput(finalFiles, isAppend);
         }
       }
     });
@@ -11943,12 +12067,23 @@ class BIMViewerApp {
 
     this.raycaster.setFromCamera(this.mouse, this.camera);
     let hitPoint = null;
+    let hitDist = Infinity;
 
-    if (this.activeModel) {
-      const intersects = this.raycaster.intersectObjects(this.activeModel.children, true);
+    const searchRoots = (this.loadedModels && this.loadedModels.length > 0) ? this.loadedModels : (this.activeModel ? [this.activeModel] : []);
+    if (searchRoots.length > 0) {
+      const intersects = this.raycaster.intersectObjects(searchRoots, true);
       const valid = intersects.filter(h => this.isPickableElement(h.object));
       if (valid.length > 0) {
         hitPoint = valid[0].point;
+        hitDist = valid[0].distance;
+      }
+    }
+
+    if (this.pointCloudManager && this.pointCloudManager.pointClouds.length > 0) {
+      const pcHit = this.pointCloudManager.raycast(this.raycaster, 25);
+      if (pcHit && pcHit.point && pcHit.distance < hitDist) {
+        hitPoint = pcHit.point;
+        hitDist = pcHit.distance;
       }
     }
 
@@ -11956,8 +12091,12 @@ class BIMViewerApp {
       // Intersect plane facing camera passing through current pivotPoint
       const camDir = new THREE.Vector3();
       this.camera.getWorldDirection(camDir);
-      const pivotRef = this.pivotPoint || this.controls.target;
-      const refPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(camDir.negate(), pivotRef);
+      let pivotRef = this.pivotPoint || this.controls.target;
+      const toPiv = new THREE.Vector3().subVectors(pivotRef, this.camera.position);
+      if (toPiv.dot(camDir) < 0.5) {
+        pivotRef = this.camera.position.clone().addScaledVector(camDir, 15.0);
+      }
+      const refPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(camDir.clone().negate(), pivotRef);
       const targetPoint = new THREE.Vector3();
       if (this.raycaster.ray.intersectPlane(refPlane, targetPoint)) {
         hitPoint = targetPoint;
@@ -12062,7 +12201,25 @@ class BIMViewerApp {
     const searchRoots = (this.loadedModels && this.loadedModels.length > 0) ? this.loadedModels : (this.activeModel ? [this.activeModel] : this.scene.children);
     const intersects = this.raycaster.intersectObjects(searchRoots, true);
     const valid = intersects.filter(hit => this.isPickableElement(hit.object));
-    if (valid.length === 0) return;
+    if (valid.length === 0) {
+      if (this.pointCloudManager && this.pointCloudManager.pointClouds.length > 0) {
+        const pcHit = this.pointCloudManager.raycast(this.raycaster, 25);
+        if (pcHit && pcHit.point) {
+          const hitPoint = pcHit.point;
+          const currentDist = this.camera.position.distanceTo(hitPoint);
+          const viewDir = new THREE.Vector3().subVectors(this.camera.position, hitPoint).normalize();
+          if (viewDir.lengthSq() < 0.001) {
+            this.camera.getWorldDirection(viewDir).negate();
+          }
+          const targetDist = Math.max(1.5, Math.min(currentDist * 0.4, 8.0));
+          const targetCam = hitPoint.clone().addScaledVector(viewDir, targetDist);
+          this.pivotPoint.copy(hitPoint);
+          this.showPivotIndicator(hitPoint);
+          this.tweenCamera(targetCam, hitPoint, 400);
+        }
+      }
+      return;
+    }
 
     const hit = valid[0];
     const hitMesh = hit.object;
@@ -17574,12 +17731,15 @@ class BIMViewerApp {
       }
     });
     
-    // 2. Open File Input with Split Button & Append Menu
+    // 2. Open File & Folder Input with Split Button & Append Menu
     const fileInput = document.getElementById('file-input');
+    const folderInput = document.getElementById('folder-input');
     const btnOpenFile = document.getElementById('btn-open-file');
     const btnOpenDropdown = document.getElementById('btn-open-dropdown');
     const openMenu = document.getElementById('open-file-dropdown');
+    const menuOpenFolder = document.getElementById('menu-open-folder');
     const menuAppend = document.getElementById('menu-append-file') || document.getElementById('menu-item-append-file');
+    const menuAppendFolder = document.getElementById('menu-append-folder');
 
     if (btnOpenFile) {
       btnOpenFile.addEventListener('click', () => {
@@ -17599,6 +17759,15 @@ class BIMViewerApp {
       });
     }
 
+    if (menuOpenFolder) {
+      menuOpenFolder.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (openMenu) openMenu.style.display = 'none';
+        this._isAppendNextFile = false;
+        if (folderInput) folderInput.click();
+      });
+    }
+
     if (menuAppend) {
       menuAppend.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -17608,8 +17777,28 @@ class BIMViewerApp {
       });
     }
 
+    if (menuAppendFolder) {
+      menuAppendFolder.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (openMenu) openMenu.style.display = 'none';
+        this._isAppendNextFile = true;
+        if (folderInput) folderInput.click();
+      });
+    }
+
     if (fileInput) {
       fileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+          const isAppend = Boolean(this._isAppendNextFile);
+          this._isAppendNextFile = false;
+          this.handleFileInput(e.target.files, isAppend);
+          e.target.value = '';
+        }
+      });
+    }
+
+    if (folderInput) {
+      folderInput.addEventListener('change', (e) => {
         if (e.target.files && e.target.files.length > 0) {
           const isAppend = Boolean(this._isAppendNextFile);
           this._isAppendNextFile = false;

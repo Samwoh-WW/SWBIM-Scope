@@ -179,30 +179,28 @@ class BIMPointCloudManager {
       return null;
     }
 
-    if (!isAppend) {
-      if (this.app.clearModel) this.app.clearModel(false);
-      this.clearPointClouds();
-    }
-
     const fileMap = new Map();
     for (const f of fileList) {
       const baseName = (f.name || '').split(/[/\\]/).pop().toLowerCase();
+      if (baseName.endsWith('log.txt')) continue;
       fileMap.set(baseName, f);
       if (f.webkitRelativePath) {
         const relBase = f.webkitRelativePath.split(/[/\\]/).pop().toLowerCase();
-        fileMap.set(relBase, f);
+        if (!relBase.endsWith('log.txt')) {
+          fileMap.set(relBase, f);
+        }
       }
     }
 
-    if (!fileMap.has('metadata.json')) {
-      if (this.app.showToast) this.app.showToast('metadata.json not found in dropped files', 3000);
+    // Check if metadata.json and octree.bin exist in the dropped/selected files
+    if (!fileMap.has('metadata.json') || !fileMap.has('octree.bin')) {
+      this.showMissingBinModal(isAppend);
       return null;
     }
 
-    // Check if octree.bin exists in the dropped files
-    if (!fileMap.has('octree.bin')) {
-      this.showMissingBinModal();
-      return null;
+    if (!isAppend) {
+      if (this.app.clearModel) this.app.clearModel(false);
+      this.clearPointClouds();
     }
 
     try {
@@ -1049,7 +1047,7 @@ class BIMPointCloudManager {
   }
 
   // --- MISSING OCTREE.BIN GUIDANCE MODAL ---
-  showMissingBinModal() {
+  showMissingBinModal(isAppend = false) {
     let modal = document.getElementById('missing-bin-modal');
     if (!modal) {
       modal = document.createElement('div');
@@ -1066,8 +1064,8 @@ class BIMPointCloudManager {
           <div style="display:flex; align-items:center; gap:10px;">
             <span style="font-size:24px;">⚠️</span>
             <div>
-              <div class="las-modal-title">${isZh ? '缺少点云二进制数据 (Missing octree.bin)' : 'Missing Point Cloud Data (octree.bin)'}</div>
-              <div class="las-modal-subtitle">${isZh ? '仅检测到元数据描述文件 metadata.json' : 'Only metadata.json descriptor was dropped'}</div>
+              <div class="las-modal-title">${isZh ? '缺少完整的点云数据文件 (metadata.json + octree.bin)' : 'Incomplete Point Cloud Files (metadata.json + octree.bin)'}</div>
+              <div class="las-modal-subtitle">${isZh ? '仅检测到部分点云文件，需同时提供描述文件与二进制分块' : 'Only partial point cloud files were selected or dropped'}</div>
             </div>
           </div>
           <button type="button" class="las-modal-close" id="btn-close-missing-bin">✕</button>
@@ -1076,8 +1074,8 @@ class BIMPointCloudManager {
         <div class="las-modal-body">
           <div style="background:rgba(234,179,8,0.12); border:1px solid rgba(234,179,8,0.35); border-radius:8px; padding:12px; margin-bottom:14px; font-size:12.5px; line-height:1.6; color:var(--text-primary);">
             ${isZh
-              ? '您刚才仅拖入了 <strong>metadata.json</strong> 配置文件。<br>受现代浏览器<strong>安全沙箱隔离限制</strong>，网页端无法自动读取您磁盘同目录下的 <code>octree.bin</code> 与 <code>hierarchy.bin</code> 实体数据，因此无法呈现三维点。'
-              : 'You only dropped <strong>metadata.json</strong>.<br>Due to browser security sandbox restrictions, a web page cannot automatically read sibling binary files (<code>octree.bin</code> and <code>hierarchy.bin</code>) from your local drive.'}
+              ? '您刚才仅选择或拖入了部分点云文件。<br>受现代浏览器<strong>安全沙箱隔离限制</strong>，网页端无法自动读取您磁盘同目录下的其他配套文件（需包含 <code>metadata.json</code>、<code>octree.bin</code> 与 <code>hierarchy.bin</code>）。'
+              : 'You only selected or dropped partial point cloud files.<br>Due to browser security sandbox restrictions, a web page cannot automatically read sibling files (<code>metadata.json</code>, <code>octree.bin</code>, and <code>hierarchy.bin</code>) from your local drive.'}
           </div>
 
           <div style="font-size:13px; font-weight:700; margin-bottom:8px; color:var(--accent);">
@@ -1088,16 +1086,16 @@ class BIMPointCloudManager {
             <div class="las-step-item">
               <div class="las-step-num">1</div>
               <div class="las-step-content">
-                <div class="las-step-title">${isZh ? '拖入整个输出文件夹 (推荐)' : 'Drop the entire folder (Recommended)'}</div>
-                <div class="las-step-desc">${isZh ? '直接将 Las2Web 转换生成的整个文件夹拖入本视口，系统将自动递归读取所有分块。' : 'Drag the entire Potree folder directly into BIM Scope to load all chunks automatically.'}</div>
+                <div class="las-step-title">${isZh ? '直接选择或拖入整个点云文件夹 (推荐)' : 'Select or drop the entire folder (Recommended)'}</div>
+                <div class="las-step-desc">${isZh ? '点击下方「直接选择点云文件夹」按钮，或将 Las2Web 生成的整个文件夹直接拖入视口。' : 'Click "Select Point Cloud Folder" below, or drag the entire Potree folder directly into the viewport.'}</div>
               </div>
             </div>
 
             <div class="las-step-item">
               <div class="las-step-num">2</div>
               <div class="las-step-content">
-                <div class="las-step-title">${isZh ? '多选文件同时拖入' : 'Select all files and drop together'}</div>
-                <div class="las-step-desc">${isZh ? '在文件夹内按 <code>Ctrl+A</code> 全选 <code>metadata.json</code>、<code>octree.bin</code>、<code>hierarchy.bin</code>，一同拖入。' : 'Select metadata.json, octree.bin, and hierarchy.bin together and drop them.'}</div>
+                <div class="las-step-title">${isZh ? '多选文件同时打开或拖入' : 'Select all 3 files together'}</div>
+                <div class="las-step-desc">${isZh ? '在文件夹内按 <code>Ctrl+A</code> 同时选中 <code>metadata.json</code>、<code>octree.bin</code>、<code>hierarchy.bin</code> 一并打开或拖入。' : 'Select metadata.json, octree.bin, and hierarchy.bin together when opening or dropping.'}</div>
               </div>
             </div>
 
@@ -1111,9 +1109,12 @@ class BIMPointCloudManager {
           </div>
         </div>
 
-        <div class="las-modal-footer">
-          <button type="button" class="las-btn-download" id="btn-dismiss-missing-bin" style="width:100%; text-align:center; cursor:pointer;">
-            ✓ ${isZh ? '我知道了，我来拖入整个文件夹' : 'Got it, I will drop the folder'}
+        <div class="las-modal-footer" style="display:flex; gap:10px;">
+          <button type="button" class="las-btn-download" id="btn-select-folder-missing-bin" style="flex:1.5; text-align:center; cursor:pointer;">
+            📁 ${isZh ? '直接选择点云文件夹...' : 'Select Point Cloud Folder...'}
+          </button>
+          <button type="button" class="las-btn-dismiss" id="btn-dismiss-missing-bin" style="flex:1; text-align:center; cursor:pointer;">
+            ${isZh ? '我知道了' : 'Got it'}
           </button>
         </div>
       </div>
@@ -1125,6 +1126,7 @@ class BIMPointCloudManager {
 
     const closeBtn = modal.querySelector('#btn-close-missing-bin');
     const dismissBtn = modal.querySelector('#btn-dismiss-missing-bin');
+    const selectFolderBtn = modal.querySelector('#btn-select-folder-missing-bin');
     const hide = () => {
       modal.classList.remove('visible');
       setTimeout(() => { modal.style.display = 'none'; }, 300);
@@ -1132,6 +1134,16 @@ class BIMPointCloudManager {
 
     if (closeBtn) closeBtn.onclick = hide;
     if (dismissBtn) dismissBtn.onclick = hide;
+    if (selectFolderBtn) {
+      selectFolderBtn.onclick = () => {
+        hide();
+        const folderInput = document.getElementById('folder-input');
+        if (folderInput) {
+          if (this.app) this.app._isAppendNextFile = Boolean(isAppend);
+          folderInput.click();
+        }
+      };
+    }
     modal.onclick = (e) => {
       if (e.target === modal) hide();
     };
