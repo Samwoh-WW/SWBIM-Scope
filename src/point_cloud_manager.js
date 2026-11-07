@@ -160,7 +160,12 @@ class BIMPointCloudManager {
         throw new Error('Null point cloud returned');
       }
 
-      this.onPointCloudLoaded(pco);
+      if (this.app && typeof this.app.clearModel === 'function') {
+        this.app.clearModel(false);
+      }
+      this.clearPointClouds();
+
+      this.onPointCloudLoaded(pco, false);
       return pco;
     } catch (err) {
       console.error('[BIMPointCloudManager] Load error:', err);
@@ -340,8 +345,11 @@ class BIMPointCloudManager {
     // Link with existing clipping planes
     this.syncClippingWithApp();
 
-    // Update Left Sidebar Model Hierarchy
+    // Update Left Sidebar Model Hierarchy & Status Bar Stats
     this.updateModelHierarchyTree();
+    if (this.app && typeof this.app.updateStats === 'function') {
+      this.app.updateStats();
+    }
     if (this.app && typeof this.app.syncTreeSelection === 'function') {
       this.app.syncTreeSelection();
     }
@@ -396,8 +404,11 @@ class BIMPointCloudManager {
       this.isPointCloudSelected = Boolean(this.activePointCloud);
     }
 
-    // Rebuild tree
+    // Rebuild tree & status bar stats
     this.updateModelHierarchyTree();
+    if (this.app && typeof this.app.updateStats === 'function') {
+      this.app.updateStats();
+    }
 
     // Update inspector
     if (this.activePointCloud) {

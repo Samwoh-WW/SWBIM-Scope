@@ -947,6 +947,7 @@ class VirtualBimTree {
           }
         });
       }
+      if (this.app.updateStats) this.app.updateStats();
       if (this.app._wakeRender) this.app._wakeRender(200);
       this.render();
     });
@@ -3445,7 +3446,7 @@ class BIMViewerApp {
     }
   }
 
-  clearModel() {
+  clearModel(clearPointClouds = true) {
     this.revokeActiveBlobUrls();
     const modelsToDispose = (this.loadedModels && this.loadedModels.length > 0) ? [...this.loadedModels] : (this.activeModel ? [this.activeModel] : []);
     modelsToDispose.forEach(m => {
@@ -3488,7 +3489,7 @@ class BIMViewerApp {
     if (this.modelInfoMap) this.modelInfoMap.clear();
     this.activeModel = null;
 
-    if (this.pointCloudManager) {
+    if (clearPointClouds && this.pointCloudManager) {
       this.pointCloudManager.clearPointClouds();
     }
 
@@ -3508,6 +3509,7 @@ class BIMViewerApp {
       this.snapEngine.clear();
     }
     this.hideAnimationPlayer();
+    this.updateStats();
     this.needsRender = true;
     this.checkEmptySceneState();
   }
@@ -9042,9 +9044,11 @@ class BIMViewerApp {
   updateStats() {
     let triCount = 0;
     let vertCount = 0;
-    if (this.activeModel) {
-      this.activeModel.traverse(obj => {
-        if (this.isModelElementMesh(obj) && obj.geometry) {
+    const models = (this.loadedModels && this.loadedModels.length > 0) ? this.loadedModels : (this.activeModel ? [this.activeModel] : []);
+    models.forEach(m => {
+      if (!m || m.visible === false) return;
+      m.traverse(obj => {
+        if (obj.visible !== false && this.isModelElementMesh(obj) && obj.geometry) {
           const geom = obj.geometry;
           if (geom.index) {
             triCount += geom.index.count / 3;
@@ -9056,9 +9060,18 @@ class BIMViewerApp {
           }
         }
       });
+    });
+    if (this.pointCloudManager && this.pointCloudManager.pointClouds && this.pointCloudManager.pointClouds.length > 0) {
+      this.pointCloudManager.pointClouds.forEach(pco => {
+        if (pco && pco.visible !== false) {
+          vertCount += this.pointCloudManager.getPointCloudPointCount(pco) || 0;
+        }
+      });
     }
-    document.getElementById('stat-triangles-val').textContent = triCount.toLocaleString();
-    document.getElementById('stat-vertices-val').textContent = vertCount.toLocaleString();
+    const triEl = document.getElementById('stat-triangles-val');
+    const vertEl = document.getElementById('stat-vertices-val');
+    if (triEl) triEl.textContent = Math.round(triCount).toLocaleString();
+    if (vertEl) vertEl.textContent = Math.round(vertCount).toLocaleString();
   }
   
   // Window Responsive Adaptive Layout:
@@ -14627,17 +14640,37 @@ class BIMViewerApp {
     this.requestRender(200);
   }
 
-  formatMeasurePointCoords(point) {
+  formatMeasurePointCoords(point, pco = null) {
     const unit = this.measureUnit || 'm';
     const scale = unit === 'mm' ? 1000 : 1;
     const decimals = unit === 'mm' ? 0 : 3;
-    // BIM Engineering Coordinate Convention: X = Easting (point.x), Y = Northing (-point.z), Z = Elevation (point.y)
-    const rawX = point.x * scale;
-    const rawY = -point.z * scale;
-    const rawZ = point.y * scale;
+
+    const targetPco = pco || (this.pointCloudManager && this.pointCloudManager.activePointCloud);
+    const mapping = (targetPco && targetPco.userData && targetPco.userData.coordinateMapping) || 'auto';
+
+    // BIM Engineering Coordinate Convention (Y-up world):
+    // World X = Easting (point.x)
+    // World Y = Elevation / RL (point.y)
+    // World Z = -Northing (-point.z)
+    let eastingM = point.x;
+    let northingM = -point.z;
+    let elevationM = point.y;
+
+    if (mapping === 'swap_yz') {
+      const tmp = northingM;
+      northingM = elevationM;
+      elevationM = tmp;
+    }
+
+    const rawX = eastingM * scale;
+    const rawY = northingM * scale;
+    const rawZ = elevationM * scale;
     const cleanZero = (v) => (Math.abs(v) < 1e-5 ? 0 : v);
     return {
       unit,
+      x: cleanZero(eastingM),
+      y: cleanZero(northingM),
+      z: cleanZero(elevationM),
       xStr: `${cleanZero(rawX).toFixed(decimals)} ${unit}`,
       yStr: `${cleanZero(rawY).toFixed(decimals)} ${unit}`,
       zStr: `${cleanZero(rawZ).toFixed(decimals)} ${unit}`
@@ -14665,7 +14698,7 @@ class BIMViewerApp {
     const svgEl = document.getElementById('measure-leader-svg');
     if (!listEl || !svgEl) return;
 
-    const coords = this.formatMeasurePointCoords(marker.point);
+    const coords = this.formatMeasurePointCoords(marker.point, marker.pointCloud);
     const slopeStr = this.formatSlopeString(marker.slopeData);
     const copyTooltip = I18N.t('measureCopyTooltip');
     const slopeLabel = I18N.t('measureMaxSlope');
@@ -14725,7 +14758,7 @@ class BIMViewerApp {
         copyBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           e.preventDefault();
-          const c = this.formatMeasurePointCoords(marker.point);
+          const c = this.formatMeasurePointCoords(marker.point, marker.pointCloud);
           const s = this.formatSlopeString(marker.slopeData);
           const text = `X: ${c.xStr}\nY: ${c.yStr}\nZ: ${c.zStr}\n${I18N.t('measureMaxSlope')}: ${s}`;
           copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
@@ -17335,7 +17368,7 @@ class BIMViewerApp {
     const ptSlopeEl = document.getElementById('measure-res-pt-slope');
 
     if (activePt) {
-      const c = this.formatMeasurePointCoords(activePt.point);
+      const c = this.formatMeasurePointCoords(activePt.point, activePt.pointCloud);
       const slopeExp = this.formatSlopeExpressions(activePt.slopeData);
       if (elevEl) elevEl.textContent = c.zStr;
       if (ptXEl) ptXEl.textContent = c.xStr;

@@ -1457,9 +1457,9 @@ def generate_html(variant_cfg, sources):
       <div class="bottom-status-right">
         <!-- Edge Shadow casting leftwards from the left border of status HUD -->
         <div class="bottom-bar-edge-shadow" id="bottom-bar-edge-shadow"></div>
-        <div class="status-metric">X: <span id="coord-x">697.2</span></div>
-        <div class="status-metric">Y: <span id="coord-y">170.0</span></div>
-        <div class="status-metric">RL: <span id="coord-rl">50.96</span></div>
+        <div class="status-metric">X: <span id="coord-x">0.0</span></div>
+        <div class="status-metric">Y: <span id="coord-y">0.0</span></div>
+        <div class="status-metric">RL: <span id="coord-rl">0.00</span></div>
         <div class="divider"></div>
         <div class="status-metric"><span data-i18n="statTriangles">Triangles</span>: <span id="stat-triangles-val">0</span></div>
         <div class="status-metric"><span data-i18n="statVertices">Vertices</span>: <span id="stat-vertices-val">0</span></div>
