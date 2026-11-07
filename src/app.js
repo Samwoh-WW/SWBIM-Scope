@@ -1165,6 +1165,36 @@ class BimSnapEngine {
     this.edgeObj.add(new THREE.Mesh(hgFillGeom, hgFillMat));
     this.indicatorGroup.add(this.edgeObj);
 
+    // 5. Point Cloud Glyph: Target Reticle (⌖) in Cyan (0x00f0ff)
+    this.pointcloudObj = new THREE.Group();
+    const pcCircleGeom = new THREE.RingGeometry(0.38, 0.48, 24);
+    const pcMat = new THREE.MeshBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.95,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    this.pointcloudObj.add(new THREE.Mesh(pcCircleGeom, pcMat));
+    const pcCrossVerts = new Float32Array([
+      -0.65, 0, 0,  -0.2, 0, 0,
+       0.2,  0, 0,   0.65, 0, 0,
+       0, -0.65, 0,  0, -0.2, 0,
+       0,  0.2,  0,  0,  0.65, 0
+    ]);
+    const pcCrossGeom = new THREE.BufferGeometry();
+    pcCrossGeom.setAttribute('position', new THREE.BufferAttribute(pcCrossVerts, 3));
+    const pcLineMat = new THREE.LineBasicMaterial({
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.95,
+      depthTest: false,
+      depthWrite: false
+    });
+    this.pointcloudObj.add(new THREE.LineSegments(pcCrossGeom, pcLineMat));
+    this.indicatorGroup.add(this.pointcloudObj);
+
     // 5. Source Arc/Circle Boundary Highlight Loop
     this.arcHighlightGeom = new THREE.BufferGeometry();
     this.arcHighlightMat = new THREE.LineBasicMaterial({
@@ -1625,6 +1655,47 @@ class BimSnapEngine {
     return false;
   }
 
+  resolvePointCloudSnapCandidate(localX, localY, cw, ch, camera) {
+    if (!this.app.pointCloudManager || !this.app.pointCloudManager.pointClouds.length) return null;
+    const tol = this.pixelTolerance || 20;
+    const raycaster = this.app.raycaster;
+    if (!raycaster) return null;
+
+    const hit = this.app.pointCloudManager.raycast(raycaster, tol);
+    if (!hit || !hit.point) return null;
+
+    // Check occlusion with clipping planes
+    const clippingPlanes = (this.app.clippingEngine && this.app.clippingEngine.enabled) ? 
+      (this.app.clippingEngine.clippingPlanes || []) : [];
+    for (let p = 0; p < clippingPlanes.length; p++) {
+      if (clippingPlanes[p].distanceToPoint(hit.point) < 0) return null;
+    }
+
+    const proj = hit.point.clone().project(camera);
+    if (proj.z > 1.0 || proj.z < -1.0) return null;
+
+    const sx = (proj.x * 0.5 + 0.5) * cw;
+    const sy = (-proj.y * 0.5 + 0.5) * ch;
+    const dSq = (localX - sx) * (localX - sx) + (localY - sy) * (localY - sy);
+
+    if (dSq <= tol * tol) {
+      return {
+        distSq: dSq,
+        candidate: {
+          type: 'pointcloud',
+          point: hit.point.clone(),
+          normal: new THREE.Vector3(0, 0, 1),
+          targetMesh: hit.pointCloud,
+          screenX: sx,
+          screenY: sy,
+          hudLabel: (window.I18N ? window.I18N.t('pointCloudSnapFeature') : 'Point Cloud Vertex') || 'Point Cloud',
+          hudIcon: '⌖'
+        }
+      };
+    }
+    return null;
+  }
+
   resolveSnap(clientX, clientY, camera, hit = null) {
     if (!this.enabled || this.altBypassed) {
       this.hideIndicator();
@@ -1645,8 +1716,20 @@ class BimSnapEngine {
       return null;
     }
 
+    // Point Cloud Snapping Candidate Check
+    let pcCandidate = null;
+    if (this.app.pointCloudManager && this.app.pointCloudManager.pointClouds.length > 0) {
+      pcCandidate = this.resolvePointCloudSnapCandidate(localX, localY, cw, ch, camera);
+    }
+
     let mesh = (hit && hit.object) ? hit.object : this.lastHoveredMesh;
     if (!mesh || !this.app.isPickableElement(mesh)) {
+      if (pcCandidate) {
+        this.lastHoveredMesh = pcCandidate.candidate.targetMesh;
+        this.currentSnap = pcCandidate.candidate;
+        this.showIndicator(pcCandidate.candidate, camera, container);
+        return pcCandidate.candidate;
+      }
       this.hideIndicator();
       return null;
     }
@@ -1916,8 +1999,14 @@ class BimSnapEngine {
       }
     }
 
+    // If point cloud candidate is closer to cursor than mesh features, prioritize point cloud
+    if (pcCandidate && pcCandidate.distSq < bestDistSq) {
+      bestDistSq = pcCandidate.distSq;
+      bestCandidate = pcCandidate.candidate;
+    }
+
     // Final occlusion verification: ensure candidate is not occluded by a front surface
-    if (bestCandidate && this.isPointOccluded(bestCandidate.point, camera)) {
+    if (bestCandidate && bestCandidate.type !== 'pointcloud' && this.isPointOccluded(bestCandidate.point, camera)) {
       bestCandidate = null;
     }
 
@@ -1948,6 +2037,7 @@ class BimSnapEngine {
     this.midpointObj.visible = (snap.type === 'midpoint');
     this.centerObj.visible = (snap.type === 'center');
     this.edgeObj.visible = (snap.type === 'edge');
+    if (this.pointcloudObj) this.pointcloudObj.visible = (snap.type === 'pointcloud');
 
     this.updateIndicatorScale(camera, container, snap.point);
 
@@ -2093,8 +2183,14 @@ class BIMViewerApp {
     this.solarEngine = new SolarEngine(this.scene, this.renderer);
     this.clippingEngine = new ClippingEngine(this.scene, this.renderer);
     this.isGizmoDragging = false;
-    this.clippingEngine.onGizmoChange = () => this.syncSectionUI();
+    this.clippingEngine.onGizmoChange = () => {
+      this.syncSectionUI();
+      if (this.pointCloudManager) {
+        this.pointCloudManager.updateClipping(this.clippingEngine.clippingPlanes);
+      }
+    };
     this.ifcParser = new IFCParser();
+    this.pointCloudManager = new BIMPointCloudManager(this);
     
     // Raycasting & Interaction
     this.raycaster = new THREE.Raycaster();
@@ -6451,6 +6547,27 @@ class BIMViewerApp {
     const fileList = (fileOrFiles instanceof FileList || Array.isArray(fileOrFiles)) ? 
       Array.from(fileOrFiles) : [fileOrFiles];
     if (fileList.length === 0) return;
+
+    // Check if raw point cloud (.las, .laz) dropped
+    const lasFile = fileList.find(f => {
+      const ext = f.name.split('.').pop().toLowerCase();
+      return ext === 'las' || ext === 'laz';
+    });
+    if (lasFile) {
+      if (this.pointCloudManager) {
+        this.pointCloudManager.showLasConverterModal(lasFile.name);
+      }
+      return;
+    }
+
+    // Check if converted Potree folder/files (metadata.json or _potree)
+    const metadataFile = fileList.find(f => f.name.toLowerCase() === 'metadata.json');
+    if (metadataFile) {
+      if (this.pointCloudManager) {
+        this.pointCloudManager.loadFromLocalFiles(fileList);
+      }
+      return;
+    }
 
     // Find primary model file (.ifc, .glb, .gltf, .fbx, .dae, .obj)
     const primaryFile = fileList.find(f => {
@@ -18374,6 +18491,10 @@ class BIMViewerApp {
       this.isRightDragging ||
       this.isGizmoDragging ||
       this.isDraggingMeasurePoint;
+
+    if (this.pointCloudManager) {
+      this.pointCloudManager.update(this.camera, this.renderer);
+    }
 
     if (shouldRender) {
       this.needsRender = false;

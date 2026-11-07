@@ -580,7 +580,43 @@ const I18N = {
       catMep: "MEP Services",
       catSteel: "Structural Steel",
       catFoundation: "Foundation",
-      catComponent: "Component"
+      catComponent: "Component",
+
+      // Point Cloud & Las2Web Integration
+      pointCloudLayer: "Point Cloud Layer",
+      pointCloudTitle: "Point Cloud Properties",
+      pointCloudPoints: "Total Points",
+      pointCloudSize: "Point Size",
+      pointCloudBudget: "Point Budget",
+      pointCloudColorMode: "Color Mode",
+      pointCloudColorRGB: "RGB True Color",
+      pointCloudColorElevation: "Elevation Gradient",
+      pointCloudColorIntensity: "Intensity",
+      pointCloudColorClassification: "Classification",
+      pointCloudOpacity: "Opacity",
+      pointCloudOffset: "Coordinate Fine-tune (X, Y, Z)",
+      pointCloudResetPos: "Reset Position",
+      pointCloudFitView: "Fit Point Cloud",
+      pointCloudRemove: "Remove Point Cloud",
+      pointCloudLoading: "Streaming point cloud octree...",
+      pointCloudLoaded: "Point cloud loaded: {count} points",
+      pointCloudLoadError: "Failed to load point cloud: {error}",
+      pointCloudSnapFeature: "Point Cloud Vertex",
+
+      // Las2Web Preprocessing Guidance Modal
+      lasGuideTitle: "Point Cloud Preprocessing Guide",
+      lasGuideSubtitle: "Raw LAS / LAZ LiDAR point clouds require octree tiling for high-performance 60 FPS streaming.",
+      lasGuideReasonTitle: "Why is conversion required?",
+      lasGuideReasonDesc: "Raw .las/.laz files contain millions of unindexed 3D points. Web browsers cannot directly process multi-gigabyte binary point clouds efficiently. Converting to a Potree 2.x Octree produces standard metadata and chunks (metadata.json, octree.bin) for instant, out-of-core streaming.",
+      lasGuideStep1Title: "1. Download Las2Web",
+      lasGuideStep1Desc: "Download the free, zero-dependency portable release from GitHub (runs directly without installation or Python).",
+      lasGuideStep2Title: "2. Drag & Drop to Convert",
+      lasGuideStep2Desc: "Drag your .las or .laz file into Las2Web. It converts immediately and saves alongside your source file.",
+      lasGuideStep3Title: "3. Auto-View in BIM Scope",
+      lasGuideStep3Desc: "Las2Web automatically starts a local streaming server and launches this BIM Scope viewer to load your scan in 3D.",
+      lasGuideBtnDownload: "Download Las2Web (Portable)",
+      lasGuideBtnClose: "Got it / Close",
+      lasGuideDragHint: "Already converted? You can drag the <name>_potree folder directly into BIM Scope!"
     },
     
     zh: {
@@ -1145,7 +1181,43 @@ const I18N = {
       catMep: "机电设备 (MEP)",
       catSteel: "钢结构 (Steel)",
       catFoundation: "地基基础 (Foundation)",
-      catComponent: "常规构件 (Component)"
+      catComponent: "常规构件 (Component)",
+
+      // 点云与 Las2Web 深度联动
+      pointCloudLayer: "点云图层",
+      pointCloudTitle: "点云属性与渲染控制",
+      pointCloudPoints: "总点数",
+      pointCloudSize: "点尺寸",
+      pointCloudBudget: "点云预算 / 密度",
+      pointCloudColorMode: "着色模式",
+      pointCloudColorRGB: "RGB 真彩色",
+      pointCloudColorElevation: "高程渐变 (Elevation)",
+      pointCloudColorIntensity: "反射强度 (Intensity)",
+      pointCloudColorClassification: "点云分类 (Classification)",
+      pointCloudOpacity: "点云透明度",
+      pointCloudOffset: "坐标微调偏移 (X, Y, Z)",
+      pointCloudResetPos: "重置位置",
+      pointCloudFitView: "聚焦居中点云",
+      pointCloudRemove: "移除点云",
+      pointCloudLoading: "正在流式载入空间八叉树点云...",
+      pointCloudLoaded: "点云加载完成，共 {count} 个空间测点",
+      pointCloudLoadError: "点云加载失败：{error}",
+      pointCloudSnapFeature: "点云特征测点",
+
+      // Las2Web 预处理向导弹窗
+      lasGuideTitle: "点云预处理向导",
+      lasGuideSubtitle: "检测到原始 LAS / LAZ 激光点云文件。网页端流畅 60 FPS 查看海量点云需先进行空间八叉树切片转换。",
+      lasGuideReasonTitle: "为什么需要预处理？",
+      lasGuideReasonDesc: "原始 .las/.laz 文件由海量无索引散点构成，体积通常达数百MB至数GB，受浏览器安全沙箱限制无法直接在网页中高效解压渲染。通过 Las2Web 预转换为 Potree 2.x 八叉树规范（metadata.json、octree.bin），可实现千万级点云毫秒级视锥裁剪与分层 LOD 流式秒开。",
+      lasGuideStep1Title: "1. 下载 Las2Web 转换器",
+      lasGuideStep1Desc: "从 GitHub 获取纯本地绿色便携版（无需配置 Python 或 VC++ 运行库，解压即可运行）。",
+      lasGuideStep2Title: "2. 即拖即转，就地另存",
+      lasGuideStep2Desc: "将 .las 或 .laz 文件直接拖入 Las2Web 窗口，全自动就地生成标准切片文件夹。",
+      lasGuideStep3Title: "3. 自动联动 BIM Scope 查看",
+      lasGuideStep3Desc: "转换完成后一键自动拉起本浏览器视口，并流畅载入三维点云与 BIM 模型合模对比。",
+      lasGuideBtnDownload: "从 GitHub 下载 Las2Web 便携版",
+      lasGuideBtnClose: "我知道了 / 关闭",
+      lasGuideDragHint: "提示：如果您已转换过，可直接将转换生成的 <文件名>_potree 文件夹或 metadata.json 拖入本视口！"
     }
   },
   

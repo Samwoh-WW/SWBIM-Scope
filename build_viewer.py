@@ -93,6 +93,10 @@ def load_sources(base_dir=BASE_DIR):
         mtl_loader_js = f.read()
     with open(os.path.join(lib_dir, "OBJLoader.js"), "r", encoding="utf-8") as f:
         obj_loader_js = f.read()
+    with open(os.path.join(lib_dir, "potree-core.min.js"), "r", encoding="utf-8") as f:
+        potree_core_js = f.read()
+    with open(os.path.join(src_dir, "point_cloud_manager.js"), "r", encoding="utf-8") as f:
+        point_cloud_manager_js = f.read()
 
     with open(os.path.join(src_dir, "styles.css"), "r", encoding="utf-8") as f:
         styles_css = f.read()
@@ -128,6 +132,8 @@ def load_sources(base_dir=BASE_DIR):
         "collada_loader_js": collada_loader_js,
         "mtl_loader_js": mtl_loader_js,
         "obj_loader_js": obj_loader_js,
+        "potree_core_js": potree_core_js,
+        "point_cloud_manager_js": point_cloud_manager_js,
         "styles_css": styles_css,
         "i18n_js": i18n_js,
         "solar_js": solar_js,
@@ -190,6 +196,8 @@ def generate_html(variant_cfg, sources):
     collada_loader_js = sources["collada_loader_js"]
     mtl_loader_js = sources["mtl_loader_js"]
     obj_loader_js = sources["obj_loader_js"]
+    potree_core_js = sources["potree_core_js"]
+    point_cloud_manager_js = sources["point_cloud_manager_js"]
     i18n_js = sources["i18n_js"]
     solar_js = sources["solar_js"]
     clipping_js = sources["clipping_js"]
@@ -1896,6 +1904,9 @@ def generate_html(variant_cfg, sources):
 {obj_loader_js}
   </script>
   <script>
+{potree_core_js}
+  </script>
+  <script>
 {i18n_js}
   </script>
   <script>
@@ -1903,6 +1914,9 @@ def generate_html(variant_cfg, sources):
   </script>
   <script>
 {clipping_js}
+  </script>
+  <script>
+{point_cloud_manager_js}
   </script>
   <script>
 {ifc_parser_js}
