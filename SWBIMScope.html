@@ -28578,6 +28578,56 @@ class BIMPointCloudManager {
     }
   }
 
+  getPointCloudSettings(pco = this.activePointCloud) {
+    if (!pco) {
+      return {
+        pointSize: this.pointSize || 1.0,
+        pointSizeType: this.pointSizeType !== undefined ? this.pointSizeType : 2,
+        pointBudget: this.pointBudget || 2000000,
+        pointColorType: this.pointColorType !== undefined ? this.pointColorType : 0,
+        opacity: this.opacity !== undefined ? this.opacity : 1.0
+      };
+    }
+    if (!pco.userData) pco.userData = {};
+    if (!pco.userData.settings) {
+      pco.userData.settings = {
+        pointSize: 1.0,
+        pointSizeType: 2,
+        pointBudget: 2000000,
+        pointColorType: 0,
+        opacity: 1.0
+      };
+    }
+    return pco.userData.settings;
+  }
+
+  selectPointCloud(pco) {
+    if (!pco) return;
+    this.activePointCloud = pco;
+    this.isPointCloudSelected = true;
+
+    if (this.app && typeof this.app.clearSelection === 'function') {
+      this.app.clearSelection(true);
+    }
+
+    this.renderInspectorCard();
+
+    const rsb = document.getElementById('right-sidebar');
+    if (rsb) {
+      rsb.classList.remove('hidden');
+      if (rsb.classList.contains('collapsed')) {
+        this.app.autoCollapsedRight = false;
+        if (typeof this.app.toggleInspectorCollapse === 'function') {
+          this.app.toggleInspectorCollapse(true);
+        }
+      }
+    }
+
+    if (this.app && typeof this.app.syncTreeSelection === 'function') {
+      this.app.syncTreeSelection();
+    }
+  }
+
   onPointCloudLoaded(pco, isAppend = false) {
     // Potree constructor in potree-core copies raw offset: pco.position.copy(pcoGeometry.offset);
     // In surveying (ASPRS LAS/LAZ): X = Easting, Y = Northing, Z = Elevation (Z-up).
@@ -28594,7 +28644,16 @@ class BIMPointCloudManager {
     pco.userData.isPointCloud = true;
     pco.updateMatrixWorld(true);
 
-    // Configure Point Cloud Material
+    const pointCount = this.getPointCloudPointCount(pco);
+    if (pointCount > 0) {
+      pco.numPoints = pointCount;
+      pco.userData.numPoints = pointCount;
+    }
+
+    // Initialize tight local bounding box from metadata if available
+    this.computeTightLocalBoundingBox(pco);
+
+    // Configure Point Cloud Material (per-cloud settings)
     this.configureMaterial(pco);
 
     // Add to scene
@@ -28603,21 +28662,28 @@ class BIMPointCloudManager {
     this.activePointCloud = pco;
     this.isPointCloudSelected = true;
 
+    if (this.app && typeof this.app.clearSelection === 'function') {
+      this.app.clearSelection(true);
+    }
+
     // Link with existing clipping planes
     this.syncClippingWithApp();
 
     // Update Left Sidebar Model Hierarchy
     this.updateModelHierarchyTree();
+    if (this.app && typeof this.app.syncTreeSelection === 'function') {
+      this.app.syncTreeSelection();
+    }
 
     // Update Right Sidebar Inspector
     this.renderInspectorCard();
 
-    const pointCount = this.getPointCloudPointCount(pco);
     const countStr = (pointCount || 0).toLocaleString();
 
     if (!isAppend) {
+      pco.userData._pendingInitialFit = true;
       // Fit View to point cloud only when opened fresh
-      this.fitPointCloudView(pco);
+      this.fitPointCloudView(pco, true);
       if (this.app.showToast) {
         const msg = window.I18N ? window.I18N.t('pointCloudLoaded', { count: countStr }) : `Point cloud loaded: ${countStr} points`;
         this.app.showToast(msg, 3500);
@@ -28666,7 +28732,7 @@ class BIMPointCloudManager {
     if (this.activePointCloud) {
       this.renderInspectorCard();
     } else {
-      const card = document.getElementById('inspector-pointcloud-card');
+      const card = document.getElementById('pointcloud-inspector-card');
       if (card) card.style.display = 'none';
       if (this.app.loadedModels && this.app.loadedModels.length > 0) {
         this.app.renderModelInfoInspector();
@@ -28699,7 +28765,7 @@ class BIMPointCloudManager {
     this.pointClouds = [];
     this.activePointCloud = null;
     this.isPointCloudSelected = false;
-    const card = document.getElementById('inspector-pointcloud-card');
+    const card = document.getElementById('pointcloud-inspector-card');
     if (card) card.style.display = 'none';
   }
 
@@ -28718,7 +28784,7 @@ class BIMPointCloudManager {
     pco.updateMatrixWorld(true);
     pco.userData._percentileComputed = false;
     pco.userData._percentileElevationRange = null;
-    this.applyMaterialSettings();
+    this.applyMaterialSettings(pco);
     this.fitPointCloudView(pco);
     this.renderInspectorCard();
     if (this.app._wakeRender) this.app._wakeRender(1000);
@@ -28726,17 +28792,90 @@ class BIMPointCloudManager {
 
   getPointCloudPointCount(pco = this.activePointCloud) {
     if (!pco) return 0;
-    if (typeof pco.numPoints === 'number' && !isNaN(pco.numPoints)) return pco.numPoints;
+    if (pco.userData && typeof pco.userData.numPoints === 'number' && pco.userData.numPoints > 0) return pco.userData.numPoints;
+    if (typeof pco.numPoints === 'number' && pco.numPoints > 0) return pco.numPoints;
     if (pco.pcoGeometry) {
-      if (typeof pco.pcoGeometry.numPoints === 'number' && !isNaN(pco.pcoGeometry.numPoints)) return pco.pcoGeometry.numPoints;
-      if (typeof pco.pcoGeometry.points === 'number' && !isNaN(pco.pcoGeometry.points)) return pco.pcoGeometry.points;
+      if (typeof pco.pcoGeometry.numPoints === 'number' && pco.pcoGeometry.numPoints > 0) return pco.pcoGeometry.numPoints;
+      if (typeof pco.pcoGeometry.points === 'number' && pco.pcoGeometry.points > 0) return pco.pcoGeometry.points;
       if (pco.pcoGeometry.loader && pco.pcoGeometry.loader.metadata) {
         const meta = pco.pcoGeometry.loader.metadata;
-        if (typeof meta.points === 'number') return meta.points;
-        if (typeof meta.numPoints === 'number') return meta.numPoints;
+        if (typeof meta.points === 'number' && meta.points > 0) return meta.points;
+        if (typeof meta.numPoints === 'number' && meta.numPoints > 0) return meta.numPoints;
       }
     }
     return 0;
+  }
+
+  computeTightLocalBoundingBox(pco, lowerPct = 0.005, upperPct = 0.995) {
+    if (!pco) return null;
+    if (!pco.userData) pco.userData = {};
+
+    // 1. Best source: loaded root node geometry in local pco space (excludes cubic octree padding and extreme noise outliers)
+    const rootNode = (pco.pcoGeometry && pco.pcoGeometry.root) || pco.root;
+    const rootGeo = rootNode && (rootNode.geometry || (rootNode.geometryNode && rootNode.geometryNode.geometry));
+    if (rootGeo && rootGeo.attributes && rootGeo.attributes.position && rootGeo.attributes.position.array) {
+      const pos = rootGeo.attributes.position;
+      const count = pos.count || Math.floor(pos.array.length / 3);
+      const arr = pos.array;
+      if (count >= 10) {
+        const xs = [];
+        const ys = [];
+        const zs = [];
+        const nodeMin = (rootNode.boundingBox && rootNode.boundingBox.min) ? rootNode.boundingBox.min : { x: 0, y: 0, z: 0 };
+        const stride = count > 25000 ? Math.ceil(count / 25000) : 1;
+        for (let i = 0; i < count; i += stride) {
+          const x = arr[i * 3] + nodeMin.x;
+          const y = arr[i * 3 + 1] + nodeMin.y;
+          const z = arr[i * 3 + 2] + nodeMin.z;
+          if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) {
+            xs.push(x);
+            ys.push(y);
+            zs.push(z);
+          }
+        }
+        if (xs.length >= 10) {
+          xs.sort((a, b) => a - b);
+          ys.sort((a, b) => a - b);
+          zs.sort((a, b) => a - b);
+          const lowIdx = Math.floor(xs.length * lowerPct);
+          const highIdx = Math.min(xs.length - 1, Math.floor(xs.length * upperPct));
+          const tightBox = new THREE.Box3(
+            new THREE.Vector3(xs[lowIdx], ys[lowIdx], zs[lowIdx]),
+            new THREE.Vector3(
+              Math.max(xs[highIdx], xs[lowIdx] + 0.01),
+              Math.max(ys[highIdx], ys[lowIdx] + 0.01),
+              Math.max(zs[highIdx], zs[lowIdx] + 0.01)
+            )
+          );
+          pco.userData._tightLocalBox = tightBox;
+          pco.userData._tightBoxFromGeometry = true;
+          if (pco.pcoGeometry) {
+            pco.pcoGeometry.tightBoundingBox = tightBox.clone();
+          }
+          return tightBox;
+        }
+      }
+    }
+
+    // 2. Synchronous fallback from metadata.json 'position' attribute min/max (before root node worker completes)
+    if (pco.pcoGeometry && pco.pcoGeometry.loader && pco.pcoGeometry.loader.metadata) {
+      const meta = pco.pcoGeometry.loader.metadata;
+      const offset = pco.pcoGeometry.offset || new THREE.Vector3();
+      if (Array.isArray(meta.attributes)) {
+        const posAttr = meta.attributes.find(a => a && a.name === 'position');
+        if (posAttr && Array.isArray(posAttr.min) && Array.isArray(posAttr.max) && posAttr.min.length >= 3 && posAttr.max.length >= 3) {
+          const minV = new THREE.Vector3(posAttr.min[0] - offset.x, posAttr.min[1] - offset.y, posAttr.min[2] - offset.z);
+          const maxV = new THREE.Vector3(posAttr.max[0] - offset.x, posAttr.max[1] - offset.y, posAttr.max[2] - offset.z);
+          if (maxV.x >= minV.x && maxV.y >= minV.y && maxV.z >= minV.z && (maxV.x > minV.x || maxV.y > minV.y || maxV.z > minV.z)) {
+            const metaBox = new THREE.Box3(minV, maxV);
+            pco.userData._tightLocalBox = metaBox;
+            return metaBox;
+          }
+        }
+      }
+    }
+
+    return pco.userData._tightLocalBox || null;
   }
 
   computePercentileElevationRange(pco, lowerPct = 0.015, upperPct = 0.985) {
@@ -28814,10 +28953,7 @@ class BIMPointCloudManager {
   configureMaterial(pco) {
     if (!pco || !pco.material) return;
     const mat = pco.material;
-    mat.size = this.pointSize;
-    mat.pointSizeType = this.pointSizeType;
-    mat.opacity = this.opacity;
-    mat.transparent = this.opacity < 0.999;
+    const settings = this.getPointCloudSettings(pco);
 
     // Detect if RGB attribute exists
     const hasRgb = (
@@ -28834,12 +28970,16 @@ class BIMPointCloudManager {
     );
 
     if (hasRgb) {
-      mat.pointColorType = window.PotreeCore ? window.PotreeCore.PointColorType.RGB : 0;
-      this.pointColorType = mat.pointColorType;
+      settings.pointColorType = window.PotreeCore ? window.PotreeCore.PointColorType.RGB : 0;
     } else {
-      mat.pointColorType = window.PotreeCore ? window.PotreeCore.PointColorType.ELEVATION : 3;
-      this.pointColorType = mat.pointColorType;
+      settings.pointColorType = window.PotreeCore ? window.PotreeCore.PointColorType.ELEVATION : 3;
     }
+
+    mat.size = settings.pointSize;
+    mat.pointSizeType = settings.pointSizeType;
+    mat.pointColorType = settings.pointColorType;
+    mat.opacity = settings.opacity;
+    mat.transparent = settings.opacity < 0.999;
 
     // Ensure RAINBOW visible spectrum gradient (Purple/Blue -> Cyan/Green/Yellow -> Orange/Red)
     if (window.PotreeCore && window.PotreeCore.RAINBOW) {
@@ -28870,12 +29010,33 @@ class BIMPointCloudManager {
   update(camera, renderer) {
     if (!this.potree || this.pointClouds.length === 0) return;
     try {
-      const res = this.potree.updatePointClouds(this.pointClouds, camera, renderer);
-
-      // Dynamically compute percentile elevation range as soon as node geometry is loaded
+      // Calculate total point budget across all clouds for LRU cache so clouds don't evict each other
+      let totalBudget = 0;
       for (const pco of this.pointClouds) {
-        if (pco && !pco.userData._percentileComputed) {
-          if (pco.pcoGeometry && pco.pcoGeometry.root && pco.pcoGeometry.root.loaded && pco.pcoGeometry.root.geometry) {
+        const s = this.getPointCloudSettings(pco);
+        totalBudget += (s.pointBudget || 2000000);
+      }
+      if (this.potree.lru) {
+        this.potree.lru.pointBudget = Math.max(totalBudget, 1000000);
+      }
+
+      let hasLoading = false;
+      for (const pco of this.pointClouds) {
+        const s = this.getPointCloudSettings(pco);
+        this.potree._pointBudget = s.pointBudget || 2000000;
+        const res = this.potree.updatePointClouds([pco], camera, renderer);
+        if (res && res.nodeLoadPromises && res.nodeLoadPromises.length > 0) {
+          hasLoading = true;
+        }
+      }
+      if (this.potree.numNodesLoading > 0) {
+        hasLoading = true;
+      }
+
+      // Dynamically compute tight bounding box & percentile elevation range as soon as root node geometry is loaded
+      for (const pco of this.pointClouds) {
+        if (pco && pco.pcoGeometry && pco.pcoGeometry.root && pco.pcoGeometry.root.loaded && pco.pcoGeometry.root.geometry) {
+          if (!pco.userData._percentileComputed) {
             const range = this.computePercentileElevationRange(pco);
             if (range) {
               pco.userData._percentileElevationRange = range;
@@ -28885,10 +29046,18 @@ class BIMPointCloudManager {
               }
             }
           }
+          if (!pco.userData._tightBoxFromGeometry) {
+            this.computeTightLocalBoundingBox(pco);
+            if (pco.userData._pendingInitialFit) {
+              pco.userData._pendingInitialFit = false;
+              this.fitPointCloudView(pco, true);
+            } else if (this.activePointCloud === pco && this.isPointCloudSelected) {
+              this.renderInspectorCard();
+            }
+          }
         }
       }
 
-      const hasLoading = (res && res.nodeLoadPromises && res.nodeLoadPromises.length > 0) || (this.potree.numNodesLoading > 0);
       if (hasLoading) {
         if (this.app._wakeRender) this.app._wakeRender(600);
       }
@@ -28921,19 +29090,42 @@ class BIMPointCloudManager {
   getWorldBoundingBox(pco = this.activePointCloud) {
     if (!pco) return null;
     pco.updateMatrixWorld(true);
+
+    if (!pco.userData || !pco.userData._tightBoxFromGeometry) {
+      this.computeTightLocalBoundingBox(pco);
+    }
+
     let box = null;
-    if (pco.pcoGeometry && pco.pcoGeometry.boundingBox) {
+    if (pco.userData && pco.userData._tightLocalBox) {
+      box = pco.userData._tightLocalBox.clone();
+    } else if (pco.pcoGeometry && pco.pcoGeometry.boundingBox) {
       box = pco.pcoGeometry.boundingBox.clone();
     } else if (pco.boundingBox) {
       box = pco.boundingBox.clone();
     }
     if (!box) return null;
     box.applyMatrix4(pco.matrixWorld);
+
+    // Always clamp world Y (elevation) to the 1.5%-98.5% percentile elevation range when available to exclude octree cube padding and floating noise points
+    if (pco.userData && Array.isArray(pco.userData._percentileElevationRange)) {
+      const [pLow, pHigh] = pco.userData._percentileElevationRange;
+      if (Number.isFinite(pLow) && Number.isFinite(pHigh) && pHigh > pLow) {
+        box.min.y = pLow;
+        box.max.y = pHigh;
+      }
+    }
+
     return box;
   }
 
   fitPointCloudView(pco = this.activePointCloud, immediate = false) {
     if (!pco || !this.app || !this.app.camera) return;
+    this.activePointCloud = pco;
+    this.isPointCloudSelected = true;
+    if (this.app && typeof this.app.clearSelection === 'function') {
+      this.app.clearSelection(true);
+    }
+
     const box = this.getWorldBoundingBox(pco);
     if (!box) return;
 
@@ -28941,8 +29133,14 @@ class BIMPointCloudManager {
     const size = box.getSize(new THREE.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z, 5.0);
 
-    const fov = (this.app.camera.fov || 45) * (Math.PI / 180);
-    const cameraDist = Math.max((maxDim / 2) / Math.tan(fov / 2) * 1.5, 10.0);
+    const sphere = new THREE.Sphere();
+    box.getBoundingSphere(sphere);
+    const radius = Math.max(sphere.radius, 2.5);
+
+    const fov = ((this.app.perspectiveCamera ? this.app.perspectiveCamera.fov : (this.app.camera.fov || 45))) * (Math.PI / 180);
+    const aspect = (this.app.camera.aspect || (this.app.canvas ? this.app.canvas.clientWidth / Math.max(1, this.app.canvas.clientHeight) : 1.0)) || 1.0;
+    const minAspect = Math.min(1.0, aspect);
+    const cameraDist = Math.max((radius * 1.02) / (Math.tan(fov / 2) * minAspect), 5.0);
 
     const neededFar = Math.max(this.app.camera.far || 5000, cameraDist * 4 + maxDim * 2);
     if (this.app.camera.far < neededFar) {
@@ -28954,7 +29152,7 @@ class BIMPointCloudManager {
       }
     }
 
-    const offsetDir = new THREE.Vector3(1, 1, 0.8).normalize();
+    const offsetDir = new THREE.Vector3(0.85, 0.65, 0.85).normalize();
     const targetCam = center.clone().addScaledVector(offsetDir, cameraDist);
 
     if (this.app.pivotPoint) {
@@ -28980,7 +29178,6 @@ class BIMPointCloudManager {
       this.app.tweenCamera(targetCam, center);
     }
 
-    this.isPointCloudSelected = true;
     if (this.app.syncTreeSelection) {
       this.app.syncTreeSelection();
     }
@@ -29100,6 +29297,15 @@ class BIMPointCloudManager {
   renderInspectorCard() {
     const inspectorContainer = document.getElementById('inspector-content') || document.getElementById('sidebar-right');
     if (!inspectorContainer) return;
+    const pco = this.activePointCloud;
+    if (!pco) return;
+
+    // When a point cloud is actively selected, show its inspector card cleanly without leftover element/model panels
+    if (this.isPointCloudSelected) {
+      Array.from(inspectorContainer.children).forEach(ch => {
+        if (ch.id !== 'pointcloud-inspector-card') ch.remove();
+      });
+    }
 
     let card = document.getElementById('pointcloud-inspector-card');
     if (!card) {
@@ -29113,33 +29319,37 @@ class BIMPointCloudManager {
         inspectorContainer.appendChild(card);
       }
     }
+    card.style.display = 'block';
 
     const isZh = (window.I18N ? window.I18N.currentLang : 'zh') === 'zh';
-    const numPoints = this.getPointCloudPointCount(this.activePointCloud);
+    const numPoints = this.getPointCloudPointCount(pco);
+    const settings = this.getPointCloudSettings(pco);
+    const pcName = pco.name || 'Point Cloud';
 
     let centerStr = '-';
     let sizeStr = '-';
-    if (this.activePointCloud) {
-      const box = this.getWorldBoundingBox(this.activePointCloud);
-      if (box) {
-        const c = box.getCenter(new THREE.Vector3());
-        const s = box.getSize(new THREE.Vector3());
-        centerStr = `X: ${c.x.toFixed(1)}, Y: ${(-c.z).toFixed(1)}, RL: ${c.y.toFixed(1)}`;
-        sizeStr = `ΔX: ${s.x.toFixed(1)}m, ΔY: ${s.z.toFixed(1)}m, ΔRL: ${s.y.toFixed(1)}m`;
-      }
+    const box = this.getWorldBoundingBox(pco);
+    if (box) {
+      const c = box.getCenter(new THREE.Vector3());
+      const s = box.getSize(new THREE.Vector3());
+      centerStr = `X: ${c.x.toFixed(1)}, Y: ${(-c.z).toFixed(1)}, RL: ${c.y.toFixed(1)}`;
+      sizeStr = `ΔX: ${s.x.toFixed(1)}m, ΔY: ${s.z.toFixed(1)}m, ΔRL: ${s.y.toFixed(1)}m`;
     }
 
-    const hasOriginalPos = Boolean(this.activePointCloud && this.activePointCloud.userData && this.activePointCloud.userData._originalPosition);
-    const isZUp = Boolean(this.activePointCloud && this.activePointCloud.userData && this.activePointCloud.userData._isZUp);
-    const coordMapping = (this.activePointCloud && this.activePointCloud.userData && this.activePointCloud.userData.coordinateMapping) || 'auto';
+    const hasOriginalPos = Boolean(pco.userData && pco.userData._originalPosition);
+    const isZUp = Boolean(pco.userData && pco.userData._isZUp);
+    const coordMapping = (pco.userData && pco.userData.coordinateMapping) || 'auto';
 
     card.innerHTML = `
-      <div class="inspector-card-header" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+      <div class="inspector-card-header" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
         <div style="display:flex; align-items:center; gap:6px;">
           <span style="font-size:15px;">☁️</span>
           <span style="font-weight:700; font-size:13px; color:var(--accent); text-transform:uppercase; letter-spacing:0.5px;">${isZh ? '点云属性与渲染控制' : 'Point Cloud Properties'}</span>
         </div>
         <span style="font-size:11px; color:var(--text-secondary); font-family:var(--font-mono);">${((numPoints || 0)).toLocaleString()} pts</span>
+      </div>
+      <div style="font-size:12px; font-weight:600; color:var(--text-bright); margin-bottom:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${pcName}">
+        📄 ${pcName}
       </div>
 
       <!-- Quick Action Buttons: Zoom & Center to Origin -->
@@ -29168,31 +29378,31 @@ class BIMPointCloudManager {
       <div class="pc-control-row" style="margin-bottom:10px;">
         <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:4px;">
           <span>${isZh ? '点尺寸 (Point Size)' : 'Point Size'}</span>
-          <span id="pc-val-size" style="font-family:var(--font-mono); color:var(--accent); font-weight:700;">${this.pointSize.toFixed(1)} px</span>
+          <span id="pc-val-size" style="font-family:var(--font-mono); color:var(--accent); font-weight:700;">${settings.pointSize.toFixed(1)} px</span>
         </div>
-        <input type="range" id="pc-slider-size" min="0.2" max="4.0" step="0.1" value="${this.pointSize}" style="width:100%;">
+        <input type="range" id="pc-slider-size" min="0.2" max="4.0" step="0.1" value="${settings.pointSize}" style="width:100%;">
       </div>
 
       <!-- Point Budget Slider -->
       <div class="pc-control-row" style="margin-bottom:10px;">
         <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:4px;">
           <span>${isZh ? '点云预算 / 密度 (Budget)' : 'Point Budget'}</span>
-          <span id="pc-val-budget" style="font-family:var(--font-mono); color:var(--accent); font-weight:700;">${(this.pointBudget / 1000000).toFixed(1)}M pts</span>
+          <span id="pc-val-budget" style="font-family:var(--font-mono); color:var(--accent); font-weight:700;">${(settings.pointBudget / 1000000).toFixed(1)}M pts</span>
         </div>
-        <input type="range" id="pc-slider-budget" min="500000" max="5000000" step="250000" value="${this.pointBudget}" style="width:100%;">
+        <input type="range" id="pc-slider-budget" min="500000" max="5000000" step="250000" value="${settings.pointBudget}" style="width:100%;">
       </div>
 
       <!-- Color Mode Selector -->
       <div class="pc-control-row" style="margin-bottom:10px;">
         <div style="font-size:11.5px; margin-bottom:5px;">${isZh ? '着色模式 (Color Mode)' : 'Color Mode'}</div>
         <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:6px;">
-          <button type="button" class="pc-color-btn ${this.pointColorType === 0 ? 'active' : ''}" data-color="0" style="padding:4px 6px; font-size:11px; border-radius:4px; cursor:pointer;">
+          <button type="button" class="pc-color-btn ${settings.pointColorType === 0 ? 'active' : ''}" data-color="0" style="padding:4px 6px; font-size:11px; border-radius:4px; cursor:pointer;">
             ${isZh ? '🎨 真彩色' : 'RGB'}
           </button>
-          <button type="button" class="pc-color-btn ${this.pointColorType === 3 ? 'active' : ''}" data-color="3" style="padding:4px 6px; font-size:11px; border-radius:4px; cursor:pointer;">
+          <button type="button" class="pc-color-btn ${settings.pointColorType === 3 ? 'active' : ''}" data-color="3" style="padding:4px 6px; font-size:11px; border-radius:4px; cursor:pointer;">
             ${isZh ? '🌈 高程' : 'Elevation'}
           </button>
-          <button type="button" class="pc-color-btn ${this.pointColorType === 4 ? 'active' : ''}" data-color="4" style="padding:4px 6px; font-size:11px; border-radius:4px; cursor:pointer;">
+          <button type="button" class="pc-color-btn ${settings.pointColorType === 4 ? 'active' : ''}" data-color="4" style="padding:4px 6px; font-size:11px; border-radius:4px; cursor:pointer;">
             ${isZh ? '💡 强度' : 'Intensity'}
           </button>
         </div>
@@ -29202,9 +29412,9 @@ class BIMPointCloudManager {
       <div class="pc-control-row" style="margin-bottom:12px;">
         <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:4px;">
           <span>${isZh ? '点云不透明度 (Opacity)' : 'Opacity'}</span>
-          <span id="pc-val-opacity" style="font-family:var(--font-mono); color:var(--accent); font-weight:700;">${Math.round(this.opacity * 100)}%</span>
+          <span id="pc-val-opacity" style="font-family:var(--font-mono); color:var(--accent); font-weight:700;">${Math.round(settings.opacity * 100)}%</span>
         </div>
-        <input type="range" id="pc-slider-opacity" min="0.1" max="1.0" step="0.05" value="${this.opacity}" style="width:100%;">
+        <input type="range" id="pc-slider-opacity" min="0.1" max="1.0" step="0.05" value="${settings.opacity}" style="width:100%;">
       </div>
 
       <!-- Orientation (Up Axis) -->
@@ -29234,14 +29444,15 @@ class BIMPointCloudManager {
       </div>
     `;
 
-    // Hook events
+    // Hook events (bound to the currently active point cloud pco)
     const sliderSize = card.querySelector('#pc-slider-size');
     const valSize = card.querySelector('#pc-val-size');
     if (sliderSize) {
       sliderSize.addEventListener('input', (e) => {
-        this.pointSize = parseFloat(e.target.value);
-        if (valSize) valSize.textContent = `${this.pointSize.toFixed(1)} px`;
-        this.applyMaterialSettings();
+        const s = this.getPointCloudSettings(pco);
+        s.pointSize = parseFloat(e.target.value);
+        if (valSize) valSize.textContent = `${s.pointSize.toFixed(1)} px`;
+        this.applyMaterialSettings(pco);
       });
     }
 
@@ -29249,10 +29460,10 @@ class BIMPointCloudManager {
     const valBudget = card.querySelector('#pc-val-budget');
     if (sliderBudget) {
       sliderBudget.addEventListener('input', (e) => {
-        this.pointBudget = parseInt(e.target.value, 10);
-        if (this.potree) this.potree.pointBudget = this.pointBudget;
-        if (valBudget) valBudget.textContent = `${(this.pointBudget / 1000000).toFixed(1)}M pts`;
-        if (this.app._wakeRender) this.app._wakeRender();
+        const s = this.getPointCloudSettings(pco);
+        s.pointBudget = parseInt(e.target.value, 10);
+        if (valBudget) valBudget.textContent = `${(s.pointBudget / 1000000).toFixed(1)}M pts`;
+        if (this.app._wakeRender) this.app._wakeRender(300);
       });
     }
 
@@ -29261,8 +29472,9 @@ class BIMPointCloudManager {
       btn.addEventListener('click', () => {
         colorBtns.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        this.pointColorType = parseInt(btn.getAttribute('data-color'), 10);
-        this.applyMaterialSettings();
+        const s = this.getPointCloudSettings(pco);
+        s.pointColorType = parseInt(btn.getAttribute('data-color'), 10);
+        this.applyMaterialSettings(pco);
       });
     });
 
@@ -29270,56 +29482,57 @@ class BIMPointCloudManager {
     const valOpacity = card.querySelector('#pc-val-opacity');
     if (sliderOpacity) {
       sliderOpacity.addEventListener('input', (e) => {
-        this.opacity = parseFloat(e.target.value);
-        if (valOpacity) valOpacity.textContent = `${Math.round(this.opacity * 100)}%`;
-        this.applyMaterialSettings();
+        const s = this.getPointCloudSettings(pco);
+        s.opacity = parseFloat(e.target.value);
+        if (valOpacity) valOpacity.textContent = `${Math.round(s.opacity * 100)}%`;
+        this.applyMaterialSettings(pco);
       });
     }
 
     const btnZoomFit = card.querySelector('#btn-pc-zoom-fit');
     if (btnZoomFit) {
-      btnZoomFit.addEventListener('click', () => this.fitPointCloudView());
+      btnZoomFit.addEventListener('click', () => this.fitPointCloudView(pco));
     }
 
     const btnCenter = card.querySelector('#btn-pc-center-origin');
     if (btnCenter) {
       btnCenter.addEventListener('click', () => {
         if (hasOriginalPos) {
-          this.restoreOriginalCoordinates();
+          this.restoreOriginalCoordinates(pco);
         } else {
-          this.centerToOrigin();
+          this.centerToOrigin(pco);
         }
       });
     }
 
     const btnAxisZ = card.querySelector('#btn-pc-axis-z');
     const btnAxisY = card.querySelector('#btn-pc-axis-y');
-    if (btnAxisZ && btnAxisY && this.activePointCloud) {
+    if (btnAxisZ && btnAxisY) {
       btnAxisZ.addEventListener('click', () => {
-        if (!this.activePointCloud.userData._isZUp) {
-          this.toggleOrientation(this.activePointCloud);
+        if (!pco.userData._isZUp) {
+          this.toggleOrientation(pco);
         }
       });
       btnAxisY.addEventListener('click', () => {
-        if (this.activePointCloud.userData._isZUp) {
-          this.toggleOrientation(this.activePointCloud);
+        if (pco.userData._isZUp) {
+          this.toggleOrientation(pco);
         }
       });
     }
 
     const btnMapAuto = card.querySelector('#btn-pc-map-auto');
     const btnMapSwap = card.querySelector('#btn-pc-map-swap');
-    if (btnMapAuto && btnMapSwap && this.activePointCloud) {
+    if (btnMapAuto && btnMapSwap) {
       btnMapAuto.addEventListener('click', () => {
-        this.activePointCloud.userData.coordinateMapping = 'auto';
+        pco.userData.coordinateMapping = 'auto';
         this.renderInspectorCard();
         if (this.app.renderMeasurementResults) this.app.renderMeasurementResults();
         if (this.app.updateMeasureMarkersAndCallouts) this.app.updateMeasureMarkersAndCallouts();
         if (this.app._wakeRender) this.app._wakeRender(200);
       });
       btnMapSwap.addEventListener('click', () => {
-        const cur = this.activePointCloud.userData.coordinateMapping;
-        this.activePointCloud.userData.coordinateMapping = (cur === 'swap_yz') ? 'asprs' : 'swap_yz';
+        const cur = pco.userData.coordinateMapping;
+        pco.userData.coordinateMapping = (cur === 'swap_yz') ? 'asprs' : 'swap_yz';
         this.renderInspectorCard();
         if (this.app.renderMeasurementResults) this.app.renderMeasurementResults();
         if (this.app.updateMeasureMarkersAndCallouts) this.app.updateMeasureMarkersAndCallouts();
@@ -29328,11 +29541,13 @@ class BIMPointCloudManager {
     }
   }
 
-  applyMaterialSettings() {
-    for (const pco of this.pointClouds) {
-      if (pco.material) {
-        pco.material.size = this.pointSize;
-        pco.material.pointColorType = this.pointColorType;
+  applyMaterialSettings(targetPco = null) {
+    const list = targetPco ? [targetPco] : this.pointClouds;
+    for (const pco of list) {
+      if (pco && pco.material) {
+        const s = this.getPointCloudSettings(pco);
+        pco.material.size = s.pointSize;
+        pco.material.pointColorType = s.pointColorType;
 
         // Ensure RAINBOW visible spectrum gradient
         if (window.PotreeCore && window.PotreeCore.RAINBOW) {
@@ -29366,8 +29581,8 @@ class BIMPointCloudManager {
         }
         pco.material.intensityRange = [intMin, intMax];
 
-        pco.material.opacity = this.opacity;
-        pco.material.transparent = this.opacity < 0.999;
+        pco.material.opacity = s.opacity;
+        pco.material.transparent = s.opacity < 0.999;
       }
     }
     if (this.app._wakeRender) {
@@ -38905,16 +39120,31 @@ class VirtualBimTree {
     fileEl.addEventListener('click', (e) => {
       if (e.target.closest('.toggle-switch') || e.target.closest('input')) return;
       if (!slot.row || slot.row.type !== 'file') return;
-      slot.row.file.collapsed = !slot.row.file.collapsed;
-      this.computeVisibleRows();
-      this.render();
-      if (slot.row.file.fileType === 'pointcloud') {
-        if (this.app.pointCloudManager && slot.row.file.pco) {
-          this.app.pointCloudManager.selectPointCloud(slot.row.file.pco);
+      const f = slot.row.file;
+      if (f.fileType === 'pointcloud') {
+        if (this.app.pointCloudManager && f.pco) {
+          this.app.pointCloudManager.selectPointCloud(f.pco);
         }
-      } else if (slot.row.file.model) {
-        this.app.activeModel = slot.row.file.model;
-        if (this.app.renderModelInfoInspector) this.app.renderModelInfoInspector();
+        this.render();
+      } else {
+        f.collapsed = !f.collapsed;
+        if (f.model) {
+          this.app.activeModel = f.model;
+          if (this.app.modelInfoMap && this.app.modelInfoMap.has(f.model)) {
+            this.app.currentModelInfo = this.app.modelInfoMap.get(f.model);
+            this.app.updateModelSubtitle(this.app.currentModelInfo);
+          }
+          if (this.app.pointCloudManager) {
+            this.app.pointCloudManager.isPointCloudSelected = false;
+          }
+          this.app.selectedMesh = null;
+          this.app.selectedMeshes = [];
+          this.app.clearHighlightOverlay();
+          if (this.app.renderModelInfoInspector) this.app.renderModelInfoInspector();
+        }
+        this.computeVisibleRows();
+        this.render();
+        if (this.app.syncTreeSelection) this.app.syncTreeSelection();
       }
     });
 
@@ -38923,6 +39153,7 @@ class VirtualBimTree {
       if (!slot.row || slot.row.type !== 'file') return;
       const f = slot.row.file;
       if (f.fileType === 'pointcloud' && f.pco && this.app.pointCloudManager) {
+        this.app.pointCloudManager.selectPointCloud(f.pco);
         this.app.pointCloudManager.fitPointCloudView(f.pco);
       } else if (f.model) {
         this.app.zoomToModel(f.model);
@@ -39113,8 +39344,13 @@ class VirtualBimTree {
       slot.leafEl.style.display = 'none';
 
       const f = row.file;
-      slot.fileExpander.innerHTML = row.isCollapsed ? '&#9654;' : '&#9660;';
-      slot.fileExpander.classList.toggle('collapsed', row.isCollapsed);
+      if (f.fileType === 'pointcloud') {
+        slot.fileExpander.style.display = 'none';
+      } else {
+        slot.fileExpander.style.display = '';
+        slot.fileExpander.innerHTML = row.isCollapsed ? '&#9654;' : '&#9660;';
+        slot.fileExpander.classList.toggle('collapsed', row.isCollapsed);
+      }
       slot.fileIcon.textContent = f.icon || (f.fileType === 'pointcloud' ? '☁️' : '📁');
       slot.fileTitle.textContent = f.name;
       slot.fileTitle.title = f.name;
@@ -39122,7 +39358,8 @@ class VirtualBimTree {
       slot.fileToggle.chk.checked = f.visible !== false;
 
       const isPcSelected = f.fileType === 'pointcloud' && this.app.pointCloudManager && this.app.pointCloudManager.isPointCloudSelected && (this.app.pointCloudManager.activePointCloud === f.pco);
-      slot.fileEl.classList.toggle('selected', Boolean(f.selected || isPcSelected));
+      const isModelSelected = f.fileType === 'model' && !(this.app.pointCloudManager && this.app.pointCloudManager.isPointCloudSelected) && !this.app.selectedMesh && (!this.app.selectedMeshes || this.app.selectedMeshes.length === 0) && (this.app.activeModel === f.model) && ((this.app.loadedModels && this.app.loadedModels.length > 1) || (this.app.pointCloudManager && this.app.pointCloudManager.pointClouds.length > 0));
+      slot.fileEl.classList.toggle('selected', Boolean(f.selected || isPcSelected || isModelSelected));
     } else if (row.type === 'group') {
       slot.fileEl.style.display = 'none';
       slot.groupEl.style.display = 'flex';
@@ -39228,9 +39465,16 @@ class VirtualBimTree {
     const selectedSet = new Set(this.app.selectedMeshes || (this.app.selectedMesh ? [this.app.selectedMesh] : []));
     for (let i = 0; i < this.pool.length; i++) {
       const slot = this.pool[i];
-      if (slot.el.style.display !== 'none' && slot.row && slot.row.type === 'leaf') {
-        const isSel = selectedSet.has(slot.row.leaf.mesh);
-        slot.leafEl.classList.toggle('selected', isSel);
+      if (slot.el.style.display !== 'none' && slot.row) {
+        if (slot.row.type === 'leaf') {
+          const isSel = selectedSet.has(slot.row.leaf.mesh);
+          slot.leafEl.classList.toggle('selected', isSel);
+        } else if (slot.row.type === 'file') {
+          const f = slot.row.file;
+          const isPcSelected = f.fileType === 'pointcloud' && this.app.pointCloudManager && this.app.pointCloudManager.isPointCloudSelected && (this.app.pointCloudManager.activePointCloud === f.pco);
+          const isModelSelected = f.fileType === 'model' && !(this.app.pointCloudManager && this.app.pointCloudManager.isPointCloudSelected) && !this.app.selectedMesh && (!this.app.selectedMeshes || this.app.selectedMeshes.length === 0) && (this.app.activeModel === f.model) && ((this.app.loadedModels && this.app.loadedModels.length > 1) || (this.app.pointCloudManager && this.app.pointCloudManager.pointClouds.length > 0));
+          slot.fileEl.classList.toggle('selected', Boolean(f.selected || isPcSelected || isModelSelected));
+        }
       }
     }
   }
@@ -42570,26 +42814,11 @@ class BIMViewerApp {
     if (hasPointClouds) {
       this.pointCloudManager.pointClouds.forEach((pco, idx) => {
         const pcName = pco.name || (pco.pcoGeometry && pco.pcoGeometry.url) || `Point Cloud ${idx + 1}`;
-        const numPts = (pco.numPoints || (pco.pcoGeometry && pco.pcoGeometry.numPoints) || 0).toLocaleString();
+        const rawPts = typeof this.pointCloudManager.getPointCloudPointCount === 'function'
+          ? this.pointCloudManager.getPointCloudPointCount(pco)
+          : (pco.numPoints || (pco.pcoGeometry && pco.pcoGeometry.numPoints) || 0);
+        const numPts = (rawPts || 0).toLocaleString();
         const fileKey = `pc_${idx}_${pcName}`;
-        const isFileCollapsed = prevModelFileCollapsedMap.has(fileKey) ? prevModelFileCollapsedMap.get(fileKey) : false;
-
-        const pcGroup = [{
-          name: pcName,
-          localizedName: pcName,
-          isPointCloudNode: true,
-          pco,
-          colorHex: '#00f0ff',
-          collapsed: false,
-          meshes: [],
-          leaves: [{
-            name: `${numPts} pts • Octree LOD`,
-            mesh: null,
-            pco,
-            isInfo: true,
-            colorHex: '#00f0ff'
-          }]
-        }];
 
         const pcFileItem = {
           key: fileKey,
@@ -42599,8 +42828,8 @@ class BIMViewerApp {
           icon: '☁️',
           countText: `${numPts} pts`,
           visible: pco.visible !== false,
-          collapsed: isFileCollapsed,
-          groups: pcGroup
+          collapsed: true,
+          groups: []
         };
 
         structureFiles.push(pcFileItem);
@@ -42924,6 +43153,9 @@ class BIMViewerApp {
 
     this.selectedMesh = null;
     this.selectedMeshes = meshes;
+    if (this.pointCloudManager) {
+      this.pointCloudManager.isPointCloudSelected = false;
+    }
 
     // Set virtual orbit pivot to center of bounding box containing all selected objects
     const groupBounds = this.computeBoundsFromTarget(meshes);
@@ -43314,6 +43546,9 @@ class BIMViewerApp {
     }
     this.selectedMesh = mesh;
     this.selectedMeshes = [mesh];
+    if (this.pointCloudManager) {
+      this.pointCloudManager.isPointCloudSelected = false;
+    }
     this.syncTreeSelection();
     if (clickPoint) {
       this.lastClickPoint = clickPoint.clone();
@@ -44468,12 +44703,22 @@ class BIMViewerApp {
     if (this.compareEngine) {
       this.compareEngine.onSelectionCleared();
     }
-    if (!keepPointCloud && this.pointCloudManager && this.pointCloudManager.isPointCloudSelected) {
-      this.pointCloudManager.isPointCloudSelected = false;
+    const hasModels = Boolean(this.loadedModels && this.loadedModels.length > 0);
+    const hasPointClouds = Boolean(this.pointCloudManager && this.pointCloudManager.pointClouds && this.pointCloudManager.pointClouds.length > 0);
+    if (!keepPointCloud) {
+      if (hasModels && this.pointCloudManager && this.pointCloudManager.isPointCloudSelected) {
+        this.pointCloudManager.isPointCloudSelected = false;
+      } else if (!hasModels && hasPointClouds && this.pointCloudManager) {
+        this.pointCloudManager.isPointCloudSelected = true;
+      }
     }
     this.syncTreeSelection();
     if (!keepPointCloud) {
-      this.renderModelInfoInspector();
+      if (!hasModels && hasPointClouds && this.pointCloudManager && this.pointCloudManager.activePointCloud) {
+        this.pointCloudManager.renderInspectorCard();
+      } else {
+        this.renderModelInfoInspector();
+      }
     }
   }
 

@@ -884,16 +884,31 @@ class VirtualBimTree {
     fileEl.addEventListener('click', (e) => {
       if (e.target.closest('.toggle-switch') || e.target.closest('input')) return;
       if (!slot.row || slot.row.type !== 'file') return;
-      slot.row.file.collapsed = !slot.row.file.collapsed;
-      this.computeVisibleRows();
-      this.render();
-      if (slot.row.file.fileType === 'pointcloud') {
-        if (this.app.pointCloudManager && slot.row.file.pco) {
-          this.app.pointCloudManager.selectPointCloud(slot.row.file.pco);
+      const f = slot.row.file;
+      if (f.fileType === 'pointcloud') {
+        if (this.app.pointCloudManager && f.pco) {
+          this.app.pointCloudManager.selectPointCloud(f.pco);
         }
-      } else if (slot.row.file.model) {
-        this.app.activeModel = slot.row.file.model;
-        if (this.app.renderModelInfoInspector) this.app.renderModelInfoInspector();
+        this.render();
+      } else {
+        f.collapsed = !f.collapsed;
+        if (f.model) {
+          this.app.activeModel = f.model;
+          if (this.app.modelInfoMap && this.app.modelInfoMap.has(f.model)) {
+            this.app.currentModelInfo = this.app.modelInfoMap.get(f.model);
+            this.app.updateModelSubtitle(this.app.currentModelInfo);
+          }
+          if (this.app.pointCloudManager) {
+            this.app.pointCloudManager.isPointCloudSelected = false;
+          }
+          this.app.selectedMesh = null;
+          this.app.selectedMeshes = [];
+          this.app.clearHighlightOverlay();
+          if (this.app.renderModelInfoInspector) this.app.renderModelInfoInspector();
+        }
+        this.computeVisibleRows();
+        this.render();
+        if (this.app.syncTreeSelection) this.app.syncTreeSelection();
       }
     });
 
@@ -902,6 +917,7 @@ class VirtualBimTree {
       if (!slot.row || slot.row.type !== 'file') return;
       const f = slot.row.file;
       if (f.fileType === 'pointcloud' && f.pco && this.app.pointCloudManager) {
+        this.app.pointCloudManager.selectPointCloud(f.pco);
         this.app.pointCloudManager.fitPointCloudView(f.pco);
       } else if (f.model) {
         this.app.zoomToModel(f.model);
@@ -1092,8 +1108,13 @@ class VirtualBimTree {
       slot.leafEl.style.display = 'none';
 
       const f = row.file;
-      slot.fileExpander.innerHTML = row.isCollapsed ? '&#9654;' : '&#9660;';
-      slot.fileExpander.classList.toggle('collapsed', row.isCollapsed);
+      if (f.fileType === 'pointcloud') {
+        slot.fileExpander.style.display = 'none';
+      } else {
+        slot.fileExpander.style.display = '';
+        slot.fileExpander.innerHTML = row.isCollapsed ? '&#9654;' : '&#9660;';
+        slot.fileExpander.classList.toggle('collapsed', row.isCollapsed);
+      }
       slot.fileIcon.textContent = f.icon || (f.fileType === 'pointcloud' ? '☁️' : '📁');
       slot.fileTitle.textContent = f.name;
       slot.fileTitle.title = f.name;
@@ -1101,7 +1122,8 @@ class VirtualBimTree {
       slot.fileToggle.chk.checked = f.visible !== false;
 
       const isPcSelected = f.fileType === 'pointcloud' && this.app.pointCloudManager && this.app.pointCloudManager.isPointCloudSelected && (this.app.pointCloudManager.activePointCloud === f.pco);
-      slot.fileEl.classList.toggle('selected', Boolean(f.selected || isPcSelected));
+      const isModelSelected = f.fileType === 'model' && !(this.app.pointCloudManager && this.app.pointCloudManager.isPointCloudSelected) && !this.app.selectedMesh && (!this.app.selectedMeshes || this.app.selectedMeshes.length === 0) && (this.app.activeModel === f.model) && ((this.app.loadedModels && this.app.loadedModels.length > 1) || (this.app.pointCloudManager && this.app.pointCloudManager.pointClouds.length > 0));
+      slot.fileEl.classList.toggle('selected', Boolean(f.selected || isPcSelected || isModelSelected));
     } else if (row.type === 'group') {
       slot.fileEl.style.display = 'none';
       slot.groupEl.style.display = 'flex';
@@ -1207,9 +1229,16 @@ class VirtualBimTree {
     const selectedSet = new Set(this.app.selectedMeshes || (this.app.selectedMesh ? [this.app.selectedMesh] : []));
     for (let i = 0; i < this.pool.length; i++) {
       const slot = this.pool[i];
-      if (slot.el.style.display !== 'none' && slot.row && slot.row.type === 'leaf') {
-        const isSel = selectedSet.has(slot.row.leaf.mesh);
-        slot.leafEl.classList.toggle('selected', isSel);
+      if (slot.el.style.display !== 'none' && slot.row) {
+        if (slot.row.type === 'leaf') {
+          const isSel = selectedSet.has(slot.row.leaf.mesh);
+          slot.leafEl.classList.toggle('selected', isSel);
+        } else if (slot.row.type === 'file') {
+          const f = slot.row.file;
+          const isPcSelected = f.fileType === 'pointcloud' && this.app.pointCloudManager && this.app.pointCloudManager.isPointCloudSelected && (this.app.pointCloudManager.activePointCloud === f.pco);
+          const isModelSelected = f.fileType === 'model' && !(this.app.pointCloudManager && this.app.pointCloudManager.isPointCloudSelected) && !this.app.selectedMesh && (!this.app.selectedMeshes || this.app.selectedMeshes.length === 0) && (this.app.activeModel === f.model) && ((this.app.loadedModels && this.app.loadedModels.length > 1) || (this.app.pointCloudManager && this.app.pointCloudManager.pointClouds.length > 0));
+          slot.fileEl.classList.toggle('selected', Boolean(f.selected || isPcSelected || isModelSelected));
+        }
       }
     }
   }
@@ -4549,26 +4578,11 @@ class BIMViewerApp {
     if (hasPointClouds) {
       this.pointCloudManager.pointClouds.forEach((pco, idx) => {
         const pcName = pco.name || (pco.pcoGeometry && pco.pcoGeometry.url) || `Point Cloud ${idx + 1}`;
-        const numPts = (pco.numPoints || (pco.pcoGeometry && pco.pcoGeometry.numPoints) || 0).toLocaleString();
+        const rawPts = typeof this.pointCloudManager.getPointCloudPointCount === 'function'
+          ? this.pointCloudManager.getPointCloudPointCount(pco)
+          : (pco.numPoints || (pco.pcoGeometry && pco.pcoGeometry.numPoints) || 0);
+        const numPts = (rawPts || 0).toLocaleString();
         const fileKey = `pc_${idx}_${pcName}`;
-        const isFileCollapsed = prevModelFileCollapsedMap.has(fileKey) ? prevModelFileCollapsedMap.get(fileKey) : false;
-
-        const pcGroup = [{
-          name: pcName,
-          localizedName: pcName,
-          isPointCloudNode: true,
-          pco,
-          colorHex: '#00f0ff',
-          collapsed: false,
-          meshes: [],
-          leaves: [{
-            name: `${numPts} pts • Octree LOD`,
-            mesh: null,
-            pco,
-            isInfo: true,
-            colorHex: '#00f0ff'
-          }]
-        }];
 
         const pcFileItem = {
           key: fileKey,
@@ -4578,8 +4592,8 @@ class BIMViewerApp {
           icon: '☁️',
           countText: `${numPts} pts`,
           visible: pco.visible !== false,
-          collapsed: isFileCollapsed,
-          groups: pcGroup
+          collapsed: true,
+          groups: []
         };
 
         structureFiles.push(pcFileItem);
@@ -4903,6 +4917,9 @@ class BIMViewerApp {
 
     this.selectedMesh = null;
     this.selectedMeshes = meshes;
+    if (this.pointCloudManager) {
+      this.pointCloudManager.isPointCloudSelected = false;
+    }
 
     // Set virtual orbit pivot to center of bounding box containing all selected objects
     const groupBounds = this.computeBoundsFromTarget(meshes);
@@ -5293,6 +5310,9 @@ class BIMViewerApp {
     }
     this.selectedMesh = mesh;
     this.selectedMeshes = [mesh];
+    if (this.pointCloudManager) {
+      this.pointCloudManager.isPointCloudSelected = false;
+    }
     this.syncTreeSelection();
     if (clickPoint) {
       this.lastClickPoint = clickPoint.clone();
@@ -6447,12 +6467,22 @@ class BIMViewerApp {
     if (this.compareEngine) {
       this.compareEngine.onSelectionCleared();
     }
-    if (!keepPointCloud && this.pointCloudManager && this.pointCloudManager.isPointCloudSelected) {
-      this.pointCloudManager.isPointCloudSelected = false;
+    const hasModels = Boolean(this.loadedModels && this.loadedModels.length > 0);
+    const hasPointClouds = Boolean(this.pointCloudManager && this.pointCloudManager.pointClouds && this.pointCloudManager.pointClouds.length > 0);
+    if (!keepPointCloud) {
+      if (hasModels && this.pointCloudManager && this.pointCloudManager.isPointCloudSelected) {
+        this.pointCloudManager.isPointCloudSelected = false;
+      } else if (!hasModels && hasPointClouds && this.pointCloudManager) {
+        this.pointCloudManager.isPointCloudSelected = true;
+      }
     }
     this.syncTreeSelection();
     if (!keepPointCloud) {
-      this.renderModelInfoInspector();
+      if (!hasModels && hasPointClouds && this.pointCloudManager && this.pointCloudManager.activePointCloud) {
+        this.pointCloudManager.renderInspectorCard();
+      } else {
+        this.renderModelInfoInspector();
+      }
     }
   }
 
