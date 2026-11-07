@@ -889,11 +889,13 @@ class VirtualBimTree {
         if (this.app.pointCloudManager && f.pco) {
           this.app.pointCloudManager.selectPointCloud(f.pco);
         }
+        if (this.app.updateOffscreenIndicator) this.app.updateOffscreenIndicator();
         this.render();
       } else {
         f.collapsed = !f.collapsed;
         if (f.model) {
           this.app.activeModel = f.model;
+          this.app.selectedModel = f.model;
           if (this.app.modelInfoMap && this.app.modelInfoMap.has(f.model)) {
             this.app.currentModelInfo = this.app.modelInfoMap.get(f.model);
             this.app.updateModelSubtitle(this.app.currentModelInfo);
@@ -905,6 +907,7 @@ class VirtualBimTree {
           this.app.selectedMeshes = [];
           this.app.clearHighlightOverlay();
           if (this.app.renderModelInfoInspector) this.app.renderModelInfoInspector();
+          if (this.app.updateOffscreenIndicator) this.app.updateOffscreenIndicator();
         }
         this.computeVisibleRows();
         this.render();
@@ -2597,6 +2600,7 @@ class BIMViewerApp {
     this.initPivotHelper();
     this.initMeasurementSystem();
     this.initSelectionHelper();
+    this.initOffscreenIndicator();
     this.initContextMenu();
     this.initEventListeners();
     this.initUI();
@@ -2963,6 +2967,191 @@ class BIMViewerApp {
   hideMarqueeBox() {
     if (this.marqueeBoxEl) {
       this.marqueeBoxEl.style.display = 'none';
+    }
+  }
+
+  // -------------------------------------------------------------
+  // Off-Screen Selection Direction & Distance Indicator
+  // -------------------------------------------------------------
+  initOffscreenIndicator() {
+    if (this.offscreenIndicatorEl) return;
+    let el = document.getElementById('offscreen-indicator');
+    if (!el && this.container) {
+      el = document.createElement('div');
+      el.id = 'offscreen-indicator';
+      el.className = 'offscreen-indicator';
+      el.innerHTML = `
+        <div class="offscreen-pointer" id="offscreen-pointer">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M 8 5 L 16 12 L 8 19" fill="none" stroke="#000000" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M 8 5 L 16 12 L 8 19" fill="none" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="offscreen-target">
+          <div class="offscreen-target-core"></div>
+        </div>
+        <div class="offscreen-dist" id="offscreen-dist">0.0m</div>
+      `;
+      this.container.appendChild(el);
+    }
+    this.offscreenIndicatorEl = el;
+    this.offscreenPointerEl = document.getElementById('offscreen-pointer');
+    this.offscreenDistEl = document.getElementById('offscreen-dist');
+  }
+
+  getTargetBoundsAndCenter() {
+    // 1. Multi-selection
+    if (this.selectedMeshes && this.selectedMeshes.length > 0) {
+      const box = new THREE.Box3();
+      let hasValid = false;
+      for (const m of this.selectedMeshes) {
+        if (m && m.visible !== false && m.geometry) {
+          m.updateWorldMatrix(true, false);
+          if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+          if (m.geometry.boundingBox) {
+            const tempBox = m.geometry.boundingBox.clone().applyMatrix4(m.matrixWorld);
+            box.union(tempBox);
+            hasValid = true;
+          }
+        }
+      }
+      if (hasValid && !box.isEmpty()) {
+        const center = box.getCenter(new THREE.Vector3());
+        return { box, center };
+      }
+    }
+    // 2. Single mesh
+    if (this.selectedMesh && this.selectedMesh.visible !== false && this.selectedMesh.geometry) {
+      this.selectedMesh.updateWorldMatrix(true, false);
+      if (!this.selectedMesh.geometry.boundingBox) this.selectedMesh.geometry.computeBoundingBox();
+      if (this.selectedMesh.geometry.boundingBox) {
+        const box = this.selectedMesh.geometry.boundingBox.clone().applyMatrix4(this.selectedMesh.matrixWorld);
+        if (!box.isEmpty()) {
+          const center = box.getCenter(new THREE.Vector3());
+          return { box, center };
+        }
+      }
+    }
+    // 3. Point cloud
+    if (this.pointCloudManager && this.pointCloudManager.isPointCloudSelected && this.pointCloudManager.activePointCloud) {
+      const pco = this.pointCloudManager.activePointCloud;
+      if (pco.visible !== false) {
+        const box = this.pointCloudManager.getWorldBoundingBox(pco);
+        if (box && !box.isEmpty()) {
+          const center = box.getCenter(new THREE.Vector3());
+          return { box, center };
+        }
+      }
+    }
+    // 4. Whole model node
+    if (this.selectedModel && this.selectedModel.visible !== false) {
+      const box = new THREE.Box3().setFromObject(this.selectedModel);
+      if (!box.isEmpty()) {
+        const center = box.getCenter(new THREE.Vector3());
+        return { box, center };
+      }
+    }
+    return null;
+  }
+
+  updateOffscreenIndicator() {
+    if (!this.offscreenIndicatorEl) {
+      this.initOffscreenIndicator();
+    }
+    if (!this.offscreenIndicatorEl || !this.camera || !this.container) return;
+
+    const target = this.getTargetBoundsAndCenter();
+    if (!target) {
+      this.hideOffscreenIndicator();
+      return;
+    }
+
+    // 1. View frustum test: Is the target box partially or fully in view?
+    if (!this._indicatorFrustum) {
+      this._indicatorFrustum = new THREE.Frustum();
+      this._indicatorProjScreenMatrix = new THREE.Matrix4();
+    }
+    this._indicatorProjScreenMatrix.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
+    this._indicatorFrustum.setFromProjectionMatrix(this._indicatorProjScreenMatrix);
+
+    if (this._indicatorFrustum.intersectsBox(target.box)) {
+      this.hideOffscreenIndicator();
+      return;
+    }
+
+    // Target is COMPLETELY off-screen!
+    // 2. Compute Euclidean distance from camera position to target center
+    const dist = this.camera.position.distanceTo(target.center);
+    if (this.offscreenDistEl) {
+      this.offscreenDistEl.textContent = `${dist.toFixed(1)}m`;
+    }
+
+    // 3. Transform target center to camera view space
+    const vCam = target.center.clone().applyMatrix4(this.camera.matrixWorldInverse);
+
+    // 4. In camera view space:
+    // +X is camera RIGHT, +Y is camera UP.
+    // Screen direction vector:
+    // dirX: positive is screen right
+    // dirY: positive is screen down (so -vCam.y)
+    let dirX = vCam.x;
+    let dirY = -vCam.y;
+    let dirLen = Math.hypot(dirX, dirY);
+    if (dirLen < 1e-4) {
+      dirX = 0;
+      dirY = 1;
+      dirLen = 1;
+    } else {
+      dirX /= dirLen;
+      dirY /= dirLen;
+    }
+
+    // 5. Clamping to container boundary with safe perimeter padding
+    const cw = this.container.clientWidth;
+    const ch = this.container.clientHeight;
+    if (cw <= 0 || ch <= 0) return;
+
+    const padX = 75;
+    const padY = 45;
+    const cx = cw / 2;
+    const cy = ch / 2;
+    const hw = Math.max(10, cx - padX);
+    const hh = Math.max(10, cy - padY);
+
+    const sx = Math.abs(dirX) > 1e-6 ? hw / Math.abs(dirX) : Infinity;
+    const sy = Math.abs(dirY) > 1e-6 ? hh / Math.abs(dirY) : Infinity;
+    const s = Math.min(sx, sy);
+
+    const px = Math.round(cx + dirX * s);
+    const py = Math.round(cy + dirY * s);
+
+    // 6. Pointer rotation angle (0 deg points right)
+    const angleDeg = Math.atan2(dirY, dirX) * (180 / Math.PI);
+    if (this.offscreenPointerEl) {
+      this.offscreenPointerEl.style.transform = `rotate(${angleDeg}deg)`;
+    }
+
+    // 7. Dynamic flex orientation:
+    // If indicator is on right half, put pointer on right (flex-direction: row-reverse)
+    // If on left half, put pointer on left (flex-direction: row)
+    this.offscreenIndicatorEl.style.flexDirection = dirX > 0.1 ? 'row-reverse' : 'row';
+    this.offscreenIndicatorEl.style.left = `${px}px`;
+    this.offscreenIndicatorEl.style.top = `${py}px`;
+
+    this.showOffscreenIndicator();
+  }
+
+  showOffscreenIndicator() {
+    if (this.offscreenIndicatorEl && !this.offscreenIndicatorEl.classList.contains('visible')) {
+      this.offscreenIndicatorEl.style.display = 'flex';
+      this.offscreenIndicatorEl.classList.add('visible');
+    }
+  }
+
+  hideOffscreenIndicator() {
+    if (this.offscreenIndicatorEl && this.offscreenIndicatorEl.classList.contains('visible')) {
+      this.offscreenIndicatorEl.classList.remove('visible');
+      this.offscreenIndicatorEl.style.display = 'none';
     }
   }
 
@@ -4978,6 +5167,7 @@ class BIMViewerApp {
       return;
     }
 
+    this.selectedModel = null;
     this.selectedMesh = null;
     this.selectedMeshes = meshes;
     if (this.pointCloudManager) {
@@ -5001,6 +5191,7 @@ class BIMViewerApp {
 
     // Render multi-selection inspector
     this.renderMultiSelectionInspector(meshes);
+    this.updateOffscreenIndicator();
   }
 
   computeIntersectedPsets(meshes) {
@@ -5371,6 +5562,7 @@ class BIMViewerApp {
       this.clearSelection();
       return;
     }
+    this.selectedModel = null;
     this.selectedMesh = mesh;
     this.selectedMeshes = [mesh];
     if (this.pointCloudManager) {
@@ -5562,6 +5754,7 @@ class BIMViewerApp {
     }
     const btnInspect = document.getElementById('btn-tool-inspect');
     if (btnInspect) btnInspect.classList.add('active');
+    this.updateOffscreenIndicator();
   }
 
   setElementOpacity(mesh, opacityPercent) {
@@ -6521,6 +6714,7 @@ class BIMViewerApp {
   }
   
   clearSelection(keepPointCloud = false) {
+    this.selectedModel = null;
     this.selectedMesh = null;
     this.selectedMeshes = [];
     this.lastClickPoint = null;
@@ -6547,6 +6741,7 @@ class BIMViewerApp {
         this.renderModelInfoInspector();
       }
     }
+    this.updateOffscreenIndicator();
   }
 
   calculateModelStats(rootObject) {
@@ -20122,6 +20317,8 @@ class BIMViewerApp {
         if (this.snapEngine && this.snapEngine.indicatorGroup && this.snapEngine.indicatorGroup.visible) {
           this.snapEngine.updateIndicatorScale(this.camera, this.container);
         }
+
+        this.updateOffscreenIndicator();
       }
     }
 
@@ -20161,6 +20358,8 @@ class BIMViewerApp {
         if (this.snapEngine && this.snapEngine.indicatorGroup && this.snapEngine.indicatorGroup.visible) {
           this.snapEngine.updateIndicatorScale(this.camera, this.container);
         }
+
+        this.updateOffscreenIndicator();
 
         // Live Camera State Readout (updated when Camera tab is visible, cached DOM elements)
         if (!this.cachedCamEls) {
