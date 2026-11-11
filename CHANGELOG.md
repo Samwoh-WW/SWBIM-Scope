@@ -10,38 +10,38 @@ This document records all formal version iterations and major changes of SWBIM S
 
 ## Development Time Metrics
 
-> ⏱️ **Total Active Development Time**: **90 Hours 40 Minutes (90.67 Hours)**  
-> 📅 **Total Calendar Span**: **43 Days 0 Hours 35 Minutes** (2026-09-29 22:17 to 2026-11-11 22:52)  
-> 🔢 **Total Engineering Steps**: **36,524 Steps** (across 41 active development sprints)  
+> ⏱️ **Total Active Development Time**: **90 Hours 41 Minutes (90.69 Hours)**  
+> 📅 **Total Calendar Span**: **43 Days 0 Hours 36 Minutes** (2026-09-29 22:17 to 2026-11-11 22:54)  
+> 🔢 **Total Engineering Steps**: **36,540 Steps** (across 41 active development sprints)  
 > 🔄 **Update Policy**: Recalculated automatically from active development telemetry logs upon every distribution build.
 
 ### Daily Breakdown
 | Date | Active Sprints | Active Hours | Milestones |
 | :--- | :--- | :---: | :--- |
-| **2026-09-29** | 22:17~00:53 | 2h 36m (2.60h) | Project scaffold & Three.js engine setup |
-| **2026-09-30** | 23:51~01:56 | 2h 05m (2.08h) | 3D compass, elevation readouts, pin labels & demo model |
-| **2026-10-01** | 23:28~01:06 | 1h 38m (1.64h) | Section gizmo controls, shader & material styling |
-| **2026-10-02** | 22:04~01:38 | 3h 34m (3.57h) | FBX format integration, streaming IFC parsing |
-| **2026-10-03** | 09:55~10:39, 23:11~03:24 (6 sessions) | 9h 07m (9.13h) | Wall CSG void cutouts, railing fixes, inspector accordions & tree refactor |
-| **2026-10-04** | 10:02~10:34, 19:23~22:34 (3 sessions) | 9h 31m (9.52h) | Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover |
-| **2026-10-05** | 19:04~00:27 | 5h 23m (5.38h) | Stationary panels, pure highlight, CAD box selection, pivot orbit, bottom shadow |
-| **2026-10-06** | 20:29~21:12 | 0h 43m (0.72h) | Multi-format subtitle & metadata sync, FBX robust loader, bilingual toggle sync |
-| **2026-10-07** | 18:43~22:04, 23:03~23:05 | 3h 23m (3.39h) | Multi-version IFC comparison engine, 4-color diff & ghost mesh |
-| **2026-10-08** | 13:25~13:42, 21:37~21:46 (3 sessions) | 0h 46m (0.77h) | Difference tree, property diff table & comparison safety guards |
-| **2026-10-09** | 22:06~01:14 | 3h 07m (3.13h) | IFC geometry optimizations & smooth creased normal reconstruction |
-| **2026-10-10** | 19:58~22:21 | 2h 23m (2.39h) | IFC recursive mapped item multi-tier roof fixes & deep pset extraction |
-| **2026-10-11** | 00:31~01:54, 19:41~19:55 (5 sessions) | 5h 34m (5.58h) | Progressive Web App (PWA) offline deployment & Service Worker caching |
-| **2026-10-12** | 22:26~01:18 | 2h 51m (2.85h) | Comprehensive documentation alignment & multi-format metadata governance |
-| **2026-10-16** | 23:32~00:20 | 0h 47m (0.80h) | Architecture & codebase health audit, security & performance review |
-| **2026-10-25** | 17:41~22:51 | 5h 10m (5.18h) | Smart radius, arc & sphere measurement, CAD-grade badges, 3D point & slope |
-| **2026-10-26** | 21:24~21:27 | 0h 02m (0.04h) | Development guidelines & 3D geometry snapping invariants established |
-| **2026-10-27** | 19:50~20:35, 21:25~00:21 | 3h 40m (3.67h) | 3D distance & angle measurement, XYZ offsets, pitch/yaw/bearing |
-| **2026-10-28** | 21:15~01:33 | 4h 18m (4.31h) | Multipoint polyline & 3D polygon area measurement, self-intersection scarlet alert, 3-way multi-repo publishing pipeline |
-| **2026-11-05** | 20:40~23:30 | 2h 50m (2.83h) | Dual-scheme hotkeys, candidate popup, smooth zoom navigation & help manual refactor |
-| **2026-11-06** | 19:47~20:39, 22:52~03:19 | 5h 18m (5.32h) | Changelog comprehensive update & metrics engine overhaul |
-| **2026-11-07** | 10:25~19:17, 20:23~01:47 | 14h 16m (14.27h) | In-place look-around, wheel zoom interior pass-through, massive point cloud engine & PotreeCore integration (v2 architecture established) |
-| **2026-11-09** | 22:24~22:26 | 0h 01m (0.03h) | Point cloud shader tuning & build pipeline optimization |
-| **2026-11-11** | 21:25~22:52 | 1h 27m (1.46h) | Dual-zone split drag loading, i18n & multi-click penetrate selection |
+| **2026-09-29** | 22:17\~00:53 | 2h 36m (2.60h) | Project scaffold & Three.js engine setup |
+| **2026-09-30** | 23:51\~01:56 | 2h 05m (2.08h) | 3D compass, elevation readouts, pin labels & demo model |
+| **2026-10-01** | 23:28\~01:06 | 1h 38m (1.64h) | Section gizmo controls, shader & material styling |
+| **2026-10-02** | 22:04\~01:38 | 3h 34m (3.57h) | FBX format integration, streaming IFC parsing |
+| **2026-10-03** | 09:55\~10:39, 23:11\~03:24 (6 sessions) | 9h 07m (9.13h) | Wall CSG void cutouts, railing fixes, inspector accordions & tree refactor |
+| **2026-10-04** | 10:02\~10:34, 19:23\~22:34 (3 sessions) | 9h 31m (9.52h) | Ortho/Persp toggle, NSEW views, 50-step view history, context menu fix, 10% hover |
+| **2026-10-05** | 19:04\~00:27 | 5h 23m (5.38h) | Stationary panels, pure highlight, CAD box selection, pivot orbit, bottom shadow |
+| **2026-10-06** | 20:29\~21:12 | 0h 43m (0.72h) | Multi-format subtitle & metadata sync, FBX robust loader, bilingual toggle sync |
+| **2026-10-07** | 18:43\~22:04, 23:03\~23:05 | 3h 23m (3.39h) | Multi-version IFC comparison engine, 4-color diff & ghost mesh |
+| **2026-10-08** | 13:25\~13:42, 21:37\~21:46 (3 sessions) | 0h 46m (0.77h) | Difference tree, property diff table & comparison safety guards |
+| **2026-10-09** | 22:06\~01:14 | 3h 07m (3.13h) | IFC geometry optimizations & smooth creased normal reconstruction |
+| **2026-10-10** | 19:58\~22:21 | 2h 23m (2.39h) | IFC recursive mapped item multi-tier roof fixes & deep pset extraction |
+| **2026-10-11** | 00:31\~01:54, 19:41\~19:55 (5 sessions) | 5h 34m (5.58h) | Progressive Web App (PWA) offline deployment & Service Worker caching |
+| **2026-10-12** | 22:26\~01:18 | 2h 51m (2.85h) | Comprehensive documentation alignment & multi-format metadata governance |
+| **2026-10-16** | 23:32\~00:20 | 0h 47m (0.80h) | Architecture & codebase health audit, security & performance review |
+| **2026-10-25** | 17:41\~22:51 | 5h 10m (5.18h) | Smart radius, arc & sphere measurement, CAD-grade badges, 3D point & slope |
+| **2026-10-26** | 21:24\~21:27 | 0h 02m (0.04h) | Development guidelines & 3D geometry snapping invariants established |
+| **2026-10-27** | 19:50\~20:35, 21:25\~00:21 | 3h 40m (3.67h) | 3D distance & angle measurement, XYZ offsets, pitch/yaw/bearing |
+| **2026-10-28** | 21:15\~01:33 | 4h 18m (4.31h) | Multipoint polyline & 3D polygon area measurement, self-intersection scarlet alert, 3-way multi-repo publishing pipeline |
+| **2026-11-05** | 20:40\~23:30 | 2h 50m (2.83h) | Dual-scheme hotkeys, candidate popup, smooth zoom navigation & help manual refactor |
+| **2026-11-06** | 19:47\~20:39, 22:52\~03:19 | 5h 18m (5.32h) | Changelog comprehensive update & metrics engine overhaul |
+| **2026-11-07** | 10:25\~19:17, 20:23\~01:47 | 14h 16m (14.27h) | In-place look-around, wheel zoom interior pass-through, massive point cloud engine & PotreeCore integration (v2 architecture established) |
+| **2026-11-09** | 22:24\~22:26 | 0h 01m (0.03h) | Point cloud shader tuning & build pipeline optimization |
+| **2026-11-11** | 21:25\~22:54 | 1h 29m (1.48h) | Dual-zone split drag loading, i18n & multi-click penetrate selection |
 
 ---
 
@@ -228,7 +228,7 @@ This document records all formal version iterations and major changes of SWBIM S
   2. **Raycast Pass-Through & Memory Disposal**: Ghost mesh is protected from raycast picking to preserve normal selection; smooth geometry and material disposal upon deselection or element switching.
 
 - **Left Sidebar HUD Pills & Dual-Mode Difference Tree**
-  1. **Tri-Color Metrics HUD & Filter Chips**: Left sidebar switches to dedicated comparison view featuring Green (+Added), Red (-Deleted), and Orange (~Modified) pills; clicking any pill acts as a filter chip isolating matching elements.
+  1. **Tri-Color Metrics HUD & Filter Chips**: Left sidebar switches to dedicated comparison view featuring Green (+Added), Red (-Deleted), and Orange (\~Modified) pills; clicking any pill acts as a filter chip isolating matching elements.
   2. **Dual-Mode Difference Tree**: Difference tree filters out unchanged components and provides two toggleable views: ① "Hierarchy Mode" preserving original IFC spatial hierarchy with colored status dots and Ghost badges; ② "Status Group Mode" grouping elements under Added, Deleted, and Modified cards while preserving internal nesting.
 
 - **Inspector Diff Table & Sticky Banner Clean Exit**
@@ -366,7 +366,7 @@ This document records all formal version iterations and major changes of SWBIM S
 ### Redo Engine
 - **50-Step Camera Navigation History Stack & Matching Rounded Button Group**
   1. Added a pair of compact View History navigation buttons—"Previous View (Undo Navigation)" and "Next View (Redo Navigation)"—immediately to the right of the `Persp` projection button within `#nav-center-views`. Styled in an identical rounded rectangular group frame (`.btn-group`, 28px height, 5px border-radius, 2px inset padding) for pixel-perfect design alignment.
-  2. Implemented a zero-overhead 50-step circular camera snapshot stack (~150 bytes per snapshot, ~7.5 KB total memory footprint).
+  2. Implemented a zero-overhead 50-step circular camera snapshot stack (\~150 bytes per snapshot, \~7.5 KB total memory footprint).
   3. Automatically tracks and debounces all camera interactions: orbit rotation, right/middle-button panning, cursor-guided wheel zooming (coalesced via 300ms debounce timer), preset view jumps (Iso, Plan, N, S, E, W), projection switching (Persp/Ortho), right-click & Inspector Zoom-to framing, Fit View resets, and 3D compass cube interactions.
   4. Wired standard CAD/BIM keyboard shortcuts `Alt+ArrowLeft` and `Alt+ArrowRight` for fluid keyboard-driven viewpoint traversal.
   5. Equipped with 350ms cubic easing tween transitions, animation cancellation protection against overlapping clicks, intelligent branch pruning upon fresh navigation, reactive disabled states at stack boundaries, and dynamic bilingual tooltips across English and Chinese.
@@ -393,7 +393,7 @@ This document records all formal version iterations and major changes of SWBIM S
 
 ### Bug Fixes & Hierarchy Sanitization
 - **Filter Clipping Stencil Helper Meshes from Model Tree & Stats**
-  - Thoroughly diagnosed and resolved an issue where internal rendering helpers generated by the clipping engine's two-pass stencil capping pipeline leaked into the model hierarchy tree and statistics. For each of the ~300 solid villa meshes, 14 stencil passes (1 plane pair + 6 box face pairs = 4,200 meshes) are mounted on the scene graph. Without filtering, these were erroneously collected into a fallback `"Model Structure"` group as 4,200 `"Element"` leaves that could not be selected or zoomed to. Implemented a centralized `isModelElementMesh()` filter, completely isolating stencil gizmos from model trees, bottom legends, and geometry counters. The villa's reported triangle count dropped from an inflated 367,730 to its authentic 27,866 triangles, with authentic total elements cleanly reflected as 329.
+  - Thoroughly diagnosed and resolved an issue where internal rendering helpers generated by the clipping engine's two-pass stencil capping pipeline leaked into the model hierarchy tree and statistics. For each of the \~300 solid villa meshes, 14 stencil passes (1 plane pair + 6 box face pairs = 4,200 meshes) are mounted on the scene graph. Without filtering, these were erroneously collected into a fallback `"Model Structure"` group as 4,200 `"Element"` leaves that could not be selected or zoomed to. Implemented a centralized `isModelElementMesh()` filter, completely isolating stencil gizmos from model trees, bottom legends, and geometry counters. The villa's reported triangle count dropped from an inflated 367,730 to its authentic 27,866 triangles, with authentic total elements cleanly reflected as 329.
 
 ---
 
@@ -461,7 +461,7 @@ This document records all formal version iterations and major changes of SWBIM S
 
 ### Improved
 - **Cut Contour Thickness Halved**
-  - Refined cut contour band width by 50% (half-width reduced from ~3.6cm to ~1.8cm), achieving balanced proportions and professional CAD drawing aesthetics.
+  - Refined cut contour band width by 50% (half-width reduced from \~3.6cm to \~1.8cm), achieving balanced proportions and professional CAD drawing aesthetics.
 - **Eliminated Centerline Dashing**
   - Disabled direct rasterization of the 1px centerline, completely resolving depth z-fighting and stippled dashed artifacts on the contour ribbons.
 

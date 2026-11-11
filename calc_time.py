@@ -143,7 +143,7 @@ def calculate_time_metrics(base_dir=BASE_DIR):
         if d not in daily_sessions:
             daily_sessions[d] = {"sec": 0, "intervals": []}
         daily_sessions[d]["sec"] += dur.total_seconds()
-        daily_sessions[d]["intervals"].append(f"{st.strftime('%H:%M')}~{en.strftime('%H:%M')}")
+        daily_sessions[d]["intervals"].append(f"{st.strftime('%H:%M')}\\~{en.strftime('%H:%M')}")
 
     breakdown = []
     for d in sorted(daily_sessions.keys()):
