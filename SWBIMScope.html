@@ -7361,18 +7361,18 @@ mark.help-match-highlight {
 }
 
 
-/* ---------------------------------------------------------
+/* -------------------------------------------------------------
    OFF-SCREEN SELECTION DIRECTION & DISTANCE INDICATOR
-   High-contrast engineering HUD radar style matching reference
-   Anchor is the circular target with orbiting directional pointer
-   --------------------------------------------------------- */
+   Game-grade engineering HUD radar style (1:1 match to reference)
+   Anchor is the circular target with orbiting directional chevron
+   ---------------------------------------------------------- */
 .offscreen-indicator {
   position: absolute;
   display: none;
   pointer-events: none;
   z-index: 1050;
-  width: 36px;
-  height: 36px;
+  width: 54px;
+  height: 54px;
   transform: translate(-50%, -50%);
   user-select: none;
   filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.75));
@@ -7389,44 +7389,35 @@ mark.help-match-highlight {
   position: absolute;
   left: 0;
   top: 0;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: #181a1f;
-  border: 4px solid #ffffff;
-  box-shadow: 0 0 0 2px #000000, inset 0 0 0 2px #000000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 54px;
+  height: 54px;
 }
 
-.offscreen-target-core {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #ffffff;
-  box-shadow: 0 0 0 2px #000000;
+.offscreen-target-svg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 54px;
+  height: 54px;
+  display: block;
 }
 
 .offscreen-pointer {
   position: absolute;
   left: 0;
   top: 0;
-  width: 36px;
-  height: 36px;
-  transform-origin: center center;
+  width: 54px;
+  height: 54px;
+  transform-origin: 27px 27px;
   pointer-events: none;
-  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.9));
 }
 
 .offscreen-pointer-svg {
   position: absolute;
-  left: calc(100% + 2px);
-  top: 50%;
-  transform: translateY(-50%);
-  width: 28px;
-  height: 28px;
-  display: block;
+  left: 0;
+  top: 0;
+  width: 54px;
+  height: 54px;
   overflow: visible;
 }
 
@@ -7435,17 +7426,14 @@ mark.help-match-highlight {
   top: 50%;
   transform: translateY(-50%);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 900;
   color: #ffffff;
   white-space: nowrap;
-  letter-spacing: -0.2px;
-  text-shadow: 
-    -2px -2px 0 #000000, 
-     2px -2px 0 #000000, 
-    -2px  2px 0 #000000, 
-     2px  2px 0 #000000,
-     0  2px 4px rgba(0, 0, 0, 0.95);
+  letter-spacing: -0.3px;
+  paint-order: stroke fill;
+  -webkit-text-stroke: 3.2px #000000;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.95);
   pointer-events: none;
 }
 
@@ -42258,10 +42246,41 @@ class BIMViewerApp {
       el.className = 'offscreen-indicator';
       el.innerHTML = `
         <div class="offscreen-target" id="offscreen-target">
-          <div class="offscreen-target-core"></div>
+          <svg class="offscreen-target-svg" viewBox="0 0 54 54">
+            <defs>
+              <linearGradient id="offscreen-ring-grad" x1="20%" y1="0%" x2="80%" y2="100%">
+                <stop offset="0%" stop-color="#ffffff"/>
+                <stop offset="35%" stop-color="#eaedf2"/>
+                <stop offset="75%" stop-color="#cbd1db"/>
+                <stop offset="100%" stop-color="#9aa0ad"/>
+              </linearGradient>
+              <radialGradient id="offscreen-dome-grad" cx="42%" cy="32%" r="65%">
+                <stop offset="0%" stop-color="#ffffff"/>
+                <stop offset="45%" stop-color="#eaedf2"/>
+                <stop offset="80%" stop-color="#c6ccd6"/>
+                <stop offset="100%" stop-color="#939ba8"/>
+              </radialGradient>
+              <linearGradient id="offscreen-chev-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#ffffff"/>
+                <stop offset="60%" stop-color="#e2e6eb"/>
+                <stop offset="100%" stop-color="#c8ced8"/>
+              </linearGradient>
+            </defs>
+            <circle cx="27" cy="27" r="26" fill="#202226" stroke="#000000" stroke-width="2"/>
+            <circle cx="27" cy="27" r="23" fill="none" stroke="url(#offscreen-ring-grad)" stroke-width="4.5"/>
+            <circle cx="27" cy="27" r="18.5" fill="#202226" stroke="#000000" stroke-width="1.8"/>
+            <circle cx="27" cy="27" r="11" fill="url(#offscreen-dome-grad)" stroke="#2b303a" stroke-width="1"/>
+          </svg>
           <div class="offscreen-pointer" id="offscreen-pointer">
-            <svg class="offscreen-pointer-svg" viewBox="0 0 28 28">
-              <path d="M 4 4 L 20 14 L 4 24 L 9 14 Z" fill="#e2e8f0" stroke="#000000" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+            <svg class="offscreen-pointer-svg" viewBox="0 0 54 54">
+              <path d="M 82.5 25.5 
+                       Q 82.5 27 82.5 28.5
+                       L 68 41
+                       Q 63 43.5 62.5 38.5
+                       Q 66.5 27 62.5 15.5
+                       Q 63 10.5 68 13
+                       Z"
+                    fill="url(#offscreen-chev-grad)" stroke="#000000" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
             </svg>
           </div>
         </div>
@@ -42387,8 +42406,8 @@ class BIMViewerApp {
     if (cw <= 0 || ch <= 0) return;
 
     // Keep circle center safely away from viewport edges to leave room for the orbiting arrow
-    const padX = 70;
-    const padY = 60;
+    const padX = 75;
+    const padY = 65;
     const cx = cw / 2;
     const cy = ch / 2;
     const hw = Math.max(10, cx - padX);
@@ -42412,10 +42431,10 @@ class BIMViewerApp {
     if (this.offscreenDistEl) {
       if (px > cx) {
         this.offscreenDistEl.style.left = 'auto';
-        this.offscreenDistEl.style.right = 'calc(100% + 12px)';
+        this.offscreenDistEl.style.right = 'calc(100% + 14px)';
       } else {
         this.offscreenDistEl.style.right = 'auto';
-        this.offscreenDistEl.style.left = 'calc(100% + 12px)';
+        this.offscreenDistEl.style.left = 'calc(100% + 14px)';
       }
     }
 

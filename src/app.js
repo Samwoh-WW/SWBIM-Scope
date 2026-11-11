@@ -2982,10 +2982,41 @@ class BIMViewerApp {
       el.className = 'offscreen-indicator';
       el.innerHTML = `
         <div class="offscreen-target" id="offscreen-target">
-          <div class="offscreen-target-core"></div>
+          <svg class="offscreen-target-svg" viewBox="0 0 54 54">
+            <defs>
+              <linearGradient id="offscreen-ring-grad" x1="20%" y1="0%" x2="80%" y2="100%">
+                <stop offset="0%" stop-color="#ffffff"/>
+                <stop offset="35%" stop-color="#eaedf2"/>
+                <stop offset="75%" stop-color="#cbd1db"/>
+                <stop offset="100%" stop-color="#9aa0ad"/>
+              </linearGradient>
+              <radialGradient id="offscreen-dome-grad" cx="42%" cy="32%" r="65%">
+                <stop offset="0%" stop-color="#ffffff"/>
+                <stop offset="45%" stop-color="#eaedf2"/>
+                <stop offset="80%" stop-color="#c6ccd6"/>
+                <stop offset="100%" stop-color="#939ba8"/>
+              </radialGradient>
+              <linearGradient id="offscreen-chev-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#ffffff"/>
+                <stop offset="60%" stop-color="#e2e6eb"/>
+                <stop offset="100%" stop-color="#c8ced8"/>
+              </linearGradient>
+            </defs>
+            <circle cx="27" cy="27" r="26" fill="#202226" stroke="#000000" stroke-width="2"/>
+            <circle cx="27" cy="27" r="23" fill="none" stroke="url(#offscreen-ring-grad)" stroke-width="4.5"/>
+            <circle cx="27" cy="27" r="18.5" fill="#202226" stroke="#000000" stroke-width="1.8"/>
+            <circle cx="27" cy="27" r="11" fill="url(#offscreen-dome-grad)" stroke="#2b303a" stroke-width="1"/>
+          </svg>
           <div class="offscreen-pointer" id="offscreen-pointer">
-            <svg class="offscreen-pointer-svg" viewBox="0 0 28 28">
-              <path d="M 4 4 L 20 14 L 4 24 L 9 14 Z" fill="#e2e8f0" stroke="#000000" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+            <svg class="offscreen-pointer-svg" viewBox="0 0 54 54">
+              <path d="M 82.5 25.5 
+                       Q 82.5 27 82.5 28.5
+                       L 68 41
+                       Q 63 43.5 62.5 38.5
+                       Q 66.5 27 62.5 15.5
+                       Q 63 10.5 68 13
+                       Z"
+                    fill="url(#offscreen-chev-grad)" stroke="#000000" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
             </svg>
           </div>
         </div>
@@ -3111,8 +3142,8 @@ class BIMViewerApp {
     if (cw <= 0 || ch <= 0) return;
 
     // Keep circle center safely away from viewport edges to leave room for the orbiting arrow
-    const padX = 70;
-    const padY = 60;
+    const padX = 75;
+    const padY = 65;
     const cx = cw / 2;
     const cy = ch / 2;
     const hw = Math.max(10, cx - padX);
@@ -3136,10 +3167,10 @@ class BIMViewerApp {
     if (this.offscreenDistEl) {
       if (px > cx) {
         this.offscreenDistEl.style.left = 'auto';
-        this.offscreenDistEl.style.right = 'calc(100% + 12px)';
+        this.offscreenDistEl.style.right = 'calc(100% + 14px)';
       } else {
         this.offscreenDistEl.style.right = 'auto';
-        this.offscreenDistEl.style.left = 'calc(100% + 12px)';
+        this.offscreenDistEl.style.left = 'calc(100% + 14px)';
       }
     }
 
