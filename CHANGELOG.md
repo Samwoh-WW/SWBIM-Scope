@@ -3,16 +3,16 @@
 This document records all formal version iterations and major changes of SWBIM Scope since project initiation.
 
 > **Versioning Convention**:  
-> - Major version is fixed at `v1` (displayed as `v1` in everyday usage);  
-> - Full sub-version follows `v1.<YYMMDDHHMM>`, where the 10-digit timestamp represents Year, Month, Day, Hour, Minute.
+> - Major version formally upgraded to `v2` starting from massive point cloud support (previously `v1`, displayed as `v2` / `v1` in everyday usage);  
+> - Full sub-version follows `<v1|v2>.<YYMMDDHHMM>`, where the 10-digit timestamp represents Year, Month, Day, Hour, Minute.
 
 ---
 
 ## Development Time Metrics
 
-> ⏱️ **Total Active Development Time**: **90 Hours 22 Minutes (90.37 Hours)**  
-> 📅 **Total Calendar Span**: **43 Days 0 Hours 17 Minutes** (2026-09-29 22:17 to 2026-11-11 22:35)  
-> 🔢 **Total Engineering Steps**: **36,424 Steps** (across 41 active development sprints)  
+> ⏱️ **Total Active Development Time**: **90 Hours 40 Minutes (90.67 Hours)**  
+> 📅 **Total Calendar Span**: **43 Days 0 Hours 35 Minutes** (2026-09-29 22:17 to 2026-11-11 22:52)  
+> 🔢 **Total Engineering Steps**: **36,524 Steps** (across 41 active development sprints)  
 > 🔄 **Update Policy**: Recalculated automatically from active development telemetry logs upon every distribution build.
 
 ### Daily Breakdown
@@ -39,9 +39,67 @@ This document records all formal version iterations and major changes of SWBIM S
 | **2026-10-28** | 21:15~01:33 | 4h 18m (4.31h) | Multipoint polyline & 3D polygon area measurement, self-intersection scarlet alert, 3-way multi-repo publishing pipeline |
 | **2026-11-05** | 20:40~23:30 | 2h 50m (2.83h) | Dual-scheme hotkeys, candidate popup, smooth zoom navigation & help manual refactor |
 | **2026-11-06** | 19:47~20:39, 22:52~03:19 | 5h 18m (5.32h) | Changelog comprehensive update & metrics engine overhaul |
-| **2026-11-07** | 10:25~19:17, 20:23~01:47 | 14h 16m (14.27h) | Feature development |
-| **2026-11-09** | 22:24~22:26 | 0h 01m (0.03h) | Feature development |
-| **2026-11-11** | 21:25~22:35 | 1h 10m (1.17h) | Feature development |
+| **2026-11-07** | 10:25~19:17, 20:23~01:47 | 14h 16m (14.27h) | In-place look-around, wheel zoom interior pass-through, massive point cloud engine & PotreeCore integration (v2 architecture established) |
+| **2026-11-09** | 22:24~22:26 | 0h 01m (0.03h) | Point cloud shader tuning & build pipeline optimization |
+| **2026-11-11** | 21:25~22:52 | 1h 27m (1.46h) | Dual-zone split drag loading, i18n & multi-click penetrate selection |
+
+---
+
+## [v2.2611112245] - 2026-11-11 22:45
+
+### Dual-Zone Split Drag Loading, I18N & Multi-Click Penetrate Selection
+- **Dual-Zone Split Drag Loading & Bilingual I18N**
+  1. **Dual-Zone Split Drag Loading (Open in New Scene vs. Append to Scene)**: Overhauled file drop UX into clear top and bottom zones: top zone provides "Open in New Scene" (clears current scene and loads fresh project), while bottom zone provides "Append to Current Scene" (preserves existing models and point clouds, adding the dropped asset alongside existing ones).
+  2. **Bilingual I18N & 2x Scaled Visual Icons**: Fully added English localization keys for both dropzone actions with real-time UI switching; enlarged zone icons by 2x for prominent visual guidance on high-resolution displays.
+
+- **Cycle Selection & Wrap-Around**
+  1. **Sequential Deep Selection Along Raycast Sightline**: Implemented consecutive click penetration for stacked or occluded components (e.g. glass curtain $\to$ steel mullion $\to$ interior wall). Successive clicks within a $4\text{px}$ screen radius progressively cycle through deeper physical components.
+  2. **Physical Mesh Deduplication & Section Plane Filtering**: Deduplicates front and back face hits on the same mesh entity to guarantee distinct physical components at every step; automatically filters out clipped intersections discarded by active section planes or boxes.
+  3. **Wrap-Around Cycling & State Invalidation**: Seamlessly cycles back to the outermost layer after reaching the deepest element ($1 \to 2 \to \dots \to N \to 1$); automatically resets to base depth upon cursor movement $> 4\text{px}$, camera transformation, or canvas backdrop clicks.
+
+- **Floating Frosted Glass HUD Badge & Modifier Key Protection**
+  1. **Floating Frosted Glass Capsule HUD Badge**: Displays a dynamic, cursor-following capsule badge upon cycle pick (`🎯 Cycle Pick 2/3 · Element Name`), styled with frosted glass blur, cyan accent glow, and automatic 1.5s fade-out.
+  2. **Modifier Key Multi-Select Guard**: Penetration cycling applies strictly to standard clicks; holding `Ctrl` (toggle/add) or `Shift` (subtract) preserves native multi-selection workflows while resetting penetration state.
+
+---
+
+## [v2.2611080145] - 2026-11-08 01:45
+
+### Off-Screen Selection Radar Indicator & Distance Tracking
+- **Frustum Culling & Viewport Edge Orbital Clamping**
+  1. **6-Plane Frustum Intersection Culling**: When selecting a model, element, or point cloud from the hierarchy tree, camera frustum matrices test target AABBs in real time. If entirely off-screen, a high-contrast HUD indicator activates at the viewport margin.
+  2. **Orbital Viewport Perimeter Clamping**: Projects camera-space target displacement onto viewport 2D coordinates and safely clamps the indicator center within margins (75px / 65px padding) to prevent edge clipping.
+
+- **Concentric Target Reticle with Orbiting Directional Arrow**
+  1. **Concentric Metallic Target Reticle**: Designed with dual-ring metallic silver gradient strokes and a central domed sphere, providing high-contrast tactical avionics aesthetics.
+  2. **360° Orbiting Directional Pointer**: Chevron arrow orbits smoothly around the reticle center matching target angular bearing, maintaining clean geometric clearance.
+
+- **Adaptive Viewport-Aware Distance HUD Label**
+  1. **Real-Time Euclidean Distance Computation**: Computes exact 3D straight-line distance from camera eye to target bounding box center formatted to 0.1m precision.
+  2. **Inward-Facing Adaptive HUD Placement**: Bold stroke distance readout dynamically docks on the interior side of the reticle relative to viewport center, preventing edge truncation.
+
+---
+
+## [v2.2611072300] - 2026-11-07 23:00
+
+### Massive Point Cloud Engine & Potree Octree Streaming (v2 Architecture Established)
+- **Point Cloud Octree Streaming & Zero-Server Local Drop**
+  1. **Potree 2.x Octree Streaming Core Integration**: Formally transitioned architectural baseline to v2, integrating hierarchical LOD octree streaming to render tens of millions of survey LiDAR points with 60 FPS performance.
+  2. **Zero-Server Local Folder Drop (LocalFileRequestManager)**: Implemented in-browser HTTP Range simulation intercepting blob slice requests, enabling zero-install drag-and-drop loading for Potree 2.x point clouds without a local server; supports URL parameter streaming.
+  3. **Smart LAS/LAZ Preprocessing Guidance**: Intelligently identifies raw `.las`/`.laz` files and presents converter guidance modal pointing to PotreeConverter tools.
+
+- **4 Color Modes & Adaptive Point Size LOD**
+  1. **4 Analytical Engineering Color Modes**: True RGB color, Elevation height ramp (with 2% \~ 98% percentile outlier filtering), LiDAR Reflection Intensity, and ASPRS Standard Classification (ground, vegetation, building).
+  2. **Adaptive Point Size & Budget Control**: Supports Fixed, Attenuated, and Adaptive LOD point size scaling; Point Budget slider allows real-time tuning from 100k up to 5,000,000+ points.
+
+- **Planes Integration & Crimson Cut Edge Highlighting**
+  1. **Full Section Plane & Section Box Sync**: Injected hardware clipping planes into point cloud GPU shaders, enabling synchronized sectioning between point clouds and IFC/CAD models.
+  2. **Crimson Cut Edge Highlighting Band**: Custom shader dynamically illuminates points within 10mm of the active cutting plane in high-visibility crimson, accentuating cross-sectional wall and slab contours.
+
+- **Point Cloud 3D Snapping, Coordinate Recovery & Dedicated Inspector**
+  1. **High-Precision 3D Point Snapping & Measurement**: Integrated `PointCloudOctreePicker` for direct sub-millimeter snapping and measurement across distance, angle, polyline, and coordinate tools.
+  2. **Origin Centering & Georeferenced Coordinates Recovery**: Centers UTM/large-coordinate point clouds to scene origin to eliminate 32-bit float jitter, while providing one-click restoration to survey coordinates.
+  3. **Tree Integration & Dedicated Inspector**: Point clouds appear in the hierarchy tree with visibility toggles and point count badges; right inspector provides dedicated controls for color modes, point budget, size, and opacity.
 
 ---
 

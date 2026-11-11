@@ -2104,30 +2104,42 @@ def build_variant(variant_key, cfg=None, custom_project_dir=None, custom_deliver
     print(f"[{variant_key}] Exported to Deliverables: {deliv_dir}")
 
     # Sync documentation files if available
-    changelog_src = os.path.join(proj_dir, "CHANGELOG.md")
-    if not os.path.exists(changelog_src):
-        changelog_src = os.path.join(BASE_DIR, "CHANGELOG.md")
-
     features_src = os.path.join(proj_dir, "FEATURES.md")
     if not os.path.exists(features_src):
         features_src = os.path.join(BASE_DIR, "FEATURES.md")
 
-    if os.path.exists(changelog_src):
-        shutil.copy2(changelog_src, os.path.join(deliv_dir, "CHANGELOG.md"))
-    if os.path.exists(features_src):
-        shutil.copy2(features_src, os.path.join(deliv_dir, "FEATURES.md"))
+    # Auto-calculate and update project development time in CHANGELOG.md (Project only)
+    target_changelog = os.path.join(proj_dir, "CHANGELOG.md")
+    if not os.path.exists(target_changelog):
+        target_changelog = os.path.join(BASE_DIR, "CHANGELOG.md")
 
-    # Auto-calculate and update project development time in CHANGELOG.md
     try:
         import calc_time
-        target_changelog = os.path.join(proj_dir, "CHANGELOG.md")
         if os.path.exists(target_changelog):
             calc_time.update_changelog(target_changelog)
-            shutil.copy2(target_changelog, os.path.join(deliv_dir, "CHANGELOG.md"))
         else:
             calc_time.update_changelog()
     except Exception as e:
         print(f"Notice: dev time metrics update skipped: {e}")
+
+    # Generate simplified ChangeRelease.md in Deliverables (without telemetry metrics)
+    try:
+        import calc_time
+        calc_time.generate_change_release(target_changelog, os.path.join(deliv_dir, "ChangeRelease.md"))
+        print(f"[{variant_key}] Generated simplified ChangeRelease.md: {os.path.join(deliv_dir, 'ChangeRelease.md')}")
+    except Exception as e:
+        print(f"Notice: ChangeRelease.md generation error: {e}")
+
+    # Ensure Deliverables does not retain old full CHANGELOG.md
+    old_deliv_changelog = os.path.join(deliv_dir, "CHANGELOG.md")
+    if os.path.exists(old_deliv_changelog):
+        try:
+            os.remove(old_deliv_changelog)
+        except Exception:
+            pass
+
+    if os.path.exists(features_src):
+        shutil.copy2(features_src, os.path.join(deliv_dir, "FEATURES.md"))
 
     return {
         "variant": variant_key,
