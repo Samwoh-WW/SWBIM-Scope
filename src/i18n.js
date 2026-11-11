@@ -553,7 +553,7 @@ const I18N = {
       stageScene: "Finalizing WebGL scene...",
       
       dropText: "Drop IFC, GLTF/GLB, FBX, DAE, OBJ or Point Cloud Folder to view",
-      dropNewTitle: "Open as New File",
+      dropNewTitle: "Open in New Scene",
       dropNewDesc: "Clear current scene and load as a new project",
       dropAppendTitle: "Append to Current Scene",
       dropAppendDesc: "Keep existing models & point clouds, display together",
