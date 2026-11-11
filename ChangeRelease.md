@@ -141,6 +141,10 @@ This document records all formal version iterations and major changes of SWBIM S
   3. **Sightline Pitch & Compass Bearing (Yaw)**: Calculates spatial sightline pitch/slope angle against the horizontal ground plane (in degrees and grade percentage) and true-north horizontal azimuth bearing (Yaw), addressing structural and civil inspection workflows.
 
 - **Three-Point 3D Spatial Angle & Projected Horizontal Angle**
+rac{
+ec{BA} \cdot 
+ec{BC}}{|
+ec{BA}||
   1. **Three-Point Angle Calibration**: Introduced the "Angle" measurement mode, capturing points A, vertex B, and point C sequentially across 3D surfaces.
   2. **Spatial Angle & Horizontal Projection Angle**: Solves true 3D spatial angle ($0^\circ \sim 180^\circ$) via vector dot products, alongside horizontal projection angles for architectural layout verification.
   3. **Spatial Arc Sector & Angle Badge**: Dynamically constructs an anti-aliased coplanar circular arc sector and bisector dimension badge anchored at vertex B.
@@ -255,7 +259,6 @@ This document records all formal version iterations and major changes of SWBIM S
 ### Right Panel UI Streamlining & 'Zoom to' Label Alignment
 - **Inspector UI Streamlining & Action Label Consistency**
   1. **Removed Redundant 'Dist' Slider from Right Panel**: Eliminated the duplicate Dist slider from the right Inspector preference card (`.inspector-pref-card`). Camera visible distance is now exclusively managed via the dedicated Left Sidebar Camera & Far Distance tab (`#tab-camera-content`), decluttering the right panel.
-  2. **Renamed Inspector Selection Button to 'Zoom to'**: Renamed the right-hand element action button from "Zoom drawing" to "Zoom to" (with Chinese localization), achieving consistency with the 3D viewport context menu.
 
 ---
 
@@ -305,11 +308,11 @@ This document records all formal version iterations and major changes of SWBIM S
   1. **Bottom-Center Floating Capsule Player**: Positioned at the bottom center of the 3D viewport with frosted glass backdrop, cyan accent glow, and compact layout, natively supporting transform and skeletal animations across **DAE, FBX, and GLTF models**.
   2. **Intelligent Visibility**: Automatically emerges when an animated model is loaded, and stays completely hidden for static models to preserve an uncluttered viewport canvas.
   3. **Comprehensive Interactive Controls**:
-  - **Play/Pause Toggle**: Interactive button with animated SVG icon switching and smooth pause resumption;
-  - **Time Scrubber Slider**: Millisecond-accurate timestamp display (`00:02.5 / 00:05.0`) with real-time pose scrubbing during slider dragging;
-  - **Loop Mode Toggle**: Toggles between infinite repeat (`LoopRepeat`) and single-pass clamp (`LoopOnce`);
-  - **Multi-Speed Cycling**: Cycles playback speed across `0.5x`, `1.0x`, `1.5x`, and `2.0x`;
-  - **Multi-Clip Dropdown**: Automatically surfaces a clip selector dropdown when multiple animation tracks exist in the file.
+- **Pause Toggle**: Interactive button with animated SVG icon switching and smooth pause resumption;
+       - **Time Scrubber Slider**: Millisecond-accurate timestamp display (`00:02.5 / 00:05.0`) with real-time pose scrubbing during slider dragging;
+       - **Loop Mode Toggle**: Toggles between infinite repeat (`LoopRepeat`) and single-pass clamp (`LoopOnce`);
+       - **Multi-Speed Cycling**: Cycles playback speed across `0.5x`, `1.0x`, `1.5x`, and `2.0x`;
+       - **Multi-Clip Dropdown**: Automatically surfaces a clip selector dropdown when multiple animation tracks exist in the file.
 
 ---
 
@@ -353,7 +356,6 @@ This document records all formal version iterations and major changes of SWBIM S
 
 ### UI Refinement & Vector Icons
 - **Oblique Perspective Cube Icon & Matching Rounded Frame**
-  - Upgraded the Perspective toggle (Persp) SVG icon to an oblique 2-point perspective wireframe cube, featuring a prominent foreground vertical leading edge and dynamic convergence towards lateral vanishing points. This creates an immediate, intuitive visual contrast with Ortho's parallel isometric cube. Enclosed the Persp/Ortho toggle within an identical rounded rectangular group frame (`.btn-group`, 28px height, 5px border-radius, 2px inset), ensuring full visual parity with the adjacent quick view preset bar.
 
 ---
 
@@ -397,7 +399,6 @@ This document records all formal version iterations and major changes of SWBIM S
 - **Dynamically Aligned Continuous Opacity Slider**
   - Introduced a continuous opacity adjustment slider (10% to 100%) in the right inspector panel directly above the action button row ("Copy Summary / Fit View / Export JSON" for model profile, and navigation buttons for selected components). The rightmost edge of the slider is dynamically and pixel-perfectly aligned with the right boundary of the button group across all sidebar widths, offering fluid real-time transparency inspection into building interiors.
 - **Project Workspace Directory Structure Consolidation**
-  - Consolidated the active repository into the dedicated project root `H:\\Software Develop\SWBIM Scope\`, maintaining the active Git repo `Project` and offline release folder `Deliverables`, eliminating root-level folder redundancy and obsolete mirror scripts.
 
 ---
 
