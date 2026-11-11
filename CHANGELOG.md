@@ -10,9 +10,9 @@ This document records all formal version iterations and major changes of SWBIM S
 
 ## Development Time Metrics
 
-> ⏱️ **Total Active Development Time**: **91 Hours 32 Minutes (91.54 Hours)**  
-> 📅 **Total Calendar Span**: **43 Days 1 Hours 27 Minutes** (2026-09-29 22:17 to 2026-11-11 23:45)  
-> 🔢 **Total Engineering Steps**: **36,692 Steps** (across 41 active development sprints)  
+> ⏱️ **Total Active Development Time**: **92 Hours 34 Minutes (92.57 Hours)**  
+> 📅 **Total Calendar Span**: **43 Days 2 Hours 29 Minutes** (2026-09-29 22:17 to 2026-11-12 00:47)  
+> 🔢 **Total Engineering Steps**: **36,937 Steps** (across 41 active development sprints)  
 > 🔄 **Update Policy**: Recalculated automatically from active development telemetry logs upon every distribution build.
 
 ### Daily Breakdown
@@ -41,7 +41,7 @@ This document records all formal version iterations and major changes of SWBIM S
 | **2026-11-06** | 19:47\~20:39, 22:52\~03:19 | 5h 18m (5.32h) | Changelog comprehensive update & metrics engine overhaul |
 | **2026-11-07** | 10:25\~19:17, 20:23\~01:47 | 14h 16m (14.27h) | In-place look-around, wheel zoom interior pass-through, massive point cloud engine & PotreeCore integration (v2 architecture established) |
 | **2026-11-09** | 22:24\~22:26 | 0h 01m (0.03h) | Point cloud shader tuning & build pipeline optimization |
-| **2026-11-11** | 21:25\~23:45 | 2h 20m (2.33h) | Dual-zone split drag loading, i18n, cycle pick & point cloud 10M stepped budget |
+| **2026-11-11** | 21:25\~00:47 | 3h 22m (3.37h) | Dual-zone split drag loading, i18n, cycle pick & point cloud 10M stepped budget |
 
 ---
 
