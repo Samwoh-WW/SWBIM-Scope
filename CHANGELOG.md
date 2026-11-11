@@ -10,9 +10,9 @@ This document records all formal version iterations and major changes of SWBIM S
 
 ## Development Time Metrics
 
-> ⏱️ **Total Active Development Time**: **90 Hours 41 Minutes (90.69 Hours)**  
-> 📅 **Total Calendar Span**: **43 Days 0 Hours 36 Minutes** (2026-09-29 22:17 to 2026-11-11 22:54)  
-> 🔢 **Total Engineering Steps**: **36,540 Steps** (across 41 active development sprints)  
+> ⏱️ **Total Active Development Time**: **91 Hours 23 Minutes (91.39 Hours)**  
+> 📅 **Total Calendar Span**: **43 Days 1 Hours 18 Minutes** (2026-09-29 22:17 to 2026-11-11 23:36)  
+> 🔢 **Total Engineering Steps**: **36,662 Steps** (across 41 active development sprints)  
 > 🔄 **Update Policy**: Recalculated automatically from active development telemetry logs upon every distribution build.
 
 ### Daily Breakdown
@@ -41,13 +41,13 @@ This document records all formal version iterations and major changes of SWBIM S
 | **2026-11-06** | 19:47\~20:39, 22:52\~03:19 | 5h 18m (5.32h) | Changelog comprehensive update & metrics engine overhaul |
 | **2026-11-07** | 10:25\~19:17, 20:23\~01:47 | 14h 16m (14.27h) | In-place look-around, wheel zoom interior pass-through, massive point cloud engine & PotreeCore integration (v2 architecture established) |
 | **2026-11-09** | 22:24\~22:26 | 0h 01m (0.03h) | Point cloud shader tuning & build pipeline optimization |
-| **2026-11-11** | 21:25\~22:54 | 1h 29m (1.48h) | Dual-zone split drag loading, i18n & multi-click penetrate selection |
+| **2026-11-11** | 21:25\~23:36 | 2h 11m (2.18h) | Dual-zone split drag loading, i18n, cycle pick & point cloud 10M stepped budget |
 
 ---
 
 ## [v2.2611112245] - 2026-11-11 22:45
 
-### Dual-Zone Split Drag Loading, I18N & Multi-Click Penetrate Selection
+### Dual-Zone Split Drag Loading, Cycle Pick & Point Cloud 10M Stepped Budget Slider
 - **Dual-Zone Split Drag Loading & Bilingual I18N**
   1. **Dual-Zone Split Drag Loading (Open in New Scene vs. Append to Scene)**: Overhauled file drop UX into clear top and bottom zones: top zone provides "Open in New Scene" (clears current scene and loads fresh project), while bottom zone provides "Append to Current Scene" (preserves existing models and point clouds, adding the dropped asset alongside existing ones).
   2. **Bilingual I18N & 2x Scaled Visual Icons**: Fully added English localization keys for both dropzone actions with real-time UI switching; enlarged zone icons by 2x for prominent visual guidance on high-resolution displays.
@@ -60,6 +60,11 @@ This document records all formal version iterations and major changes of SWBIM S
 - **Floating Frosted Glass HUD Badge & Modifier Key Protection**
   1. **Floating Frosted Glass Capsule HUD Badge**: Displays a dynamic, cursor-following capsule badge upon cycle pick (`🎯 Cycle Pick 2/3 · Element Name`), styled with frosted glass blur, cyan accent glow, and automatic 1.5s fade-out.
   2. **Modifier Key Multi-Select Guard**: Penetration cycling applies strictly to standard clicks; holding `Ctrl` (toggle/add) or `Shift` (subtract) preserves native multi-selection workflows while resetting penetration state.
+
+- **Point Cloud 10M Budget Expansion & 4-Tier Stepped Slider**
+  1. **Point Budget Upper Limit Expanded to 10M (10,000,000 pts)**: Expanded maximum point cloud rendering budget from 5M to 10M points, supporting high-density airborne and terrestrial LiDAR scans on modern hardware.
+  2. **4 Discrete Performance Tiers (1M / 2M / 5M / 10M)**: Replaced fine continuous slider with 4 purpose-built engineering tiers (1M Performance, 2M Balanced default, 5M High-Fidelity, 10M Extreme Quality).
+  3. **Magnetic Stepped Slider & Clickable Direct Ticks**: Supports smooth magnetic snapping when dragging the slider, as well as direct-click navigation on the `1M`, `2M`, `5M`, and `10M` tick labels beneath the track with active state highlighting and real-time Potree LRU cache recalculation.
 
 ---
 

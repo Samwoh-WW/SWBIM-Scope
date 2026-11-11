@@ -39,7 +39,7 @@ MILESTONES_A = {
     "2026-11-07": "原地环视/极限穿透/穿墙漫游，海量点云渲染与工程分析引擎 (v2 架构确立) / In-place look-around, wheel zoom interior pass-through, massive point cloud engine & PotreeCore integration (v2 architecture established)",
     "2026-11-08": "视口边缘离屏指示雷达指针与测距提示 / Off-screen selection radar indicator & distance tracking",
     "2026-11-09": "点云着色模型微调与构建管线优化 / Point cloud shader tuning & build pipeline optimization",
-    "2026-11-11": "双区拖拽追加加载、国际化与多次点击穿透选择 / Dual-zone split drag loading, i18n & multi-click penetrate selection"
+    "2026-11-11": "双区拖拽追加加载、国际化、多次点击穿透选择与点云 10M 4 档预算滑条 / Dual-zone split drag loading, i18n, cycle pick & point cloud 10M stepped budget"
 }
 
 MILESTONES_B = {

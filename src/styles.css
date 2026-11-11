@@ -7261,6 +7261,43 @@ mark.help-match-highlight {
   font-weight: 700;
 }
 
+/* Point Cloud Budget Stepped Slider & Ticks */
+.pc-budget-slider-wrap {
+  width: 100%;
+}
+
+.pc-budget-ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 3px;
+  padding: 0 4px;
+}
+
+.pc-budget-tick {
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  color: var(--text-secondary, #94a3b8);
+  opacity: 0.65;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+  padding: 1px 3px;
+  border-radius: 3px;
+}
+
+.pc-budget-tick:hover {
+  opacity: 1;
+  color: var(--text-primary, #f1f5f9);
+  background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+}
+
+.pc-budget-tick.active {
+  color: var(--accent, #38bdf8);
+  font-weight: 800;
+  opacity: 1;
+  text-shadow: 0 0 6px var(--brand-accent-glow, rgba(56, 189, 248, 0.35));
+}
+
 
 /* Point Cloud Hierarchy Tree Item */
 .tree-pointcloud-section {
