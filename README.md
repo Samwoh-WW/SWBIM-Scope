@@ -115,7 +115,7 @@ python sync_variant_b.py
 ├── variant_config.json      # Multi-variant config
 ├── SWBIMScope.html            # Standalone single-file distribution
 ├── index.html               # Mirror entrypoint & Pages root
-├── CHANGELOG.md             # Release changelog & time metrics
+├── ChangeRelease.md         # Release changelog & version history
 ├── FEATURES.md              # Features matrix & backlog pool
 ├── .gitignore               # Git ignore rules
 └── README.md                # Project documentation

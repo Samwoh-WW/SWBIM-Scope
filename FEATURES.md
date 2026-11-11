@@ -106,4 +106,4 @@ This document systematically organizes all features and UI elements of SWBIM Sco
 When you suggest new feature ideas, UX refinements, or enhancements:
 1. **Instant Addition**: Added to this matrix with `📋 Backlog` or `💡 Idea` status;
 2. **Lifecycle Tracking**: Marked as `🟡 In Progress` during active development, and `✅ Released` upon full verification with version number (`v1.<YYMMDDHHMM>`);
-3. **Release Notes Sync**: Formally documented in [`CHANGELOG.md`](./CHANGELOG.md).
+3. **Release Notes Sync**: Formally documented in [`ChangeRelease.md`](./ChangeRelease.md).
