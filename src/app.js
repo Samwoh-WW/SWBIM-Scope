@@ -6753,6 +6753,8 @@ class BIMViewerApp {
   }
   
   clearSelection(keepPointCloud = false) {
+    this._penetrateState = null;
+    this.hidePenetratePickBadge();
     this.selectedModel = null;
     this.selectedMesh = null;
     this.selectedMeshes = [];
@@ -12826,7 +12828,35 @@ class BIMViewerApp {
 
     const searchRoots = (this.loadedModels && this.loadedModels.length > 0) ? this.loadedModels : (this.activeModel ? [this.activeModel] : this.scene.children);
     const intersects = this.raycaster.intersectObjects(searchRoots, true);
-    const valid = intersects.filter(hit => this.isPickableElement(hit.object));
+    
+    // Filter and deduplicate unique meshes, excluding clipped intersections
+    const candidateHits = [];
+    const seenMeshes = new Set();
+    const clippingPlanes = (this.clippingEngine && this.clippingEngine.enabled && this.clippingEngine.clippingPlanes) 
+      ? this.clippingEngine.clippingPlanes 
+      : [];
+
+    for (let i = 0; i < intersects.length; i++) {
+      const hit = intersects[i];
+      const mesh = hit.object;
+      if (!this.isPickableElement(mesh)) continue;
+      if (seenMeshes.has(mesh)) continue;
+
+      if (clippingPlanes.length > 0) {
+        let isClipped = false;
+        for (let p = 0; p < clippingPlanes.length; p++) {
+          if (clippingPlanes[p].distanceToPoint(hit.point) < 0) {
+            isClipped = true;
+            break;
+          }
+        }
+        if (isClipped) continue;
+      }
+
+      seenMeshes.add(mesh);
+      candidateHits.push(hit);
+    }
+    const valid = candidateHits;
     
     if (this.isMeasureMode) {
       let hit = valid.length > 0 ? valid[0] : null;
@@ -12912,11 +12942,13 @@ class BIMViewerApp {
     const isCtrl = e.ctrlKey || e.metaKey;
     const isShift = e.shiftKey;
 
-    if (valid.length > 0) {
-      const hitMesh = valid[0].object;
-      const hitPoint = valid[0].point;
+    if (candidateHits.length > 0) {
+      const hitMesh = candidateHits[0].object;
+      const hitPoint = candidateHits[0].point;
 
       if (isCtrl) {
+        this._penetrateState = null;
+        this.hidePenetratePickBadge();
         // Toggle selection
         const current = (this.selectedMeshes && this.selectedMeshes.length > 0) ? 
           [...this.selectedMeshes] : 
@@ -12935,6 +12967,8 @@ class BIMViewerApp {
           this.selectElements(current);
         }
       } else if (isShift) {
+        this._penetrateState = null;
+        this.hidePenetratePickBadge();
         // Remove from selection
         const current = (this.selectedMeshes && this.selectedMeshes.length > 0) ? 
           [...this.selectedMeshes] : 
@@ -12951,17 +12985,112 @@ class BIMViewerApp {
           }
         }
       } else {
-        this.selectElement(hitMesh, hitPoint);
+        // Normal single click: check if multi-click penetration cycling applies
+        const camHash = this.camera ? `${this.camera.position.x.toFixed(2)},${this.camera.position.y.toFixed(2)},${this.camera.position.z.toFixed(2)}_${this.camera.quaternion.x.toFixed(2)},${this.camera.quaternion.y.toFixed(2)},${this.camera.quaternion.z.toFixed(2)}` : '';
+        
+        let cycleIndex = 0;
+        if (candidateHits.length >= 2 &&
+            this._penetrateState &&
+            this._penetrateState.camHash === camHash &&
+            Math.hypot(e.clientX - this._penetrateState.clientX, e.clientY - this._penetrateState.clientY) <= 4 &&
+            this._penetrateState.candidateMeshes &&
+            this._penetrateState.candidateMeshes.length === candidateHits.length) {
+          const sameStack = this._penetrateState.candidateMeshes.every((m, idx) => m === candidateHits[idx].object);
+          if (sameStack) {
+            cycleIndex = (this._penetrateState.index + 1) % candidateHits.length;
+          }
+        }
+
+        const chosenHit = candidateHits[cycleIndex];
+        this.selectElement(chosenHit.object, chosenHit.point);
+
+        if (candidateHits.length >= 2) {
+          this._penetrateState = {
+            clientX: e.clientX,
+            clientY: e.clientY,
+            camHash: camHash,
+            candidateMeshes: candidateHits.map(h => h.object),
+            index: cycleIndex
+          };
+          this.showPenetratePickBadge(e.clientX, e.clientY, cycleIndex + 1, candidateHits.length, chosenHit.object);
+        } else {
+          this._penetrateState = null;
+          this.hidePenetratePickBadge();
+        }
       }
     } else {
+      this._penetrateState = null;
+      this.hidePenetratePickBadge();
       if (!isCtrl && !isShift) {
         this.clearSelection();
       }
     }
   }
 
+  showPenetratePickBadge(clientX, clientY, current, total, mesh) {
+    if (!this.container) return;
+    let badge = document.getElementById('penetrate-pick-badge');
+    if (!badge) {
+      badge = document.createElement('div');
+      badge.id = 'penetrate-pick-badge';
+      badge.className = 'penetrate-pick-badge';
+      this.container.appendChild(badge);
+    }
+
+    const meta = (mesh && mesh.userData) || {};
+    const name = meta.element || meta.name || (mesh && mesh.name) || (typeof I18N !== 'undefined' ? I18N.t('unnamedElement') : 'Element');
+    const badgeTitle = typeof I18N !== 'undefined' ? I18N.t('cyclePickBadge') : '穿透选择';
+
+    badge.innerHTML = `
+      <span class="badge-icon">🎯</span>
+      <span class="badge-title">${this.escapeHtml(badgeTitle)}</span>
+      <span class="badge-counter">${current}/${total}</span>
+      <span class="badge-sep">·</span>
+      <span class="badge-name" title="${this.escapeHtml(name)}">${this.escapeHtml(name)}</span>
+    `;
+
+    const rect = this.container.getBoundingClientRect();
+    const localX = clientX - rect.left;
+    const localY = clientY - rect.top;
+
+    const badgeW = 230;
+    const badgeH = 34;
+    let posX = localX + 16;
+    let posY = localY + 16;
+
+    if (posX + badgeW > rect.width - 8) {
+      posX = Math.max(8, localX - badgeW - 12);
+    }
+    if (posY + badgeH > rect.height - 8) {
+      posY = Math.max(8, localY - badgeH - 12);
+    }
+
+    badge.style.left = `${Math.round(posX)}px`;
+    badge.style.top = `${Math.round(posY)}px`;
+    badge.classList.add('visible');
+
+    if (this._penetrateBadgeTimer) {
+      clearTimeout(this._penetrateBadgeTimer);
+    }
+    this._penetrateBadgeTimer = setTimeout(() => {
+      this.hidePenetratePickBadge();
+    }, 1500);
+  }
+
+  hidePenetratePickBadge() {
+    if (this._penetrateBadgeTimer) {
+      clearTimeout(this._penetrateBadgeTimer);
+      this._penetrateBadgeTimer = null;
+    }
+    const badge = document.getElementById('penetrate-pick-badge');
+    if (badge && badge.classList.contains('visible')) {
+      badge.classList.remove('visible');
+    }
+  }
+
   handleWheelZoom(e) {
     if (e.cancelable) e.preventDefault();
+    this.hidePenetratePickBadge();
 
     if (this.viewWheelDebounceTimer) {
       clearTimeout(this.viewWheelDebounceTimer);
