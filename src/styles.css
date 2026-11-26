@@ -3,6 +3,17 @@
  * @author WWBIM
  * Copyright (c) WWBIM. All rights reserved.
  */
+:root {
+  color-scheme: light dark;
+
+  &:has(> head > meta[name="color-scheme"][content="dark"]) {
+    color-scheme: dark;
+  }
+  &:has(> head > meta[name="color-scheme"][content="light"]) {
+    color-scheme: light;
+  }
+}
+
 :root,
 [data-theme="dark"] {
   /* Dark Theme Palette (Default) */

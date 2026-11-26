@@ -208,10 +208,27 @@ def generate_html(variant_cfg, sources):
     app_js = sources["app_js"]
 
     return f"""<!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <script>
+    try {{
+      var _savedTheme = localStorage.getItem('bimscope_theme');
+      var _csMeta = document.querySelector('meta[name="color-scheme"]');
+      if (_savedTheme === 'light' || _savedTheme === 'dark') {{
+        if (_csMeta) _csMeta.content = _savedTheme;
+        document.documentElement.setAttribute('data-theme', _savedTheme);
+      }} else {{
+        var _sysLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+        if (_csMeta) _csMeta.content = 'light dark';
+        document.documentElement.setAttribute('data-theme', _sysLight ? 'light' : 'dark');
+      }}
+    }} catch (e) {{
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }}
+  </script>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">

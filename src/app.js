@@ -465,7 +465,7 @@ class VirtualBimTree {
 
   initDOM() {
     if (!this.container) return;
-    this.container.innerHTML = '';
+    this.container.replaceChildren();
     this.container.classList.add('virtual-tree-container');
 
     this.phantomEl = document.createElement('div');
@@ -2555,7 +2555,7 @@ class BIMViewerApp {
     this._lastActiveModel = null;
     
     // UI Theme System ('dark' | 'light')
-    this.currentTheme = 'dark';
+    this.currentTheme = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
 
     // Keyboard Shortcuts System (Scheme A Standard / Scheme B Autodesk Revit)
     this.shortcutsMode = localStorage.getItem('bimscope_shortcuts_mode') || 'standard';
@@ -4207,7 +4207,7 @@ class BIMViewerApp {
       if (inspector) inspector.innerHTML = `<div class="inspector-empty">${typeof I18N !== 'undefined' ? I18N.t('noModelLoaded') : 'No model loaded'}</div>`;
 
       const legend = document.getElementById('category-chips');
-      if (legend) legend.innerHTML = '';
+      if (legend) legend.replaceChildren();
 
       if (this.virtualStructTree) this.virtualStructTree.setGroups([]);
       if (this.virtualLevelsTree) this.virtualLevelsTree.setGroups([]);
@@ -5943,7 +5943,7 @@ class BIMViewerApp {
           nav.scrollBy({ left: 120, behavior: 'smooth' });
         }
       } else {
-        const target = buttons.slice().reverse().find(b => {
+        const target = buttons.findLast(b => {
           const bRect = b.getBoundingClientRect();
           return bRect.left < (navRect.left + CLEARANCE - 2);
         });
@@ -6051,7 +6051,7 @@ class BIMViewerApp {
           nav.scrollBy({ left: 120, behavior: 'smooth' });
         }
       } else {
-        const target = buttons.slice().reverse().find(b => {
+        const target = buttons.findLast(b => {
           const bRect = b.getBoundingClientRect();
           return bRect.left < (navRect.left + CLEARANCE - 2);
         });
@@ -8579,7 +8579,7 @@ class BIMViewerApp {
     const allTextures = (fbxInfo && fbxInfo.textures) ? fbxInfo.textures : [];
 
     const renderChecklist = () => {
-      checklist.innerHTML = '';
+      checklist.replaceChildren();
       let readyCount = 0;
       const totalCount = allTextures.length;
 
@@ -11500,7 +11500,7 @@ class BIMViewerApp {
       this.shortcutsCandidatePanelEl = document.getElementById('shortcuts-candidate-panel');
     }
     if (!this.shortcutsCandidatePanelEl) return;
-    this.shortcutsCandidatePanelEl.innerHTML = '';
+    this.shortcutsCandidatePanelEl.replaceChildren();
 
     candidates.forEach(cand => {
       const row = document.createElement('div');
@@ -16874,7 +16874,7 @@ class BIMViewerApp {
     if (countEl) countEl.textContent = '0 segs';
 
     const segListEl = document.getElementById('measure-multi-segments-list');
-    if (segListEl) segListEl.innerHTML = '';
+    if (segListEl) segListEl.replaceChildren();
 
     const unit = this.measureUnit || 'm';
     const areaUnit = unit === 'mm' ? 'mm²' : 'm²';
@@ -17466,7 +17466,7 @@ class BIMViewerApp {
     if (!this.multiPointState || this.multiPointState.points.length === 0) {
       totalEl.textContent = '--';
       if (countEl) countEl.textContent = '0 segs';
-      listEl.innerHTML = '';
+      listEl.replaceChildren();
       return;
     }
 
@@ -17551,7 +17551,7 @@ class BIMViewerApp {
       this.updateMultiPointAreaCalloutDOM(areaData);
     }
 
-    listEl.innerHTML = '';
+    listEl.replaceChildren();
     this.multiPointState.segments.forEach((seg, idx) => {
       const segFormatted = (seg.length * scale).toFixed(decimals) + ' ' + unit;
       const row = document.createElement('div');
@@ -18616,9 +18616,9 @@ class BIMViewerApp {
 
     // 6. Clean up 2D Callouts & Leader SVGs from DOM
     const calloutsList = document.getElementById('measure-callouts-list');
-    if (calloutsList) calloutsList.innerHTML = '';
+    if (calloutsList) calloutsList.replaceChildren();
     const svgEl = document.getElementById('measure-leader-svg');
-    if (svgEl) svgEl.innerHTML = '';
+    if (svgEl) svgEl.replaceChildren();
     const calloutsLayer = document.getElementById('measure-callouts-layer');
     if (calloutsLayer) {
       const placedCallouts = calloutsLayer.querySelectorAll('.measure-distance-callout:not(.preview), .measure-angle-callout:not(.preview), .measure-radius-callout:not(.preview), .measure-multipoint-badge');
@@ -18664,20 +18664,29 @@ class BIMViewerApp {
     this.requestRender(200);
   }
 
-  initThemeSystem() {
-    let savedTheme = 'dark';
+  getSystemTheme() {
+    return (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+  }
+
+  getStoredTheme() {
     try {
-      savedTheme = localStorage.getItem('bimscope_theme') || 'dark';
+      const saved = localStorage.getItem('bimscope_theme');
+      return (saved === 'light' || saved === 'dark') ? saved : null;
     } catch (e) {
-      savedTheme = 'dark';
+      return null;
     }
-    this.setTheme(savedTheme, false);
+  }
+
+  initThemeSystem() {
+    const savedTheme = this.getStoredTheme();
+    this.setTheme(savedTheme || 'system', false);
 
     const btnThemeToggle = document.getElementById('btn-theme-toggle');
     if (btnThemeToggle) {
       btnThemeToggle.addEventListener('click', () => {
-        const nextTheme = this.currentTheme === 'dark' ? 'light' : 'dark';
-        this.setTheme(nextTheme, true);
+        const targetTheme = this.currentTheme === 'dark' ? 'light' : 'dark';
+        const sysTheme = this.getSystemTheme();
+        this.setTheme(targetTheme === sysTheme ? 'system' : targetTheme, true);
       });
     }
 
@@ -18689,11 +18698,44 @@ class BIMViewerApp {
     if (lightBtn) {
       lightBtn.addEventListener('click', () => this.setTheme('light', true));
     }
+
+    if (window.matchMedia) {
+      const colorSchemeMq = window.matchMedia('(prefers-color-scheme: dark)');
+      const onSystemThemeChange = () => {
+        if (!this.getStoredTheme()) {
+          this.setTheme('system', false);
+        }
+      };
+      if (colorSchemeMq.addEventListener) {
+        colorSchemeMq.addEventListener('change', onSystemThemeChange);
+      } else if (colorSchemeMq.addListener) {
+        colorSchemeMq.addListener(onSystemThemeChange);
+      }
+    }
+
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'bimscope_theme' || e.key === null) {
+        this.setTheme(this.getStoredTheme() || 'system', false);
+      }
+    });
   }
 
   setTheme(themeName, save = true) {
-    this.currentTheme = themeName === 'light' ? 'light' : 'dark';
+    const isSystem = themeName === 'system' || themeName === 'light dark' || !themeName;
+    const resolvedTheme = isSystem ? this.getSystemTheme() : (themeName === 'light' ? 'light' : 'dark');
+    const metaColorScheme = isSystem ? 'light dark' : resolvedTheme;
+
+    this.currentTheme = resolvedTheme;
     document.documentElement.setAttribute('data-theme', this.currentTheme);
+
+    const colorSchemeMeta = document.querySelector('meta[name="color-scheme"]');
+    if (colorSchemeMeta) {
+      colorSchemeMeta.content = metaColorScheme;
+    }
+    const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeColorMeta) {
+      themeColorMeta.content = this.currentTheme === 'light' ? '#f1f5f9' : '#0a0d14';
+    }
 
     // Update Navbar Theme Button Icons
     const sunIcon = document.getElementById('theme-icon-sun');
@@ -18726,7 +18768,11 @@ class BIMViewerApp {
 
     if (save) {
       try {
-        localStorage.setItem('bimscope_theme', this.currentTheme);
+        if (isSystem) {
+          localStorage.removeItem('bimscope_theme');
+        } else {
+          localStorage.setItem('bimscope_theme', this.currentTheme);
+        }
       } catch (e) {}
     }
   }
@@ -20184,7 +20230,7 @@ class BIMViewerApp {
 
     const clipSelect = document.getElementById('anim-clip-select');
     if (clipSelect) {
-      clipSelect.innerHTML = '';
+      clipSelect.replaceChildren();
       animations.forEach((clip, idx) => {
         const opt = document.createElement('option');
         opt.value = idx;

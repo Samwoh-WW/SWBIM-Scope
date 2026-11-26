@@ -902,7 +902,7 @@ class ModelCompareEngine {
     const container = document.getElementById('compare-diff-tree');
     if (!container || !this.diffData) return;
 
-    container.innerHTML = '';
+    container.replaceChildren();
 
     // Filter elements
     let elements = [];
